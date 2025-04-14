@@ -62,16 +62,16 @@ EB_6_2,,NA,,Extraction blank, ,,,,,,,,,,,,20230614,NA,0.080,20230615,,20230620,2
 EB_7_1,,NA,,Extraction blank,,,,,,,,,,,,,20230626,NA,0.126,20230627,,20230628,20,5,5,1,1,48600,20230724,18,11,1.6e+07,Pool D,1,Pool Z,2,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
 EB_8_2,,NA,,Extraction blank,,,,,,,,,,,,,20230627,NA,0.187,20230628,,20230629,20,11,11,1,1,56700,20230906,12,11,1.55e+09,Pool C,1,Pool U,2,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
 EB_9_2,,NA,,Extraction blank,,,,,,,,,,,,,20230629,NA,too low,20230703,QuBit repeated,20230704,20,13,13,1,1,2500,20230906,12,11,63400000,Pool D,1,Pool Y,2,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
-F1,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F10,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F2,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F3,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F4,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F5,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F6,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F7,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F8,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-F9,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F1,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,3,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F10,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,4,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F2,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,4,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F3,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,3,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F4,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,6,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F5,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,4,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F6,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,8,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F7,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,6,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F8,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,6,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+F9,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,15,2021,Norway,Forollhogna,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
 G0001,RMCA,NA,27759-M-,Gorilla beringei,Gorilla beringei graueri,Male,Unknown,1959,Democratic Republic of the Congo,,Kato,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,1.65e+11,NA,NA,NA,NA,NA,NA,NA,NA,Illumina NovaSeq 6000,ENA,PRJEB49638,ERS9656246,Moraitou2022,10.1093/molbev/msac263,ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/004/ERR7919504/ERR7919504_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/004/ERR7919504/ERR7919504_2.fastq.gz,d191b50e80e3c5a30b004868e5b43eb2;8737ef7fa4372148446d4713d5569f4b
 G0005,RMCA,NA,31546-M-,Gorilla gorilla,Gorilla gorilla gorilla,,Unknown,1963,Gabon,,N'Dongo,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,66724615802,NA,NA,NA,NA,NA,NA,NA,NA,Illumina NovaSeq 6000,ENA,PRJEB49638,ERS9656248,Moraitou2022,10.1093/molbev/msac263,ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/002/ERR7919462/ERR7919462_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/002/ERR7919462/ERR7919462_2.fastq.gz,8059aff9c3c1eaea6e3650aa8f54a210;a0cb40ef06ffde4a29f46bf8be616e08
 G0008,RMCA,NA,9406-M-,Gorilla gorilla,Gorilla gorilla gorilla,Unknown,Unknown,1928,Gabon,,Ogowe,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,24087151191,NA,NA,NA,NA,NA,NA,NA,NA,Illumina NovaSeq 6000,ENA,PRJEB49638,ERS9656250,Moraitou2022,10.1093/molbev/msac263,ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/004/ERR7919474/ERR7919474_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR791/004/ERR7919474/ERR7919474_2.fastq.gz,e4de73307790fe860fd910ccabf38dcc;5f94d85e2b4895abff03849cf62003ba
@@ -386,17 +386,17 @@ OME003.A,Ometepe Biological Field Station,NA,,Alouatta palliata,,,,2000-2013,Nic
 OME005.A,Ometepe Biological Field Station,NA,,Alouatta palliata,,,,2000-2013,Nicaragua,,Ometepe Island,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,75460000,NA,NA,NA,NA,NA,NA,NA,NA,NextSeq 500,ENA,PRJEB34569,ERS3774380,FellowsYates2021,10.1073/pnas.2021655118,ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/006/ERR3579796/ERR3579796_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/006/ERR3579796/ERR3579796_2.fastq.gz,aa6d3f9b986a4efe7b8769dbdbcdd454;ea3e1df7b205d3bdbc80cd4edb02fa91
 OME007.A,Ometepe Biological Field Station,NA,,Alouatta palliata,,,,2000-2013,Nicaragua,,Ometepe Island,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,7.6e+07,NA,NA,NA,NA,NA,NA,NA,NA,NextSeq 500,ENA,PRJEB34569,ERS3774381,FellowsYates2021,10.1073/pnas.2021655118,ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/008/ERR3579798/ERR3579798_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/008/ERR3579798/ERR3579798_2.fastq.gz,9564e787aa39f0ac9c0d9abb203a5656;bd20d8b4cbb5ac8bda3492adeba08b35
 OME009.A,Ometepe Biological Field Station,NA,,Alouatta palliata,,,,2000-2013,Nicaragua,,Ometepe Island,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,41700000,NA,NA,NA,NA,NA,NA,NA,NA,NextSeq 500,ENA,PRJEB34569,ERS3774382,FellowsYates2021,10.1073/pnas.2021655118,ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/009/ERR3579799/ERR3579799_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/ERR357/009/ERR3579799/ERR3579799_2.fastq.gz,0144a608c633ed453ebec71344b5bcc3;d1b71c944b4f13ef4b696861c1b7e401
-R1,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R10,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R11,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R2,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R3,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R4,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R5,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R6,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R7,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R8,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
-R9,NINA,NA,,Rangifer tarandus,,,,,,,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R1,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,,3,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R10,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,15,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R11,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,4,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R2,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,5,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R3,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,3,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R4,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,5,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R5,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,9,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R6,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,11,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R7,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,2,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R8,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,7,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
+R9,NTNU Vitenskapsmuseet,NA,,Rangifer tarandus,,10,,2021,Norway,Rondane,,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,,,,,,,,
 RB_005,RBINS,20230316,9701,Hippopotamus amphibius,Sect Watalinga P.N.A. Kivu CB entre 20.VIII.1948 ,female,,1948,Congo (DR),,,,N,,upper molar (single),,20230608,0.026,13.900,20230609,,20230613,20,15,15,3,3,148000,20230622,18,11,26300000,Pool D,5,Pool Z,5,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
 RB_C01,RBINS,20230315,Environmental control,Environmental control,Swab from Marsupial Room shelves ,,,,,,,,N,,,,20230803,NA,too low,20230804,,20230816,20,8,9,5,5,359000,20230907,12,11,3.89e+08,Pool C,1,Pool V,2,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
 RM_028,RMCA,20230322,1983.006-M-0489,Cephalophus silvicultor,Collector: Colyn ,?,M1,1982,Congo (DR),,Tshopo,,N,,all molars,,20230614,0.014,1.860,20230615,,20230620,20,2,2,9,9,3070000,20230622,18,11,2.72e+10,Pool B,3,Pool V,1,Illumina NovaSeq X Plus,NA,NA,NA,NA,NA,NA,NA
