@@ -12,9 +12,11 @@ library(tidyr)
 library(stringr)
 library(ggplot2)
 library(ggtree)
+library(ggtreeExtra)
 library(ape)
 library(phytools)
 library(tibble)
+library(ggnewscale)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -42,6 +44,13 @@ ar_tree <- read.tree(file = file.path(subdir, "ar_tree.tree"))
 # Host phylogeny
 host_trees <- read.nexus(file.path(indir, "mammal_vertlife.nex"))
 
+# List of dereplicated bins
+drep_bins <- read.table(file.path(indir, "dereplicated_bins_list.txt"), header=FALSE, sep="\t") %>% pull(V1)
+
+# Habitat info
+bac_habitats <- read.table(file.path(subdir, "bac_habitats.csv"), sep=",", header=TRUE)
+ar_habitats <- read.table(file.path(subdir, "ar_habitats.csv"), sep=",", header=TRUE)
+
 ############################
 #### TIDY UP HOST TREES ####
 ############################
@@ -56,6 +65,23 @@ host_consensus$tip.label <- host_consensus$tip.label %>%
                             gsub(pattern="Otaria_bryonia", replacement="Otaria_byronia") %>%
                             gsub(pattern="_", replacement=" ", fixed=TRUE)
 
+# Keep only dereplicated bins
+replicates <- append(bac_meta %>% filter(!(bin %in% drep_bins | is.na(bin))) %>% pull(label),
+                     ar_meta %>% filter(!(bin %in% drep_bins | is.na(bin))) %>% pull(label))
+
+bac_tree_drep <- drop.tip(bac_tree, replicates)
+ar_tree_drep <- drop.tip(ar_tree, replicates)
+
+bac_meta_drep <- bac_meta %>% filter(label %in% append(bac_tree_drep$tip.label, bac_tree_drep$node.label))
+ar_meta_drep <- ar_meta %>% filter(label %in% append(ar_tree_drep$tip.label, ar_tree_drep$node.label))
+
+# Save trees and tables
+write.tree(bac_tree_drep, file = file.path(subdir, "bac_tree_drep.tree"))
+write.tree(ar_tree_drep, file = file.path(subdir, "ar_tree_drep.tree"))
+
+write.table(bac_meta_drep, file = file.path(subdir, "bac_meta_drep.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+write.table(ar_meta_drep, file = file.path(subdir, "ar_meta_drep.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
+
 # Drop tips from domesticated species
 domesticated <- c("Ovis aries", "Sus scrofa domesticus", "Equus caballus")
 host_consensus <- drop.tip(host_consensus, domesticated)
@@ -64,11 +90,11 @@ host_consensus <- drop.tip(host_consensus, domesticated)
 domesticate_mags <- append(bac_meta %>% filter(host_species %in% domesticated) %>% pull(label),
                            ar_meta %>% filter(host_species %in% domesticated) %>% pull(label))
 
-bac_meta <- bac_meta %>% filter(!label %in% domesticate_mags)
-ar_meta <- ar_meta %>% filter(!label %in% domesticate_mags)
+bac_meta <- bac_meta_drep %>% filter(!label %in% domesticate_mags)
+ar_meta <- ar_meta_drep %>% filter(!label %in% domesticate_mags)
 
-bac_tree <- drop.tip(bac_tree, domesticate_mags)
-ar_tree <- drop.tip(ar_tree, domesticate_mags)
+bac_tree <- drop.tip(bac_tree_drep, domesticate_mags)
+ar_tree <- drop.tip(ar_tree_drep, domesticate_mags)
 
 #################################
 #### CODIVERSIFICATION TESTS ####
@@ -124,19 +150,19 @@ prepare_input <- function(node, mag_tree, mag_meta, host_tree) {
   return(list(mag_subtree, host_tree_filtered, links))
 }
 
-# Get correlation statistics
-dist_correlation <- function(mag_tree, host_tree, links, plot=FALSE) {
+# Get correlation statistics for subtree
+dist_correlation <- function(mag_tree_sub, host_tree_sub, links, plot=FALSE) {
    # Get distance matrices
-  host_dist <- cophenetic(host_tree)[links$host_species, links$host_species] %>% as.dist
-  mag_dist <- cophenetic(mag_tree) %>% as.dist
+  host_dist <- cophenetic(host_tree_sub)[links$host_species, links$host_species] %>% as.dist
+  mag_dist <- cophenetic(mag_tree_sub) %>% as.dist
   # Run Mantel test
   r <- cor.test(host_dist, mag_dist, method="pearson")
   if (plot) {
     plot <- ggplot(data.frame(x=host_dist, y=mag_dist), aes(x=x, y=y)) +
-            geom_point() +
+            geom_point() + scale_x_continuous() + scale_y_continuous() +
             labs(x="Host distance", y="MAG distance") +
-            labs(title = mag_tree$node.label[1], subtitle = paste("r:", format(r$statistic, digits=3), "p:", format(r$p.value, digits=3)), size=5)
-    ggsave(plot=plot, filename=file.path(intermediatedir, paste0(mag_tree$node.label[1], "_cor.png")), width=4, height=4)
+            labs(title = mag_tree_sub$node.label[1], subtitle = paste("r:", format(r$statistic, digits=3), "p:", format(r$p.value, digits=3)), size=5)
+    ggsave(plot=plot, filename=file.path(intermediatedir, paste0(mag_tree_sub$node.label[1], "_cor.png")), width=4, height=4)
   }
   return(list(r=r$statistic, p.value=r$p.value))
 }
@@ -148,12 +174,13 @@ permute_tree_tips <- function(tree) {
   return(tree_perm)
 }
 
-## TO DO: Use p-value instead of r to select the best node
-scan_lineage <- function(lineage, mag_tree, mag_meta, host_tree) {
-  min_p <- 1
-  best_node <- NULL
-  # For each node in the lineage list
-  for (node in lineage) {
+# First correlation calculation on all selected nodes
+first_correlation_test <- function(mag_tree, mag_meta, host_tree, nodes_to_test) {
+  n <- 1
+  results = data.frame(node = character(), r = numeric(), p.value = numeric())
+  # Get unique nodes to test
+  unique_nodes <- unique(unlist(nodes_to_test))
+  for (node in unique_nodes) {
     # Get input
     input <- prepare_input(node, mag_tree, mag_meta, host_tree)
     mag_tree_sub <- input[[1]]
@@ -167,30 +194,45 @@ scan_lineage <- function(lineage, mag_tree, mag_meta, host_tree) {
     res <- permutation_test(mag_tree_sub, host_tree_sub, links, nperm=500)
     r <- res$r
     p <- res$p.value
-    cat(node, "- r:", r, " - p:", p, ": #tips:", length(mag_tree_sub$tip.label), "\n")
-    # Keep the node with the highest correlation along the lineage
-    if (p < min_p) {
-      min_p <- r
-      best_node <- node
-    }
+    results <- rbind(results, data.frame(node=node, r=r, p.value=p))
+    cat(node, "- r:", r, " - p:", p, ": #tips:", length(mag_tree_sub$tip.label), "\n")    
   }
-  return(best_node)
+  return(results)
 }
 
-permutation_test <- function(mag_tree, host_tree, links, nperm) {
+best_per_lineage <- function(mag_tree, mag_meta, host_tree, nodes_to_test, first_results) {
+  best_nodes <- c()
+  n <- 1
+  for (lineage_name in names(nodes_to_test)) {
+    cat(paste0("Lineage ", n, ":", length(nodes_to_test), " - ", lineage_name, "\n"))
+    lineage_nodes <- nodes_to_test[[lineage_name]]
+    # Scan lineage and get the node with the highest correlation
+    lineage_res <- filter(first_results, node %in% lineage_nodes)
+    best_node <- lineage_res[which.max(lineage_res$r), "node"]
+    best_nodes <- append(best_nodes, best_node)
+    if (is.null(best_node)) {
+      next
+    }
+    n <- n + 1
+  }
+  best_nodes <- unique(best_nodes)
+  return(best_nodes)
+}
+
+permutation_test <- function(mag_tree_sub, host_tree_sub, links, nperm) {
     # Calculate the correlation between the host and MAG distance matrices
-    r <- dist_correlation(mag_tree, host_tree, links, plot=TRUE)$r[[1]]
+    r <- dist_correlation(mag_tree_sub, host_tree_sub, links, plot=TRUE)$r[[1]]
     # Permute host species and calculate correlation
-    permuted_r <- replicate(nperm, dist_correlation(mag_tree, permute_tree_tips(host_tree), links)$r[[1]]) %>% 
+    permuted_r <- replicate(nperm, dist_correlation(mag_tree_sub, permute_tree_tips(host_tree_sub), links)$r[[1]]) %>% 
                   unlist
     # Calculate p-value
     p_value <- sum(permuted_r >= r) / length(permuted_r)
     # Plot
     plot <- ggplot(data.frame(r=permuted_r), aes(x=r)) +
-          geom_histogram() +
+          geom_histogram(bins = 30) +
           geom_vline(xintercept=r, color="red") +
-          labs(title = mag_tree$node.label[1], subtitle=paste("r:", format(r, digits=3), "p:", format(p_value, digits=3)), size=5)
-    ggsave(plot=plot, filename=file.path(intermediatedir, paste0(mag_tree$node.label[1], "_perm.png")), width=4, height=4)
+          labs(title = mag_tree_sub$node.label[1], subtitle=paste("r:", format(r, digits=3), "p:", format(p_value, digits=3)), size=5)
+    ggsave(plot=plot, filename=file.path(intermediatedir, paste0(mag_tree_sub$node.label[1], "_perm.png")), width=4, height=4)
     
     return(list(r=r, p.value=p_value))
 }
@@ -203,23 +245,15 @@ analysis <- function(mag_tree, mag_meta, host_tree, nodes_to_test, intermediated
   # Create directory for intermediate results
   intermediatedir <<- intermediatedir
   dir.create(file.path(subdir, intermediatedir), showWarnings = FALSE)
-  n <- 1
-  lineages <- length(nodes_to_test)
-  best_nodes <- c()
-  for (lineage_name in names(nodes_to_test)) {
-    cat(paste0("Lineage ", n, ":", lineages, " - ", lineage_name, "\n"))
-    lineage <- nodes_to_test[[lineage_name]]
-    # Scan lineage and get the node with the highest correlation
-    best_node <- scan_lineage(lineage, mag_tree, mag_meta, host_tree)
-    best_nodes <- append(best_nodes, best_node)
-    if (is.null(best_node)) {
-      next
-    }
-    n <- n + 1
-  }
-  best_nodes <- unique(best_nodes)
-  cat("Will test", length(best_nodes), "nodes\n")
+  # Do first correlation test in all nodes
+  cat("First correlation test\n")
+  first_results <- first_correlation_test(mag_tree, mag_meta, host_tree, nodes_to_test)
+  write.csv(first_results, file = file.path(intermediatedir, "first_correlation_results.csv"), quote = FALSE, row.names = FALSE)
+  # Get best nodes per lineage
+  cat("Deciding best nodes per lineage\n")
+  best_nodes <- best_per_lineage(mag_tree, mag_meta, host_tree, nodes_to_test, first_results)
   # Then test only best nodes
+  cat("Will test", length(best_nodes), "nodes\n")
   n <- 1
   total <- length(best_nodes)
   test_results <- data.frame()
@@ -251,28 +285,25 @@ analysis <- function(mag_tree, mag_meta, host_tree, nodes_to_test, intermediated
 }
 
 ### For Bacteria ####
+nodes_to_test <- select_mag_clades(bac_tree_drep, min_tips=3, max_depth=100)
 
-nodes_to_test <- select_mag_clades(bac_tree, min_tips=5, max_depth=20)
+bac_cod_results <- analysis(bac_tree_drep, bac_meta_drep, host_consensus, nodes_to_test, "bac_cod_intermediate")
 
-bac_cod_results <- analysis(bac_tree, bac_meta, host_consensus, nodes_to_test, "bac_cod_intermediate")
-
-write.csv(bac_cod_results, file=file.path(subdir, "bac_cod_results.csv"), row.names=FALSE)
-write.csv(skipped, file=file.path(subdir, "bac_skipped.csv"), row.names=FALSE)
+write.csv(bac_cod_results, file=file.path(subdir, "bac_cod_results.csv"), row.names=FALSE, quote=FALSE)
 
 ### For Archaea ####
 
-nodes_to_test <- select_mag_clades(ar_tree, min_tips=5, max_depth=20)
+nodes_to_test <- select_mag_clades(ar_tree, min_tips=3, max_depth=20)
 
-ar_cod_results <- analysis(ar_tree, ar_meta, host_consensus, nodes_to_test, "ar_cod_intermediate")
+ar_cod_results <- analysis(ar_tree_drep, ar_meta_drep, host_consensus, nodes_to_test, "ar_cod_intermediate")
 
-write.csv(ar_cod_results, file=file.path(subdir, "ar_cod_results.csv"), row.names=FALSE)
-write.csv(skipped, file=file.path(subdir, "ar_skipped.csv"), row.names=FALSE)
+write.csv(ar_cod_results, file=file.path(subdir, "ar_cod_results.csv"), row.names=FALSE, quote=FALSE)
 
 ######################
 #### PLOT RESULTS ####
 ######################
 
-# Plot cophylogenies
+#### Plot cophylogenies ####
 cophyloplot <- function(host_tree, mag_tree, links, host_colours) {
   links_rename <- links %>% rename("phy1"="label", "phy2"="host_species")
   # Add colours
@@ -311,9 +342,54 @@ create_plots <- function(mag_tree, mag_meta, host_tree, cod_results, outdir) {
 # Save plots
 dir.create(file.path(subdir, "bac_cophylo_plots"), showWarnings = FALSE)
 
-create_plots(bac_tree, bac_meta, host_consensus, bac_cod_results, "bac_cophylo_plots")
+create_plots(bac_tree_drep, bac_meta_drep, host_consensus, bac_cod_results, "bac_cophylo_plots")
 
 # Save plots
 dir.create(file.path(subdir, "ar_cophylo_plots"), showWarnings = FALSE)
 
-create_plots(ar_tree, ar_meta, host_consensus, ar_cod_results, "ar_cophylo_plots")
+create_plots(ar_tree_drep, ar_meta_dre[], host_consensus, ar_cod_results, "ar_cophylo_plots")
+
+#### Plot entire tree ####
+
+### Bacteria tree
+# Plot tree with correlation values
+bac_corr_res <- read.csv(file.path(subdir, "bac_cod_intermediate", "first_correlation_results.csv"), header=TRUE)
+
+# Add to tree metadata
+bac_meta_plot <- bac_meta_drep %>% left_join(bac_corr_res, by=c("label"="node")) %>%
+  # Get -log10(p.value) for colouring
+  mutate(neg_log10_p = case_when(!is.na(p.value) ~ -log10(p.value+10^-5), TRUE ~ NA)) %>%
+  select(label, r, neg_log10_p, host_order, habitat.general)
+
+# Colour by order and habitat
+bac_p <- ggtree(bac_tree_drep, layout = "circular", size = 1.5) %<+% bac_meta_plot +
+  geom_nodepoint(aes(fill=r, size=neg_log10_p), shape = 21, colour = "black") +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, trans = "log10") +
+  new_scale_fill() +
+  geom_tiplab(size=3, aes(colour=host_order)) +
+  scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
+  new_scale_color() +
+  geom_tippoint(shape=21, size=2, stroke=0.7, 
+                aes(fill=host_order, color=habitat.general)) +
+  scale_fill_manual(values = order_palette, name = "Host order", na.value = "black") +
+  scale_colour_manual(values = habitat_palette, name = "Host habitat", na.value = "black") +
+  scale_x_continuous(expand = c(0, 0)) +  # Adjust the x-axis scaling 
+  theme(plot.margin = unit(c(-6, -6, -6, 1), "cm"), # Remove margins
+  legend.position=c(0.05, 0.5),
+  legend.text = element_text(size=20),
+  legend.title = element_text(size=20)) +
+  guides(fill = guide_legend(override.aes = list(size = 5)), 
+  color = guide_legend(override.aes = list(size = 5)))
+
+depthsums <- bac_meta_drep %>% filter(is.tip) %>% select(label, DepthSum) %>%
+      mutate(Depth_log10 = log10(DepthSum))
+
+# Add info
+bac_p <- bac_p +
+  new_scale_color() +
+  # Add barplot with habitat occurences
+  geom_fruit(data = depthsums, geom=geom_bar, stat = "identity", mapping = aes(y=label, x=DepthSum),
+             offset = 0.05, pwidth = 0.05) +
+  guides(colour = guide_legend(override.aes = list(size = 2.5)))
+
+ggsave(bac_p, file=file.path(subdir, "bac_codiv_tree.png"), width = 22, height = 20)
