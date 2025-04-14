@@ -76,7 +76,19 @@ habitats <- rbind(bac_meta, ar_meta) %>% select(label, classification, domain) %
             filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut"))
 
 bac_habitats <- habitats %>% filter(domain == "Bacteria")
+write.csv(bac_habitats, file.path(subdir, "bac_habitats.csv"), row.names = FALSE)
+
 ar_habitats <- habitats %>% filter(domain == "Archaea")
+write.csv(ar_habitats, file.path(subdir, "ar_habitats.csv"), row.names = FALSE)
+
+# Get specimen ages and damage for plotting
+ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample, host_order, host_species, Year, host_species) %>% filter(!is.na(Year) & Year != "") %>%
+  left_join(select(contigs, c(bin, sample, damage_model_pmax, pvalue, qvalue, RMSE)), by = c("bin" = "bin", "Sample" = "sample")) %>%
+  # If the value in the year column is not numeric, remove the non numeric symbols and convert to number
+  mutate(Year_most_recent = case_when(is.na(as.numeric(Year)) ~ as.numeric(str_remove_all(Year, "<|\\?| \\(received\\)|[0-9][0-9][0-9][0-9]-")), TRUE ~ as.numeric(Year))) %>%
+  mutate(Approximated_year = case_when(is.na(as.numeric(Year)) ~ "YES", TRUE ~ "NO")) %>%
+  filter(!is.na(Year_most_recent) & !is.na(damage_model_pmax)) %>%
+  group_by(label) %>% mutate(median_pmax = median(damage_model_pmax), median_pvalue = median(pvalue), median_qvalue = median(qvalue), median_RMSE = median(RMSE))
 
 ####################
 #### PLOT TREES ####
@@ -132,9 +144,14 @@ bac_p <- bac_p +
   scale_color_gradient2(low = "#11B200", mid = "#FFBA00", high = "#A40073",
                         midpoint = -1.3, name = "median q-value", na.value = "black", breaks = c(0, 0.05, 1), trans = "log10") +
   new_scale_color() +
+  # Add point with collection year
+  geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 2,
+             offset = -0.2) +
+  scale_colour_viridis_c(option = "magma", name = "Collection year", na.value = "transparent") +
+  new_scale_colour() +
   # Add bubbleplot with habitat occurences
   geom_fruit(data = bac_habitats, geom=geom_point, mapping = aes(y=label, x=habitat, colour=habitat, size = occurences),
-             offset = -0.1) +
+             offset = -0.2) +
   scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73")) +
   guides(colour = guide_legend(override.aes = list(size = 2.5)))
 
@@ -179,3 +196,17 @@ ar_p <- ar_p +
   guides(colour = guide_legend(override.aes = list(size = 2.5)))
 
 ggsave(ar_p, file=file.path(subdir, "ar_genome_tree.png"), width = 12, height = 8)
+
+###########################
+#### PLOT AGE V DAMAGE ####
+###########################
+
+p <- filter(ages_damage, Approximated_year=="NO") %>%
+     group_by(host_order) %>% filter(n_distinct(Year_most_recent) > 1) %>%
+      ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = damage_model_pmax, shape = Approximated_year, colour = host_order)) +
+        geom_point(alpha = 0.1) +
+        scale_colour_manual(values = order_palette, name = "Host order") +
+        geom_smooth(method = "loess", span = 5, inherit.aes = FALSE, aes(x = Year_most_recent, y = damage_model_pmax)) +
+        facet_grid(. ~ host_order) + theme(legend.position = "none")
+
+ggsave(p, file=file.path(subdir, "age_v_damage.png"), width = 8, height = 6)
