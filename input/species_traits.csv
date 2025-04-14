@@ -1,36 +1,36 @@
-Species,habitat.general,digestion,biogeography
-Ceratotherium simum,Terrestrial,Hindgut fermenter,Afrotropical
-Diceros bicornis,Terrestrial,Hindgut fermenter,Afrotropical
-Equus burchellii,Terrestrial,Hindgut fermenter,Afrotropical
-Equus caballus,Terrestrial,Hindgut fermenter,Palearctic
-Camelus dromedarius,Terrestrial,Pseudoruminant,Palearctic
-Hippopotamus amphibius,Terrestrial,Pseudoruminant,Afrotropical
-Capreolus capreolus,Terrestrial,Ruminant,Palearctic
-Cephalophus silvicultor,Terrestrial,Ruminant,Afrotropical
-Giraffa camelopardalis,Terrestrial,Ruminant,Afrotropical
-Muntiacus muntjak,Terrestrial,Ruminant,Indomalayan
-Okapia johnstoni,Terrestrial,Ruminant,Afrotropical
-Ovis ammon,Terrestrial,Ruminant,Palearctic
-Ovis aries,Terrestrial,Ruminant,
-Rangifer tarandus,Terrestrial,Ruminant,Palearctic
-Rupicapra rupicapra,Terrestrial,Ruminant,Palearctic
-Syncerus caffer,Terrestrial,Ruminant,Afrotropical
-Alouatta palliata,Terrestrial,,Neotropical
-Cuniculus paca,Terrestrial,,Neotropical
-Dugong dugon,Marine,,Indomalayan
-Gorilla beringei,Terrestrial,,Afrotropical
-Gorilla gorilla,Terrestrial,,Afrotropical
-Loxodonta africana,Terrestrial,,Afrotropical
-Macropus giganteus,Terrestrial,,Australasian
-Marmota marmota,Terrestrial,,Palearctic
-Meles meles,Terrestrial,,Palearctic
-Orcinus orca,Marine,,Cosmopolitan
-Otaria byronia,Marine,,Neotropical
-Pan troglodytes,Terrestrial,,Afrotropical
-Papio anubis,Terrestrial,,Afrotropical
-Piliocolobus foai,Terrestrial,Foregut fermenter,Afrotropical
-Pongo pygmaeus,Terrestrial,,Indomalayan
-Sus scrofa,Terrestrial,,Palearctic
-Sus scrofa domesticus,Terrestrial,,
-Tapirus indicus,Terrestrial,,Indomalayan
-Ursus arctos,Terrestrial,,Palearctic
+Species,habitat.general,digestion,biogeography,molar_category,mc_source,hypsodonty_index,hi_source
+Alouatta palliata,Terrestrial,,Neotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Camelus dromedarius,Terrestrial,Pseudoruminant,Palearctic,hypsodont,"Ungar 2010, Renvoisé & Michon 2014",2.52,Janis 1988
+Capreolus capreolus,Terrestrial,Ruminant,Palearctic,brachydont,Berkovitz 2018,1.49,Janis 1988
+Cephalophus silvicultor,Terrestrial,Ruminant,Afrotropical,hypsodont,based on hypsodonty index,2.23,Janis 1988
+Ceratotherium simum,Terrestrial,Hindgut fermenter,Afrotropical,hypsodont,Berkovitz 2018,3.9,Janis 1988
+Cuniculus paca,Terrestrial,Hindgut fermenter,Neotropical,hypsodont,"Ungar 2010, Renvoisé & Michon 2014",,
+Diceros bicornis,Terrestrial,Hindgut fermenter,Afrotropical,hypsodont,"Ungar 2010, Renvoisé & Michon 2014",2.24,Janis 1988
+Dugong dugon,Marine,Hindgut fermenter,Indomalayan,hypselodont,Berkovitz 2018,,
+Equus burchellii,Terrestrial,Hindgut fermenter,Afrotropical,hypsodont,Berkovitz 2018,5.83,Janis 1988
+Equus caballus,Terrestrial,Hindgut fermenter,Palearctic,hypsodont,Berkovitz 2018,7.64,Janis 1988
+Giraffa camelopardalis,Terrestrial,Ruminant,Afrotropical,brachydont,Berkovitz 2018,1.2,Janis 1988
+Gorilla beringei,Terrestrial,,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Gorilla gorilla,Terrestrial,,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Hippopotamus amphibius,Terrestrial,Pseudoruminant,Afrotropical,,,1.91,Janis 1988
+Loxodonta africana,Terrestrial,,Afrotropical,hypsodont,Berkovitz 2018,2.5,Janis 1988
+Macropus giganteus,Terrestrial,,Australasian,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Marmota marmota,Terrestrial,Hindgut fermenter,Palearctic,hypsodont,"Ungar 2010, Renvoisé & Michon 2014",,
+Meles meles,Terrestrial,,Palearctic,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Muntiacus muntjak,Terrestrial,Ruminant,Indomalayan,brachydont,Berkovitz 2018,1.81,Janis 1988
+Okapia johnstoni,Terrestrial,Ruminant,Afrotropical,brachydont,Berkovitz 2018,1.18,Janis 1988
+Orcinus orca,Marine,,Arctic,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Otaria byronia,Marine,,Neotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Ovis ammon,Terrestrial,Ruminant,Palearctic,hypsodont,Berkovitz 2018,4.11,Janis 1988
+Ovis aries,Terrestrial,Ruminant,,hypsodont,Berkovitz 2018,4.11,Janis 1988
+Pan troglodytes,Terrestrial,,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Papio anubis,Terrestrial,,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Piliocolobus foai,Terrestrial,Foregut fermenter,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Pongo pygmaeus,Terrestrial,,Indomalayan,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
+Rangifer tarandus,Terrestrial,Ruminant,Palearctic,brachydont,based on hypsodonty index,1.52,Janis 1988
+Rupicapra rupicapra,Terrestrial,Ruminant,Palearctic,hypsodont,based on hypsodonty index,4.19,Janis 1988
+Sus scrofa,Terrestrial,,Palearctic,brachydont,Berkovitz 2018,1.28,Janis 1988
+Sus scrofa domesticus,Terrestrial,,,brachydont,Berkovitz 2018,1.28,Janis 1988
+Syncerus caffer,Terrestrial,Ruminant,Afrotropical,hypsodont,based on hypsodonty index,3,Janis 1988
+Tapirus indicus,Terrestrial,,Indomalayan,brachydont,Berkovitz 2018,0.76,Janis 1988
+Ursus arctos,Terrestrial,,Palearctic,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,

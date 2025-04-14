@@ -269,3 +269,76 @@ p <- ggplot(rumen_abund, aes(x = Abundance*100, y = Common.name, fill = genus)) 
       guides(fill = guide_legend(reverse = TRUE, nrow = 3))
 
 ggsave(file.path(subdir, "rumen_abundance.png"), p, width=5, height=8)
+
+#######################################
+#### COLONISER STAGE - HYPSODONTY  ####
+#######################################
+
+#### Early colonisers: Streptococcus & Actinomyces ####
+
+early_colonisers <- phy_sp_f %>% tax_glom("genus") %>% transform("compositional") %>% psmelt() %>%
+                  filter(genus %in% c("Streptococcus", "Actinomyces")) %>%
+                  group_by(Sample, Species, genus, molar_category, hypsodonty_index, Order) %>%
+                  summarise(early_abundance = sum(Abundance))
+
+# Plot by hypsodonty index (for ungulates only)
+p <- ggplot(filter(early_colonisers, !is.na(hypsodonty_index)), aes(y = early_abundance*100, x = hypsodonty_index, group = Species, colour = Order)) +
+  geom_boxplot() +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = early_abundance*100, x = hypsodonty_index), colour = "black", linetype = "dotted") +
+  facet_grid(rows=vars(genus), scales = "free") +
+  #scale_x_continuous(trans = "log10") +
+  #scale_y_continuous(trans = "log10") +
+  scale_color_manual(values = order_palette, name = "") +
+  labs(x="Hypsodonty index", y="Early coloniser abundance (%)") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 3))
+
+ggsave(file.path(subdir, "early_abund_by_hypsodonty.png"), p, width=5, height=5)
+
+# Plot by molar category
+p <- ggplot(filter(early_colonisers, molar_category!=""), aes(y = early_abundance*100, x = Species, fill = Order)) +
+  geom_boxplot() +
+  facet_grid(cols=vars(molar_category), rows=vars(genus), scales = "free", space = "free_x") +
+  #scale_x_continuous(trans = "log10") +
+  #scale_y_continuous(trans = "log10") +
+  scale_fill_manual(values = order_palette, name = "") +
+  labs(x="Molar category", y="Early coloniser abundance (%)") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 3))
+
+ggsave(file.path(subdir, "early_abund_by_molar_cat.png"), p, width=5, height=8)
+
+#### Late colonisers: Treponema, Porphyromonas, Fusobacterium, Corynebacterium ####
+
+late_colonisers <- phy_sp_f %>% tax_glom("genus") %>% transform("compositional") %>% psmelt() %>%
+                  filter(genus %in% c("Prophyromonas", "Treponema", "Fusobacterium", "Corynebacterium")) %>%
+                  group_by(Sample, Species, genus, molar_category, hypsodonty_index, Order) %>%
+                  summarise(late_abundance = sum(Abundance))
+
+# Plot by hypsodonty index (for ungulates only)
+p <- ggplot(filter(late_colonisers, !is.na(hypsodonty_index)), aes(y = late_abundance*100, x = hypsodonty_index, group = Species, colour = Order)) +
+  geom_boxplot() +
+  facet_grid(rows=vars(genus), scales = "free") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = late_abundance*100, x = hypsodonty_index), colour = "black", linetype = "dotted") +
+  #scale_x_continuous(trans = "log10") +
+  #scale_y_continuous(trans = "log10") +
+  scale_color_manual(values = order_palette, name = "") +
+  labs(x="Hypsodonty index", y="Late coloniser abundance (%)") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 3))
+
+ggsave(file.path(subdir, "late_abund_by_hypsodonty.png"), p, width=5, height=8)
+
+# Plot by molar category
+p <- ggplot(filter(late_colonisers, molar_category!=""), aes(y = late_abundance*100, x = Species, fill = Order)) +
+  geom_boxplot() +
+  facet_grid(cols=vars(molar_category), rows=vars(genus), scales = "free", space = "free_x") +
+  #scale_x_continuous(trans = "log10") +
+  #scale_y_continuous(trans = "log10") +
+  scale_fill_manual(values = order_palette, name = "") +
+  labs(x="Molar category", y="Late coloniser abundance (%)") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 3))
+
+ggsave(file.path(subdir, "late_abund_by_molar_cat.png"), p, width=5, height=8)
+
