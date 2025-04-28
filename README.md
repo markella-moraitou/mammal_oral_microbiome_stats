@@ -11,6 +11,7 @@ flowchart TD;
     E-->I[RDA analysis];
     E-->J[Phylosymbiosis tests];
     E-->K[Microbial phenotypes - host diet hypotheses];
+    D-->L[Statistical tests];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
