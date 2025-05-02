@@ -16,6 +16,7 @@ library(ggplot2)
 library(vegan)
 library(microViz)
 library(rphylopic)
+library(ggnewscale)
 library(RColorBrewer)
 library(colorspace)
 library(ggExtra)
@@ -36,7 +37,7 @@ source(file.path("..", "plot_setup.R"))
 plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
 
-source("ordination_functions.R")
+source(file.path("..","ordination_functions.R"))
 
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
@@ -97,12 +98,12 @@ ggsave(file.path(subdir, "rda_screeplot_all.png"), p, width=8, height=6)
 #### SAMPLE PLOTS ####
 # Color by diet
 # Axes 1,2 -- colour by diet
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = 1) +
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = 1, alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=order_shape_scale, name = "Order") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  theme(legend.position = "bottom", legend.direction = "vertical") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.8)
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.6) +
+  theme(legend.position = "bottom", legend.direction = "vertical")
 
 p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
 
@@ -113,8 +114,8 @@ p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, si
   custom_theme() +
   scale_shape_manual(values=order_shape_scale[names(order_shape_scale) %in% phy_sp_f@sam_data$Order_grouped], name = "Order") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  theme(legend.position = "bottom", legend.direction = "vertical") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.6) +
+  theme(legend.position = "bottom", legend.direction = "vertical")
 
 p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
 
@@ -125,8 +126,8 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, si
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette[names(order_palette) %in% phy_sp_f@sam_data$Order_grouped], name = "Order") +
-  theme(legend.position = "bottom", legend.direction = "vertical") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.8)
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.6) +
+  theme(legend.position = "bottom", legend.direction = "vertical")
 
 p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
 
@@ -137,8 +138,8 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, ax
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette[names(order_palette) %in% phy_sp_f@sam_data$Order_grouped], name = "Order") +
-  theme(legend.position = "bottom", legend.direction = "vertical") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.3, alpha = 0.6) +
+  theme(legend.position = "bottom", legend.direction = "vertical")
 
 p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
 
@@ -148,10 +149,14 @@ ggsave(file.path(subdir, "RDA_all_2_3_order.png"), p, width=5, height=7)
 
 # Get taxa scores and add taxonomic info
 taxa_rda <- data.frame(scores(ord@ord, display="species", choices=1:3)) %>%
-            cbind(tax_table(phy_sp_f_clr)) %>% rownames_to_column("OTU") %>% select(-tax.id)
+            cbind(tax_table(phy_sp_f_clr)) %>% rownames_to_column("OTU") %>% select(-tax.id) %>%
+            # Get grouped phylum
+            mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                      superkingdom == "Bacteria" ~ "Other Bacteria",
+                                      superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
 
 # Add mean relative abundance log10-transformed with pseudocount
-taxa_rda$mean_abund <- rowMeans(transform(phy_sp_f, "compositional")@otu_table)[taxa_rda$OTU]
+taxa_rda$mean_abund <- rowMeans(phy_sp_f_clr@otu_table)[taxa_rda$OTU]
 
 # Identify 12 genera with most abundance, group remaining genera to "Other"
 top_genera <- taxa_rda %>% group_by(genus) %>% summarise(total = sum(mean_abund, na.rm = TRUE)) %>% top_n(12, total) %>% pull(genus)
@@ -161,32 +166,36 @@ taxa_rda <- taxa_rda %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Ot
             mutate(abund_log10 = log10(mean_abund))
 
 # Get centroids to place labels
-genus_centroids <- taxa_rda %>% filter(genus != "Other") %>%
-                select(genus, RDA1, RDA2, RDA3) %>%
-                group_by(genus) %>% summarise_all(mean) 
+genus_centroids <- taxa_rda %>% 
+                select(genus, phylum_grouped, mean_abund, RDA1, RDA2, RDA3) %>%
+                group_by(genus, phylum_grouped) %>% summarise_all(mean)
+
+phylum_centroids <- genus_centroids %>% ungroup %>% select(-genus) %>%
+                group_by(phylum_grouped) %>% summarise_all(mean) %>%
+                filter(!grepl("Other", phylum_grouped))
 
 # Axes 1,2
 set.seed(245)
-p <- ggplot(taxa_rda, aes(x = RDA1, y = RDA2, size = abund_log10, colour = genus)) +
-  geom_point(alpha = 0.8) +
-  geom_label(data = genus_centroids, aes(label = genus), size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
-  scale_color_manual(values = c(darken(brewer.pal(12, 'Set3'), amount = 0.3), "grey90"), name = "OTU genus") +
-  scale_size_continuous(range = c(0.01, 2), name = "Mean rel. abund.\n (log10)") +
-  custom_theme() +
-  guides(colour = "none") +
-  theme(legend.position = "bottom")
+p <- ggplot(genus_centroids, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, size = mean_abund, colour = phylum_grouped)) +
+  geom_segment(linewidth = 0.5, alpha = 0.4) +
+  scale_color_manual(values = phylum_palette, name = "Microbial phylum") +
+  geom_label(data = phylum_centroids, aes(label = phylum_grouped, x = RDA1, y = RDA2),
+            size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
+  scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
+  custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
+  theme(legend.position = "none")
 
 ggsave(file.path(subdir, "RDA_all_1_2_taxa.png"), p, width=5, height=5)
 
 # Axes 2, 3
-p <- ggplot(taxa_rda, aes(x = RDA2, y = RDA3, size = abund_log10, colour = genus)) +
-  geom_point(alpha = 0.8) +
-  geom_label(data = genus_centroids, aes(label = genus), size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
-  scale_color_manual(values = c(darken(brewer.pal(12, 'Set3'), amount = 0.3), "grey90"), name = "OTU genus") +
-  scale_size_continuous(range = c(0.01, 2), name = "Mean rel. abund.\n (log10)") +
-  custom_theme() +
-  guides(colour = "none") +
-  theme(legend.position = "bottom")
+p <- ggplot(genus_centroids, aes(x = 0, y = 0, xend = RDA2, yend = RDA3, size = mean_abund, colour = phylum_grouped)) +
+  geom_segment(linewidth = 0.5, alpha = 0.4) +
+  scale_color_manual(values = phylum_palette, name = "Microbial phylum") +
+  geom_label(data = phylum_centroids, aes(label = phylum_grouped, x = RDA2, y = RDA3),
+            size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
+  scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
+  custom_theme() + xlab("RDA2 scores") + ylab("RDA3 scores") +
+  theme(legend.position = "none")
 
 ggsave(file.path(subdir, "RDA_all_2_3_taxa.png"), p, width=5, height=5)
 

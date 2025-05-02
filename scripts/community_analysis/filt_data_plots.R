@@ -15,6 +15,7 @@ library(rphylopic)
 library(RColorBrewer)
 library(wesanderson)
 library(ggplot2)
+library(ggnewscale)
 library(vegan)
 library(microbiomeutilities)
 library(cowplot)
@@ -35,7 +36,7 @@ plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
 
 # Get ordination functions
-source(file.path("ordination_functions.R"))
+source(file.path("..", "ordination_functions.R"))
 
 #######################
 #####  LOAD INPUT #####
@@ -118,7 +119,7 @@ ggsave(filename = file.path(subdir, "phy_sp_f_composition.png"), device="png", w
 #### Get shape scales for plotting ####
 diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
 
-uniq_species <- unique(subset_samples(phy_sp_f_clr, Order %in% c("Primates", "Carnivora", "Artiodactyla") | habitat.general == "Aquatic")@sam_data$Common.name)
+uniq_species <- unique(subset_samples(phy_sp_f_clr, Order %in% c("Primates", "Carnivora", "Artiodactyla") | habitat.general == "Marine")@sam_data$Common.name)
 species_shape_scale <- c(1:25, 35:35+26-length(uniq_species))
 names(species_shape_scale) <- uniq_species
 
@@ -133,66 +134,81 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_all.png"), p, width=8, height=6)
 
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_sp_f_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
+
 # Color by order
-p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
+p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
-  scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  scale_color_manual(values=order_palette, name = "Host order") +
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_order_1_2.png"), p, width=8, height=10)
 
 # Axes 3 & 4
-p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", axes = c(3, 4)) +
+p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", axes = c(3, 4), alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC3, yend = PC4, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_order_3_4.png"), p, width=8, height=10)
 
 # Color by diet
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped") +
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=order_shape_scale, name = "Order") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_diet_1_2.png"), p, width=8, height=10)
 
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", axes = 3:4) +
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", axes = 3:4, alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=order_shape_scale, name = "Order") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_sp_f_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_sp_f_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC3, yend = PC4, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_diet_3_4.png"), p, width=8, height=10)
 
@@ -205,34 +221,53 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_deep.png"), p, width=8, height=6)
 
-p <- ord_plot(ord, colour="Order", shape="diet.general") +
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_deep_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
+
+p <- ord_plot(ord, colour="Order", shape="diet.general", alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_deep_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_deep_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_deep_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_deep_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_deep_1_2.png"), p, width=8, height=10)
 
 # Axes 3 & 4
-p <- ord_plot(ord, colour="Order", shape="diet.general", axes = c(3, 4)) +
+p <- ord_plot(ord, colour="Order", shape="diet.general", axes = c(3, 4), alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_deep_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_deep_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_deep_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_deep_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC3, yend = PC4, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_deep_3_4.png"), p, width=8, height=10)
 
@@ -245,23 +280,67 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_artio.png"), p, width=8, height=6)
 
-p <- ord_plot(ord, colour="diet.general", shape="Common.name") +
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_artio_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
+
+p <- ord_plot(ord, colour="diet.general", shape="Common.name", alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values = species_shape_scale, name = "Species") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_artio_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_artio_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_artio_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_artio_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_artio_1_2.png"), p, width=8, height=10)
 
 #### Carnivora ####
 ord <- ord_calc(phy_carni_clr, method = "PCA")
+
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_carni_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -269,18 +348,16 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_carni.png"), p, width=8, height=6)
 
-p <- ord_plot(ord, colour="habitat.general", shape="Common.name") +
+p <- ord_plot(ord, colour="habitat.general", shape="Common.name", alpha = 0.8) +
   custom_theme() +
   scale_shape_manual(values = species_shape_scale) +
   scale_color_manual(values=habitat_palette, name = "Habitat") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_carni_clr), aes(colour = habitat.general), uuid = centroids(ord@ord, phy_carni_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_carni_clr), aes(colour = habitat.general), uuid = centroids(ord@ord, phy_carni_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_carni_1_2.png"), p, width=8, height=10)
 
@@ -293,36 +370,78 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_prim.png"), p, width=8, height=6)
 
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_prim_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
+
 p <- ord_plot(ord, colour="diet.general", shape="Common.name") +
   custom_theme() +
   scale_shape_manual(values = species_shape_scale, name = "Species") +
   scale_color_manual(values = diet_palette, name = "Estimated diet") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_prim_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_prim_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_prim_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_prim_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_prim_1_2.png"), p, width=8, height=10)
 
 #### Habitat ####
 ord <- ord_calc(phy_habitat_clr, method = "PCA")
 
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_habitat_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
+
 p <- ord_plot(ord, colour="habitat.general", shape = "Common.name") +
   custom_theme() +
   scale_shape_manual(values = species_shape_scale, name = "Species") +
   scale_color_manual(values = habitat_palette, name = "Habitat") +
-  theme(legend.position = "left") +
-  geom_phylopic(data = centroids(ord@ord, phy_habitat_clr), aes(colour = habitat.general), uuid = centroids(ord@ord, phy_habitat_clr)$uid, width = 0.2, alpha = 0.8)
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  geom_phylopic(data = centroids(ord@ord, phy_habitat_clr), aes(colour = habitat.general), uuid = centroids(ord@ord, phy_habitat_clr)$uid, width = 0.1, fill = "transparent") +
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = genus), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = arrow_colours, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_habitat_1_2.png"), p, width=8, height=10)
 
@@ -420,10 +539,11 @@ ggsave(file.path(subdir, "PCA_diet_philr_3_4.png"), p, width=8, height=10)
 grad_palette <- colorRampPalette(c("#2D627B","#FFF7A4", "#E7C46E","#C24141"))
 grad_palette <- grad_palette(10)
 
+set.seed(123)
 png(filename = file.path(subdir, "heatmap_all_taxa.png"), width=16, height=20, units="in", res=300)
 plot_taxa_heatmap(phy_sp_f, subset.top=ntaxa(phy_sp_f), transformation="clr",
                   VariableA=c("Order", "diet.general", "unmapped_count"),
                   annotation_colors = list("Order" = order_palette, "diet.general" = diet_palette),
-                  show_rownames = FALSE,
+                  show_rownames = FALSE, cluster_cols = TRUE,
                   show_colnames = FALSE, heatcolors = grad_palette)$plot
 dev.off()

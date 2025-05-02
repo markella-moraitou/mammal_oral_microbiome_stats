@@ -12,6 +12,7 @@ library(tibble)
 library(phyloseq)
 library(microbiome)
 library(ggplot2)
+library(ggnewscale)
 library(RColorBrewer)
 library(ggExtra)
 library(microViz)
@@ -33,7 +34,7 @@ source(file.path("..", "plot_setup.R"))
 plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
 
-source("ordination_functions.R")
+source(file.path("..","ordination_functions.R"))
 
 #######################
 #####  LOAD INPUT #####
@@ -136,18 +137,37 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot.png"), p, width=8, height=6)
 
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, phy_sp_clr)
+# Get genus and phylum
+arrows$genus <- as.character(phy_sp_clr@tax_table[match(rownames(arrows),  phy_sp_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_clr@tax_table[match(rownames(arrows),  phy_sp_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_clr@tax_table[match(rownames(arrows),  phy_sp_clr@tax_table[, "species"]), "superkingdom"])
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
+              group_by(genus, phylum_grouped) %>%
+              select(contains(c("1", "2", "3", "4"))) %>%
+              summarise_all(mean)
+
 # Axes 1 and 2
 p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5) +
   custom_theme() +
   scale_shape_manual(values=c("swab"=0, "blank"=2, "sample"=16), name = "Is control/blank") +
   scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left")
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*2, yend = PC2*2, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = phylum_palette, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "phy_sp_sample_PCA_1_2.png"), p, width=8, height=10)
 
@@ -156,13 +176,11 @@ p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5, axe
   custom_theme() +
   scale_shape_manual(values=c("swab"=0, "blank"=2, "sample"=16), name = "Is control/blank") +
   scale_color_manual(values=order_palette, name = "Order") +
-  theme(legend.position = "left")
-
-# Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 30)
-p <- plot_grid(p + theme(legend.position = "right"),
-               p_l + theme(legend.position = "right"),
-               nrow = 2, rel_heights = c(4, 3))
+  new_scale_colour() +
+  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC3*2, yend = PC4*2, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
+  scale_color_manual(values = phylum_palette, name = "Microbial genus") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "phy_sp_sample_PCA_3_4.png"), p, width=8, height=10)
 

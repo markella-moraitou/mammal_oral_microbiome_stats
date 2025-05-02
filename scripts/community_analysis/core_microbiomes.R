@@ -33,7 +33,7 @@ source(file.path("..", "plot_setup.R"))
 plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
 
-source(file.path("ordination_functions.R"))
+source(file.path("..", "ordination_functions.R"))
 
 set.seed(123)
 
