@@ -51,9 +51,9 @@ drep_bins <- read.table(file.path(indir, "dereplicated_bins_list.txt"), header=F
 bac_habitats <- read.table(file.path(subdir, "bac_habitats.csv"), sep=",", header=TRUE)
 ar_habitats <- read.table(file.path(subdir, "ar_habitats.csv"), sep=",", header=TRUE)
 
-############################
-#### TIDY UP HOST TREES ####
-############################
+#######################
+#### TIDY UP TREES ####
+#######################
 
 # Get consensus tree and fix tip labels
 host_consensus <- consensus.edges(host_trees, method="least.squares")

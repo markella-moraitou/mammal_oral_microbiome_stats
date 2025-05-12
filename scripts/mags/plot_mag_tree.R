@@ -94,30 +94,10 @@ ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample
 #### PLOT TREES ####
 ####################
 
-## Create phylum palettes
-## Bacteria
-bac_phyla <- bac_meta$phylum %>% unique
-bac_phyla_df <- data.frame(phylum=bac_phyla,
-                            # Colour all subgroups of Bacillota the same
-                            grouped = ifelse(grepl("Bacillota_", bac_phyla), "Bacillota", bac_phyla))
-
-# Create a custom palette using RColorBrewer
-mag_palette_b <- left_join(bac_phyla_df,
-                            data.frame(colour = colorRampPalette(brewer.pal(8, "Set1"))(length(unique(bac_phyla_df$grouped))),
-                             grouped = unique(bac_phyla_df$grouped)))
-
-mag_palette_b <- setNames(mag_palette_b$colour, mag_palette_b$phylum)             
-
-## Archeae
-ar_phyla <- ar_meta$phylum %>% unique
-
-mag_palette_a <- brewer.pal(length(ar_phyla), "Accent")
-names(mag_palette_a) <- ar_phyla
-
 #### Bacteria tree ####
 # Colour by order and habitat
 bac_p <- ggtree(bac_tree, layout = "circular", aes(color=phylum), size = 1.5) %<+% bac_meta +
-  scale_colour_manual(values = mag_palette_b, name = "MAG phylum", na.value = "black") +
+  scale_colour_manual(values = phylum_palette, name = "MAG phylum", na.value = "black") +
   new_scale_color() +
   geom_tiplab(size=2, aes(colour=host_order)) +
   scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
@@ -128,31 +108,31 @@ bac_p <- ggtree(bac_tree, layout = "circular", aes(color=phylum), size = 1.5) %<
   scale_colour_manual(values = habitat_palette, name = "Host habitat", na.value = "black") +
   scale_x_continuous(expand = c(0, 0)) +  # Adjust the x-axis scaling 
   theme(plot.margin = unit(c(-6, -6, -6, 1), "cm"), # Remove margins
-  legend.position=c(0.05, 0.5),
-  legend.text = element_text(size=20),
-  legend.title = element_text(size=20)) +
+        legend.position=c(0.06, 0.5),
+        legend.text = element_text(size=20),
+        legend.title = element_text(size=20)) +
   guides(fill = guide_legend(override.aes = list(size = 5)), 
   color = guide_legend(override.aes = list(size = 5)))
 
 # Add info
 bac_p <- bac_p +
   # Add boxplot with damage patterns
-  new_scale_colour() +
-  geom_fruit(data=bac_contigs, geom=geom_point, mapping = aes(y=label, x=log10(damage_model_pmax + 0.001), colour = median_qvalue + 0.001, group=label),
-             axis.params=list(axis = "x", text.size = 3, hjust = 1, vjust = 0., nbreak = 3),
+  geom_fruit(data=bac_contigs, geom=geom_boxplot, mapping = aes(y=label, x=log10(damage_model_pmax + 0.001), group=label),
+             axis.params=list(axis = "x", text.size = 6, hjust = 1, vjust = 0., nbreak = 3),
              offset = 0.3, pwidth = 0.2, alpha = 0.3) +
-  scale_color_gradient2(low = "#11B200", mid = "#FFBA00", high = "#A40073",
-                        midpoint = -1.3, name = "median q-value", na.value = "black", breaks = c(0, 0.05, 1), trans = "log10") +
   new_scale_color() +
   # Add point with collection year
   geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 2,
              offset = -0.2) +
   scale_colour_viridis_c(option = "magma", name = "Collection year", na.value = "transparent") +
+  scale_shape(name = "", labels = c("Yes" = "Approximated", "No" = "From records")) +
   new_scale_colour() +
   # Add bubbleplot with habitat occurences
   geom_fruit(data = bac_habitats, geom=geom_point, mapping = aes(y=label, x=habitat, colour=habitat, size = occurences),
              offset = -0.2) +
-  scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73")) +
+  scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73"),
+                     name = "MAG reported habitat") +
+  scale_size(name = "MAG reported occurences") +
   guides(colour = guide_legend(override.aes = list(size = 2.5)))
 
 ggsave(bac_p, file=file.path(subdir, "bac_genome_tree.png"), width = 22, height = 20)
@@ -162,7 +142,7 @@ ggsave(bac_p, file=file.path(subdir, "bac_genome_tree.png"), width = 22, height 
 ar_p <- ggtree(ar_tree) %<+% ar_meta +
   # Colour by phylum
   geom_tree(aes(color=phylum)) +
-  scale_colour_manual(values = mag_palette_a, name = "MAG phylum", na.value = "black") +
+  scale_colour_manual(values = phylum_palette, name = "MAG phylum", na.value = "black") +
   new_scale_color() +
   geom_tiplab(size=3, aes(colour=host_order)) +
   scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
@@ -182,9 +162,8 @@ ar_p <- ggtree(ar_tree) %<+% ar_meta +
 # Add info
 ar_p <- ar_p +
   # Add boxplot with damage patterns
-  new_scale_colour() +
-  geom_fruit(data=ar_contigs, geom=geom_point, mapping = aes(y=label, x=log10(damage_model_pmax + 0.001), colour = median_qvalue + 0.001, group=label),
-             axis.params=list(axis = "x", text.size = 3, hjust = 1, vjust = 0., nbreak = 3),
+  geom_fruit(data=ar_contigs, geom=geom_boxplot, mapping = aes(y=label, x=log10(damage_model_pmax + 0.001), group=label),
+             axis.params=list(axis = "x", text.size = 6, hjust = 1, vjust = 0., nbreak = 3),
              offset = 0.5, pwidth = 0.2, alpha = 0.3) +
   scale_color_gradient2(low = "#11B200", mid = "#FFBA00", high = "#A40073",
                         midpoint = -1.3, name = "median q-value", na.value = "black", breaks = c(0, 0.05, 1), trans = "log10") +
@@ -192,7 +171,9 @@ ar_p <- ar_p +
   # Add bubbleplot with habitat occurences
   geom_fruit(data = ar_habitats, geom=geom_point, mapping = aes(y=label, x=habitat, colour=habitat, size = occurences),
              offset = -0.1, pwidth = 0.1) +
-  scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73")) +
+  scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73"),
+                     name = "MAG reported habitat") +
+  scale_size(name = "MAG reported occurences") +
   guides(colour = guide_legend(override.aes = list(size = 2.5)))
 
 ggsave(ar_p, file=file.path(subdir, "ar_genome_tree.png"), width = 12, height = 8)
@@ -206,7 +187,7 @@ p <- filter(ages_damage, Approximated_year=="NO") %>%
       ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = damage_model_pmax, shape = Approximated_year, colour = host_order)) +
         geom_point(alpha = 0.1) +
         scale_colour_manual(values = order_palette, name = "Host order") +
-        geom_smooth(method = "loess", span = 5, inherit.aes = FALSE, aes(x = Year_most_recent, y = damage_model_pmax)) +
+        geom_smooth(method = "lm", span = 5, inherit.aes = FALSE, aes(x = Year_most_recent, y = damage_model_pmax), colour = "black", linetype = "dotted") +
         facet_grid(. ~ host_order) + theme(legend.position = "none")
 
 ggsave(p, file=file.path(subdir, "age_v_damage.png"), width = 8, height = 6)
