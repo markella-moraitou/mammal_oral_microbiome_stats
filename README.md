@@ -1,4 +1,4 @@
-Analysis workflow for community-level analysis:
+Analysis workflow for taxonomic community-level analysis:
 ```mermaid
 flowchart TD;
     A[Create phyloseq object]-->B[Access omnicrobe database];
@@ -12,6 +12,11 @@ flowchart TD;
     E-->J[Phylosymbiosis tests];
     E-->K[Microbial phenotypes - host diet hypotheses];
     D-->L[Statistical tests];
+```
+Analysis workflow for functional community-level analysis:
+```mermaid
+flowchart TD;
+    A[Prepare data];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
