@@ -106,8 +106,9 @@ loadings_plot_rda <- function(ordination, axes, top_taxa = 20) {
 }
 
 arrow_coord <- function(ordination, phyloseq) {
-   # Get fit vectors of taxa on ordination
-   envfit_obj <- envfit(ordination, as.data.frame(t(otu_table(phyloseq))), permute = F, choices=c(1,2,3,4))
+   # Get fit vectors of taxa on ordination (transpose if taxa_are_rows)
+   if(taxa_are_rows(phyloseq)) { otu_tbl <- as.data.frame(t(otu_table(phyloseq))) } else { otu_tbl <- as.data.frame(otu_table(phyloseq)) }
+   envfit_obj <- envfit(ordination, otu_tbl, permute = F, choices=c(1,2,3,4))
    # Extract relevant information for plotting (adapted from Jackie Zorz: https://jkzorz.github.io/2020/04/04/NMDS-extras.html)
    en_coord = as.data.frame(scores(envfit_obj, "vectors")) * ordiArrowMul(envfit_obj)
    # Add effect size and order and p-value

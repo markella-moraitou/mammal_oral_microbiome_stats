@@ -254,12 +254,10 @@ saveRDS(phy_gene_clr, file.path(outdir, "phy_gene_clr.RDS"))
 #### FUNCTION PHYLOSEQ ####
 ## Based on product, combining both coverage and presence/absence info as presence absence
 
-# Turn coverage to binary (1 if 100%, 0 for under 100%)
 cov_table <- product %>% select(genome, where(is.numeric))
 cov_table$new_name <- meta$new_name[match(cov_table$genome, meta$Ext.ID)]
 cov_table <- cov_table %>% select(-genome) %>%
-  column_to_rownames(var="new_name") %>%
-  mutate(across(everything(), function(x){as.numeric(x >= 1)}))
+  column_to_rownames(var="new_name")
 
 # Fix colnames
 colnames(cov_table) <- str_remove(colnames(cov_table), ".*: ")
@@ -286,7 +284,7 @@ func_group <- rbind(select(pathway_completeness, c(category, feature)),
                     select(process_presence, c(category, feature))) %>%
                     # When a feature shows up in more than one category, collapse together category names
                     group_by(feature) %>%
-                    summarise(category = case_when(n_distinct(category) > 1 ~ paste(category, collapse = " & "),
+                    summarise(category = case_when(n_distinct(category) > 1 ~ paste(unique(category), collapse = " & "),
                                                        TRUE ~ category[1])) %>%
                     column_to_rownames("feature") %>% as.matrix
 
