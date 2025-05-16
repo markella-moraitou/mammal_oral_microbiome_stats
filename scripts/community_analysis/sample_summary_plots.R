@@ -152,9 +152,9 @@ ggsave(filename  =  file.path(subdir, "dataset_summary_plot.png"), p_summary, wi
 ########################
 
 # Get consensus tree and fix tip labels
-host_consensus <- consensus.edges(host_trees, method="least.squares")
-
-host_consensus$edge.length <- NULL
+host_consensus <- consensus.edges(host_trees, method = "least.squares", if.absent="zero", rooted = FALSE, check.labels = TRUE)
+host_consensus <- root(host_consensus, outgroup = "Macropus_giganteus", resolve.root = TRUE)
+host_consensus <- force.ultrametric(host_consensus)
 
 # Change tip labels to match metadata
 host_consensus$tip.label <- host_consensus$tip.label %>%
@@ -165,6 +165,8 @@ host_consensus$tip.label <- host_consensus$tip.label %>%
 
 # Drop tips not in dataset
 host_consensus <- drop.tip(host_consensus, setdiff(host_consensus$tip.label, meta$Species))
+host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
+write.tree(host_consensus, file = file.path(subdir, "..", "host_consensus.tre"))
 
 # Get traits for tree tips
 host_traits <- data.frame(tip = host_consensus$tip.label,
