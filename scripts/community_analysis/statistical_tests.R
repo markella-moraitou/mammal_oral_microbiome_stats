@@ -8,10 +8,14 @@
 
 library(dplyr)
 library(phyloseq)
+library(microbiome)
 library(tidyr)
 library(stringr)
 library(vegan)
 library(ANCOMBC)
+library(MCMCglmm)
+library(parallel)
+library(coda)
 library(car)
 library(lme4)
 library(tibble)
@@ -57,6 +61,9 @@ uses_table <- read.csv(file.path(outdir, "use_relations.csv"))
 # Phenotype OTU relations
 phenotype_table <- read.csv(file.path(outdir, "phenotype_relations.csv"))
 
+# Host phylogeny
+host_consensus <- read.tree(file.path(outdir, "host_consensus.tre"))
+
 ###################
 #### PERMANOVA ####
 ###################
@@ -96,47 +103,174 @@ perm <- adonis2(otu_table(phy_sp_philr) ~ sample_data$Species,
 
 write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
 
+#########################
+#### PREP TEST INPUT ####
+#########################
+
+phy_genus <- phy_sp_f %>% tax_glom("genus")
+phy_genus_clr <- phy_genus %>% transform("clr")
+
+taxa_names(phy_genus_clr) <- phy_genus_clr@tax_table[, "genus"]
+
+# Combine Sirenia/Proboscidea in one clades
+phy_genus_clr@sam_data$Order <- ifelse(phy_genus_clr@sam_data$Order %in% c("Sirenia", "Proboscidea"), "Sirenia/Proboscidea", as.character(phy_genus_clr@sam_data$Order))
+
+# Turn habitat to factor
+phy_genus_clr@sam_data$habitat.general <- factor(phy_genus_clr@sam_data$habitat.general, levels = c("Terrestrial", "Marine"))
+
+# Test for ruminant differences
+phy_genus_clr@sam_data$ruminant <- factor(ifelse(phy_genus_clr@sam_data$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
+
+# Test for hypsodont differences
+phy_genus_clr@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_genus_clr@sam_data$molar_category), "Hypsodont", "Other"), levels = c("Other", "Hypsodont"))
+
+# OTU table
+otu <- phy_genus_clr@otu_table %>% data.frame %>%
+    rownames_to_column("OTU") %>% pivot_longer(cols = where(is.numeric), names_to = "Sample", values_to = "Abundance")
+
+# Metadata
+sam <- phy_genus_clr@sam_data %>% data.frame %>%
+    select(Species, Order, diet.general, habitat.general, cf, cp, nfe, ee)%>% rownames_to_column("Sample")
+
+# Combine data
+data <- left_join(otu, sam, relationship = "many-to-one") %>%
+  # Have sus scrofa as sus scrofa domesticus
+  mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+                             TRUE ~ Species))
+
+data_wide <- data %>% pivot_wider(names_from = "OTU", values_from = "Abundance") %>% data.frame
+colnames(data_wide) <- gsub(colnames(data_wide), pattern = ".", replacement = "_", fixed = TRUE)
+
+# Get a metrics for diet
+data_diet <- data_wide %>% select(Species, diet_general, cp, cf, ee, nfe) %>% unique %>%
+  mutate(animalivory = log((cp + ee)/(cf+nfe)),
+         frugivory = log(nfe/cf))
+
+p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet_general)) +
+  geom_point(size = 2) + theme_bw() +
+  geom_text(aes(label = Species)) +
+  scale_color_manual(values = diet_palette)
+
+ggsave(p, filename = file.path(subdir, "diet_variables.png"), width = 8, height = 8)
+
+# Add to phyloseq
+data_diet <- rbind(data_diet, data_diet[which(data_diet$Species == "Sus scrofa"),])
+data_diet[nrow(data_diet), "Species"] <- "Sus scrofa domesticus"
+phy_genus_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
+phy_genus_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
+
+# Add variables to big data table
+data_wide <- data_diet %>% right_join(data_wide)
+
+# Phylogeny
+host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
+host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
+Ainv <- inverseA(host_consensus)$Ainv
+
+######################
+#### RUN MCMCglmm ####
+######################
+
+if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
+    cat("MCMCglmm output exists. Loading...\n")
+    m <- readRDS(file.path(subdir, "mcmcglmm_output.RDS"))
+} else {
+    cat("Running MCMCglmm...\n")
+    set.seed(14)
+    responses <- intersect(colnames(data_wide), gsub(" ", "_", unique(otu$OTU)))
+    formula <- as.formula(paste(
+        "cbind(",
+        paste(responses, collapse = ", "),
+        ")  ~ -1 + trait + trait:animalivory + trait:frugivory + trait:habitat_general + trait:Order + trait:ruminant"
+        ))
+    m <- mclapply(1:10, function(i) {
+    MCMCglmm(formula,
+           random = ~idh(trait):Species,
+           ginverse=list(Species=Ainv),
+           rcov = ~idh(trait):units,
+           data = data_wide, family = rep("gaussian", length(responses)),
+           verbose = TRUE,
+           nitt = 100000,
+           burnin = 30000,
+           thin = 100)
+    }, mc.cores = 1)
+    saveRDS(m, file.path(subdir, "mcmcglmm_output.RDS"))
+}
+
+mlist <- lapply(m, function(model) model$Sol)
+mlist <- do.call(mcmc.list, mlist)
+
+# Diagnostics with gelman plot
+pdf(file=file.path(subdir, "mcmcglmm_gelman_plots.pdf"))
+par(mfrow=c(4,2), mar=c(2,2,1,2))
+gelman.plot(mlist, auto.layout=F)
+dev.off()
+
+gelman.diag(mlist)
+
+# Plot first chain
+m1 = m[[1]]
+
+pdf(file=file.path(subdir, "mcmcglmm_plots.pdf"))
+par(mfrow = c(2,2))
+plot(m1)
+dev.off()
+
+# Autocorrelation
+diag(autocorr(m1$VCV)[2, , ])
+
+# 95% Credible interval
+HPDinterval(m1$VCV)
+
+# Collect results into tables
+fixed_results <- summary(m1)$solutions %>% data.frame %>% rownames_to_column("term") %>%
+  mutate(term = str_remove(term, "trait")) %>%
+  separate(term, into = c("OTU", "term"), sep = ":", fill = "right") %>%
+  mutate(term = case_when(is.na(term) ~ "Intercept",
+                          TRUE ~ term))
+
+random_results <- summary(m1)$Gcovariances %>%
+  data.frame %>% rownames_to_column("term") %>%
+  mutate(term = str_remove(term, "trait")) %>%
+  separate(term, into = c("OTU", "term"), sep = "[.]") %>%
+  mutate(pMCMC = NA)
+
+results <- rbind(fixed_results, random_results)
+write.csv(results, file = file.path(subdir, "mcmcglmm_results.csv"), quote = FALSE, row.names = FALSE)
+
+significant_results <- results %>% filter((l.95..CI < 0 & u.95..CI < 0) | (l.95..CI > 0 & u.95..CI > 0))
+
+p <-
+  ggplot(filter(significant_results, term %in% c("animalivory", "frugivory", "habitat_generalMarine")),
+        aes(x = OTU, y = post.mean, fill = term, group = term)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  #geom_errorbar(aes(ymin = `l.95..CI`, ymax = `u.95..CI`), width = 0.1, position = "dodge") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_manual(values = c("habitat_generalMarine" = "#553DCB", "animalivory" = "#FF6D5A", "frugivory" = "#B4F582"))
+
+ggsave(p, filename = file.path(subdir, "mcmcglmm_significant_results.png"), width = 8, height = 5)
+
 #####################
 #### RUN ANCOMBC ####
 #####################
 
-phy_ancombc <- phy_sp_f
-
-# Combine Sirenia/Proboscidea in one clades
-phy_ancombc@sam_data$Order <- ifelse(phy_ancombc@sam_data$Order %in% c("Sirenia", "Proboscidea"), "Sirenia/Proboscidea", as.character(phy_ancombc@sam_data$Order))
-
-# Reorder to get primate as a reference
-ord_levels <- append("Primates", setdiff(unique(phy_ancombc@sam_data$Order), "Primates"))
-phy_ancombc@sam_data$Order <- factor(phy_ancombc@sam_data$Order, ord_levels)
-
-# Same with ombivore
-phy_ancombc@sam_data$diet.general <- factor(phy_ancombc@sam_data$diet.general, levels = c("Omnivore", "Herbivore", "Frugivore", "Animalivore", "Carnivore"))
-
-# Same with habitat
-phy_ancombc@sam_data$habitat.general <- factor(phy_ancombc@sam_data$habitat.general, levels = c("Terrestrial", "Marine"))
-
-# Test for ruminant differences
-phy_ancombc@sam_data$ruminant <- factor(ifelse(phy_ancombc@sam_data$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
-
-# Test for hypsodont differences
-phy_ancombc@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_ancombc@sam_data$molar_category), "Hypsodont", "Other"), levels = c("Other", "Hypsodont"))
+phy_genus@sam_data <- phy_genus_clr@sam_data
 
 # Check if output is there, if not run
 if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
     cat("Output already there, so analysis will not be repeated! Loading existing ANCOMBC results...\n")
-    out <- readRDS(file.path(subdir, "ancombc_results.rds"))
+        out <- readRDS(file.path(subdir, "ancombc_results.rds"))
 } else {
-    out <- ancombc2(data = phy_ancombc,
-                 fix_formula = "Order + diet.general + habitat.general + ruminant",
-                 #rand_formula = "(1|Species)",
+    out <- ancombc2(data = phy_genus,
+                 fix_formula = "animalivory + frugivory + Order + habitat.general + ruminant",
+                 rand_formula = "(1|Species)",
                  tax_level = "species",
                  p_adj_method = "holm", prv_cut = 0.1, # Some parameters. prv_cut=0.10 means that taxa found in less than 10% of samples are ignored
                  group="Order",
                  struc_zero = FALSE,
                  global = FALSE,
                  lib_cut = 0,
-                 verbose = TRUE)
-    
+                 verbose = TRUE)    
     # Save output
     saveRDS(out, file.path(subdir, "ancombc_results.rds"))
     write.csv(out$res, file.path(subdir, "ancombc_res.csv"), row.names = FALSE, quote = TRUE)
