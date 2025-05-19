@@ -16,7 +16,8 @@ flowchart TD;
 Analysis workflow for functional community-level analysis:
 ```mermaid
 flowchart TD;
-    A[Prepare data];
+    A[Prepare data]-->B[Plot ordinations]
+    A[Prepare data]-->B[Statistical tests];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:

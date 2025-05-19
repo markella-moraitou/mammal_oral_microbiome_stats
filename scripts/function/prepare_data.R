@@ -249,6 +249,8 @@ write.csv(low_content_samples, file.path(outdir, "low_content_samples.txt"), quo
 
 # CLR normalisation
 phy_gene_clr <- transform(phy_gene, "clr")
+
+saveRDS(phy_gene, file.path(outdir, "phy_gene.RDS"))
 saveRDS(phy_gene_clr, file.path(outdir, "phy_gene_clr.RDS"))
 
 #### FUNCTION PHYLOSEQ ####
