@@ -232,3 +232,15 @@ p <-
         legend.position = "none")
 
 ggsave(filename =  file.path(subdir, "host_phylogeny.png"), p, width  =  8, height = 8)
+
+##########################
+#### SEQUENCING DEPTH ####
+##########################
+
+p <- ggplot(metadata, aes(y = Common.name, x = unmapped_count, fill = (is.na(project_name)))) +
+    geom_boxplot() +
+    scale_x_continuous(trans = "log10") +
+    scale_fill_manual(values = c(`TRUE` = "#73B55B", `FALSE` = "#C96474"), name = "This study") +
+    facet_grid(rows = vars(Order), space = "free", scales = "free")
+
+ggsave(filename =  file.path(subdir, "read_count_per_species.png"), p, width  =  8, height = 12)
