@@ -33,13 +33,19 @@ theme_set(custom_theme())
 #####  LOAD INPUT #####
 #######################
 
-# DRAM distillation and product outputs
+# DRAM and CAT output (contig annotations)
+annot <- read.table(file.path(indir, "sample_annotations_counts.tsv"),
+                        sep = "\t", header = TRUE, check.names=FALSE, quote = "", comment = "")
 
 distill <- read_excel(file.path(indir, "sample_metabolism_summary.xlsx")) %>%
             unique
 
 product <- read.table(file.path(indir, "sample_product.tsv"),
-                        sep = "\t", header = TRUE, check.names=FALSE)
+                        sep = "\t", header = TRUE, check.names=FALSE, quote = "", comment = "")
+
+# DRAM genome summary form
+summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
+                            sep = "\t", header = TRUE, check.names=FALSE, quote = "\"", comment = "")
 
 # Sample metadata
 metadata <- read.csv(file.path(indir, "sample_metadata.csv")) # Sample metadata
@@ -198,25 +204,56 @@ write.csv(process_presence, file.path(outdir, "process_presence.csv"), row.names
 ##################################
 
 #### GENE PHYLOSEQ ####
-## Based on distillation
+## Based on filtered raw output
+
+# Write a function to keep only top-level classifications, e.g. "GH13" instead of "GH13; GH13_14; GH13_16; GH13_17; GH13_18; GH13_1; GH13_20; GH13_21; GH13_23; GH13_29; GH13_2; GH13_30; GH13_31; GH13_32; GH13_35; GH13_36; GH13_39; GH13_3; GH13_40; GH13_4" 
+shorten_id <- function(large_id) {
+  # If there is only one ID, just original ID
+  if (!grepl(";", large_id)) {
+    return(large_id)
+  }
+  ids <- str_split(large_id, "; ")[[1]]
+  # Check if the all start with the same id plus a suffix
+  if (length(unique(str_remove(ids, "_.*"))) == 1) {
+    short_id = ids[1]
+  } else {
+    short_id = large_id
+  }
+  return(short_id)
+}
 
 # Get OTU table
-gene_table <- distill %>% select(gene_id, contains("final_contigs")) %>% unique %>%
-  # Some genes appear in more than one line (due to different names, modules) -- get average (the abundance should be the same in every replicate line)
-  group_by(gene_id) %>% summarise(across(everything(), ~ mean(as.numeric(.)))) %>%
-  column_to_rownames(var="gene_id") %>%
-  # make sure all columns are numeric
-  mutate(across(everything(), ~ as.numeric(.)))
+annot$gene_id_short <- sapply(annot$gene_id, shorten_id)
+
+gene_table <-
+    annot %>%
+    # Remove genes with more than one EC
+    filter(!grepl(".*EC.*EC.*", gene_description)) %>%
+    # Unstratified gene counts (disregard what species they came from)
+    select(gene_id_short, fasta, count) %>% group_by(gene_id_short, fasta) %>%
+    summarise(count = sum(count)) %>% pivot_wider(names_from = "fasta", values_from = "count", values_fill = 0) %>%
+    column_to_rownames("gene_id_short")
 
 # Fix names
 colnames(gene_table) <-  meta$new_name[match(str_remove(colnames(gene_table), "_final_contigs"), meta$Ext.ID)]
 
 # Get get gene taxonomy e.g. header, subheader, module
-gene_tax <- distill %>% select(header, subheader, module, gene_description, gene_id) %>% unique %>%
+gene_tax <- summary_form %>% select(header, sheet, module, gene_id) %>% unique %>%
         # When a gene id shows up in more than one module, collapse together module names
         group_by(gene_id) %>%
-        summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(.cols, collapse = " & ")} else {.cols[1]}}) %>%
-        column_to_rownames("gene_id") %>% as.matrix
+        summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(unique(.cols), collapse = " & ")} else {.cols[1]}}) %>%
+        mutate_all(.funs = function(.cols) {str_remove(str_remove(.cols, "^ & "), " & $")}) %>%
+        # Keep only taxa in gene_table
+        right_join(data.frame(gene_id = rownames(gene_table),
+                              gene_description = annot$gene_description[match(rownames(gene_table), annot$gene_id)],
+                              database = annot$database[match(rownames(gene_table), annot$gene_id)]))
+
+# Several genes are missing, which were not in the summary_form table. For these I don't have some grouping info like header module etc
+# So I will just use the database as header
+gene_tax <- gene_tax %>% mutate(header = case_when(is.na(header) ~ database,
+                                                  TRUE ~ header)) %>% as.matrix
+
+rownames(gene_tax) <- gene_tax[,"gene_id"]
 
 otu <- otu_table(gene_table, taxa_are_rows = TRUE)
 
@@ -225,6 +262,9 @@ sam <- sample_data(column_to_rownames(meta, "new_name"))
 tax <- tax_table(gene_tax)
 
 phy_gene <- phyloseq(otu, sam, tax)
+
+# Remove genes with prevalence below 5%
+phy_gene <- phy_gene %>% subset_taxa(prevalence(phy_gene) > 0.05)
 
 # Count total abundance of features in otu table
 phy_gene@sam_data$Total_abundance <- colSums(phy_gene@otu_table)
@@ -243,7 +283,7 @@ p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour
 ggsave(p, filename = file.path(outdir, "contigs_to_genes.png"))
 
 # low content samples
-low_content_samples <- names(which(colSums(phy_gene@otu_table) < 1000))
+low_content_samples <- names(which(colSums(phy_gene@otu_table) < 5000))
 
 write.csv(low_content_samples, file.path(outdir, "low_content_samples.txt"), quote = FALSE, row.names = FALSE)
 
@@ -297,4 +337,3 @@ tax <- tax_table(func_group)
 phy_function <- phyloseq(otu, sam, tax)
 
 saveRDS(phy_function, file.path(outdir, "phy_function.RDS"))
-
