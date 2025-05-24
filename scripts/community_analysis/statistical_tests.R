@@ -130,7 +130,7 @@ otu <- phy_genus_clr@otu_table %>% data.frame %>%
 
 # Metadata
 sam <- phy_genus_clr@sam_data %>% data.frame %>%
-    select(Species, Order, diet.general, habitat.general, cf, cp, nfe, ee)%>% rownames_to_column("Sample")
+    select(Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count)%>% rownames_to_column("Sample")
 
 # Combine data
 data <- left_join(otu, sam, relationship = "many-to-one") %>%
@@ -144,7 +144,7 @@ colnames(data_wide) <- gsub(colnames(data_wide), pattern = ".", replacement = "_
 # Get a metrics for diet
 data_diet <- data_wide %>% select(Species, diet_general, cp, cf, ee, nfe) %>% unique %>%
   mutate(animalivory = log((cp + ee)/(cf+nfe)),
-         frugivory = log(nfe/cf))
+         frugivory = log((nfe + 5)/(cf + 5)))
 
 p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet_general)) +
   geom_point(size = 2) + theme_bw() +
@@ -193,7 +193,7 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
            nitt = 100000,
            burnin = 30000,
            thin = 100)
-    }, mc.cores = 1)
+    }, mc.cores = 10)
     saveRDS(m, file.path(subdir, "mcmcglmm_output.RDS"))
 }
 
@@ -225,9 +225,9 @@ HPDinterval(m1$VCV)
 # Collect results into tables
 fixed_results <- summary(m1)$solutions %>% data.frame %>% rownames_to_column("term") %>%
   mutate(term = str_remove(term, "trait")) %>%
-  separate(term, into = c("OTU", "term"), sep = ":", fill = "right") %>%
-  mutate(term = case_when(is.na(term) ~ "Intercept",
-                          TRUE ~ term))
+  separate(term, into = c("OTU", "term"), sep = ":", fill = "right")%>%
+  # Remove intercepts
+  filter(!is.na(term))
 
 random_results <- summary(m1)$Gcovariances %>%
   data.frame %>% rownames_to_column("term") %>%
@@ -235,20 +235,59 @@ random_results <- summary(m1)$Gcovariances %>%
   separate(term, into = c("OTU", "term"), sep = "[.]") %>%
   mutate(pMCMC = NA)
 
-results <- rbind(fixed_results, random_results)
-write.csv(results, file = file.path(subdir, "mcmcglmm_results.csv"), quote = FALSE, row.names = FALSE)
+# Combine resulrts
+mcmc_res <- rbind(fixed_results, random_results) %>%
+    group_by(term) %>%
+    mutate(qval = p.adjust(pMCMC, "fdr"))
 
-significant_results <- results %>% filter((l.95..CI < 0 & u.95..CI < 0) | (l.95..CI > 0 & u.95..CI > 0))
+write.csv(mcmc_res, file = file.path(subdir, "mcmcglmm_results.csv"), quote = FALSE, row.names = FALSE)
 
-p <-
-  ggplot(filter(significant_results, term %in% c("animalivory", "frugivory", "habitat_generalMarine")),
-        aes(x = OTU, y = post.mean, fill = term, group = term)) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  #geom_errorbar(aes(ymin = `l.95..CI`, ymax = `u.95..CI`), width = 0.1, position = "dodge") +
-  theme(axis.text.x = element_text(angle = 90)) +
-  scale_fill_manual(values = c("habitat_generalMarine" = "#553DCB", "animalivory" = "#FF6D5A", "frugivory" = "#B4F582"))
+#### Plot differentially abundant taxa ####
+# There is no significant results, so keep the 100 smallest qvalues
+mcmc_signif <- mcmc_res %>%
+            filter(!term %in% c("Species", "Total_abundance")) %>%
+            filter(pMCMC < 0.05)
 
-ggsave(p, filename = file.path(subdir, "mcmcglmm_significant_results.png"), width = 8, height = 5)
+mcmc_res_label <- mcmc_signif %>%
+            # label association (positive and negative)
+            mutate(assoc = case_when(post.mean < 0 ~ paste0(term, "-"),
+                                     post.mean > 0 ~ paste0(term, "+"))) %>%
+            mutate(assoc = str_remove(assoc, "Order|habitat_general|ruminant")) %>%
+            # Then summarise all associations per taxon
+            group_by(OTU) %>%
+            summarise(label = paste(assoc, collapse=" "))
+
+# Get abundances per sample for the differentially abundant taxa
+abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
+              pivot_longer(cols = -Sample, names_to = "OTU", values_to = "Abundance") %>%
+              left_join(rownames_to_column(select(data.frame(phy_genus_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample")
+
+mcmc_abund <- abundances %>% right_join(mcmc_res_label)
+
+# Reorder host species
+species_levels <- phy_genus_clr@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
+mcmc_abund$Common.name <- factor(mcmc_abund$Common.name, levels = species_levels$Common.name)
+
+# Reorder genes
+genus_levels <- mcmc_abund %>% arrange(label) %>% pull(OTU) %>% unique
+mcmc_abund$OTU <- factor(mcmc_abund$OTU, levels = genus_levels)
+
+# Plot
+order_palette2 <- order_palette
+order_palette2["Sirenia/Proboscidea"] <- order_palette2["Sirenia"]
+
+p <- ggplot(mcmc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
+    geom_boxplot(alpha = 0.8, size = 0.5) +
+    scale_colour_manual(values = order_palette2, name = "Order") +
+    scale_fill_manual(values = diet_palette, name = "Diet") +
+    facet_wrap(~ paste(as.character(OTU), label, sep = "\n"), ncol = 3, scales = "free_y") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 8),
+          legend.position = "bottom") + ylab("CLR-transformed abundances") +
+    guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+ggsave(p, filename = file.path(subdir, "mcmc_abundances.png"), width = 12, height = 20)
 
 #####################
 #### RUN ANCOMBC ####
@@ -262,9 +301,9 @@ if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
         out <- readRDS(file.path(subdir, "ancombc_results.rds"))
 } else {
     out <- ancombc2(data = phy_genus,
-                 fix_formula = "animalivory + frugivory + Order + habitat.general + ruminant",
+                 fix_formula = "animalivory + frugivory + habitat.general + ruminant",
                  rand_formula = "(1|Species)",
-                 tax_level = "species",
+                 tax_level = "genus",
                  p_adj_method = "holm", prv_cut = 0.1, # Some parameters. prv_cut=0.10 means that taxa found in less than 10% of samples are ignored
                  group="Order",
                  struc_zero = FALSE,
@@ -309,12 +348,12 @@ sensitivity <-
     mutate(term = str_remove(term, "passed_ss_")) %>%
     mutate(term = str_remove(term, "Order|ruminant|diet.general|habitat.general|hypsodont"))
 
-res_long <- lfc %>% full_join(pvalues) %>% full_join(qvalues) %>% full_join(sensitivity) %>% filter(term != "(Intercept)")
+ancombc_res_long <- lfc %>% full_join(pvalues) %>% full_join(qvalues) %>% full_join(sensitivity) %>% filter(term != "(Intercept)")
 
-write.csv(res_long, file = file.path(subdir, "ancomb_long.csv"), quote = FALSE, row.names = FALSE)
+write.csv(ancombc_res_long, file = file.path(subdir, "ancomb_long.csv"), quote = FALSE, row.names = FALSE)
 
 # Volcano plot
-p <- filter(res_long) %>%
+p <- filter(ancombc_res_long) %>%
     ggplot(aes(x = lfc, y = -log10(pval), shape = sensitivity, colour = (qval <= 0.05))) +
     geom_point() +
     geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
@@ -327,8 +366,10 @@ p <- filter(res_long) %>%
 ggsave(p, filename = file.path(subdir, "ancombc_volcano.png"), width = 8, height = 5)
 
 #### Plot differentially abundant taxa ####
+# Get significant results
+ancombc_signif <- filter(ancombc_res_long) %>% filter(pval <= 0.05 & sensitivity == TRUE)
 
-res_plot <- filter(res_long) %>% filter(qval <= 0.05 & sensitivity == TRUE) %>%
+ancombc_res_label <- ancombc_signif %>%
             # label association (positive and negative)
             mutate(assoc = case_when(lfc < 0 ~ paste0(term, "-"),
                                      lfc > 0 ~ paste0(term, "+"))) %>%
@@ -337,28 +378,27 @@ res_plot <- filter(res_long) %>% filter(qval <= 0.05 & sensitivity == TRUE) %>%
             summarise(label = paste(assoc, collapse=" "))
 
 # Get abundances per sample for the differentially abundant taxa
-abundances <- phy_sp_f_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
+abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
               pivot_longer(cols = -Sample, names_to = "taxon", values_to = "Abundance") %>%
-              left_join(select(data.frame(phy_ancombc@sam_data), new_name, Common.name, Order, diet.general), by = c("Sample" = "new_name")) %>%
-              mutate(taxon = gsub(taxon, pattern = ".", replacement = " ", fixed = TRUE))
+              left_join(rownames_to_column(select(data.frame(phy_genus_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample")
 
-res_abundances <- abundances %>% right_join(res_plot) %>%
-                    # Get genus
-                    mutate(genus = str_remove(taxon, " .*"))
+ancombc_abund <- abundances %>% right_join(ancombc_res_label) %>%
+                # Get genus
+                mutate(genus = str_remove(taxon, " .*"))
 
 # Reorder host species
-species_levels <- phy_ancombc@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
-res_abundances$Common.name <- factor(res_abundances$Common.name, levels = species_levels$Common.name)
+species_levels <- phy_genus_clr@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
+ancombc_abund$Common.name <- factor(ancombc_abund$Common.name, levels = species_levels$Common.name)
 
 # Reorder taxa
-taxa_levels <- res_plot %>% arrange(label) %>% pull(taxon) %>% unique
-res_abundances$taxon <- factor(res_abundances$taxon, levels = taxa_levels)
+taxa_levels <- ancombc_res_label %>% arrange(label) %>% pull(taxon) %>% unique
+ancombc_abund$taxon <- factor(ancombc_abund$taxon, levels = taxa_levels)
 
 # Plot
 order_palette2 <- order_palette
 order_palette2["Sirenia/Proboscidea"] <- order_palette2["Sirenia"]
 
-p <- ggplot(res_abundances, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
+p <- ggplot(ancombc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
     geom_boxplot(alpha = 0.8, size = 0.5) +
     scale_colour_manual(values = order_palette2, name = "Order") +
     scale_fill_manual(values = diet_palette, name = "Diet") +
@@ -369,29 +409,38 @@ p <- ggplot(res_abundances, aes(x = Common.name, y = Abundance, colour = Order, 
           legend.position = "bottom") + ylab("CLR-transformed abundances") +
     guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
-ggsave(p, filename = file.path(subdir, "ancombc_abundances.png"), width = 12, height = 30)
+ggsave(p, filename = file.path(subdir, "ancombc_abundances.png"), width = 12, height = 12)
+
+##################################
+#### COMPARE ANCOMBC-MCMCglmm ####
+##################################
+
+# Combine results from MCMCglmm and ANCOMBC
+diffabund_comparison <- full_join(mcmc_res_label, ancombc_res_label, by = c("OTU"="taxon"), suffix = c("_mcmc", "_ancombc"))
+
+write.csv(diffabund_comparison, file = file.path(subdir, "ancombc_mcmcglmm_comparison.csv"), quote = FALSE, row.names = FALSE)
 
 #### Plot diff abund taxa with habitat, uses, phenotypes ####
-habitat_associations <-
-            res_plot %>%
-            left_join(select(habitats_table, c(taxon, OBT, obt_type, occurences))) %>%
+
+associations <- rbind(habitats_table, uses_table) %>%
+            # get genus and sum occurences
+            mutate(taxon = str_remove(taxon, " .*")) %>%
+            group_by(taxon, OBT, obt_type) %>%
+            summarise(occurences = sum(occurences, na.rm = TRUE)) %>%
             # Group OBTs into larger habitats
             mutate(OBT = case_when(OBT %in% c("dental plaque", "mouth") ~ "oral",
                                        OBT %in% c("marine water", "deep sea") ~ "marine",
                                        OBT %in% c("mammalian", "wild animal", "mammalian livestock") ~ "animal",
                                        TRUE ~ OBT)) %>%
-            # Only select some of the most informative terms
-            filter(OBT %in% c("oral", "animal", "soil", "marine", "rumen", "gut"))
+            filter(OBT %in% c("oral", "animal", "soil", "marine", "rumen", "gut") | grepl("activity", OBT)) %>%
+            # Add results from MCMCglmm and ANCOMBC
+            right_join(diffabund_comparison, by = c("taxon" = "OTU")) %>%
+            # Note if the taxon was found in MCMCglmm or ANCOMBC or both
+            mutate(label = case_when(!is.na(label_mcmc) & !is.na(label_ancombc) ~ "both",
+                                     !is.na(label_mcmc) & is.na(label_ancombc) ~ "mcmcglmm",
+                                     is.na(label_mcmc) & !is.na(label_ancombc) ~ "ancombc"))
 
-use_associations <-
-            res_plot %>%
-            left_join(select(uses_table, c(taxon, OBT, obt_type, occurences)))
-
-# Combine
-associations <- full_join(habitat_associations, use_associations) %>% filter(!is.na(OBT)) %>% arrange(label, taxon)
-associations$label <- factor(associations$label, levels = unique(associations$label))
-
-write.csv(associations, file = file.path(subdir, "ancomb_diffabund_associations.csv"), quote = FALSE, row.names = FALSE)
+write.csv(associations, file = file.path(subdir, "ancombc_mcmcglmm_comparison_associations.csv"), quote = FALSE, row.names = FALSE)
 
 p <- ggplot(associations, aes(y = taxon, x = OBT, size = occurences, colour = OBT)) +
         geom_point() +
@@ -424,27 +473,17 @@ manyanovas <- function(physeq, formula) {
     return(results)
 }
 
-# Get metadata from ancombc
-phy_sp_f_clr@sam_data <- phy_ancombc@sam_data
 
 # Run multiple anovas
-anovas_res <- manyanovas(phy_sp_f_clr, formula = "Abundance ~ Order + diet.general + habitat.general + ruminant")
+anovas_res <- manyanovas(phy_genus_clr, formula = "Abundance ~ Order + diet.general + habitat.general + ruminant")
 
 # Plot results
 anova_res_wide <- anovas_res %>% pivot_wider(names_from = terms, values_from = c(F.value, p.value))
 
 # Add total abundance and genus information
 anova_res_wide$total_abundance <- taxa_sums(phy_sp_f)[anova_res_wide$taxon]
-anova_res_wide$genus <- as.data.frame(tax_table(phy_sp_f))[anova_res_wide$taxon, "genus"]
-
-# Get grouped genus from OTUs that came up as differentially abundant
-#abundant_genera <- anova_res_wide %>% group_by(genus) %>% summarise(total_abundance = sum(total_abundance)) %>%
-#    arrange(desc(total_abundance)) %>% slice_head(n = 15) %>% pull(genus)
-
-diff_abund_genera <- res_plot$taxon %>% str_remove(" .*") %>% unique
-
-anova_res_wide$genus_grouped <- ifelse(anova_res_wide$genus %in% diff_abund_genera, anova_res_wide$genus, "Other")
-anova_res_wide$genus_grouped <- factor(anova_res_wide$genus_grouped, levels = c(as.character(diff_abund_genera), "Other"))
+# Get phylum info
+anova_res_wide$phylum <- phy_genus_clr@tax_table[anova_res_wide$taxon, "phylum"]
 
 write.csv(anova_res_wide, file = file.path(subdir, "taxon_anova_results.csv"), row.names = FALSE, quote = TRUE)
 
@@ -455,7 +494,7 @@ p <- ggplot(aes(x = F.value_Order, y = F.value_diet.general), data = anova_res_w
     geom_hex(bins = 20) +
     scale_fill_viridis_c("H") +
     geom_abline(intercept = 0, slope = 1, linetype = "dotted", alpha = 0.7) +
-    facet_wrap(~ genus_grouped, ncol = 4) +
+    facet_wrap(~ phylum, ncol = 4) +
     theme(legend.position = "none") +
     labs(x = "F-value Order", y = "F-value Diet") +
     xlim(NA, max_axis) + ylim(NA, max_axis)
@@ -469,7 +508,7 @@ p <- ggplot(aes(x = F.value_habitat.general, y = F.value_diet.general), data = a
     geom_hex(bins = 20) +
     scale_fill_viridis_c("H") +
     geom_abline(intercept = 0, slope = 1, linetype = "dotted", alpha = 0.7) +
-    facet_wrap(~ genus_grouped, ncol = 4) +
+    facet_wrap(~ phylum, ncol = 4) +
     theme(legend.position = "none") +
     labs(x = "F-value Habitat", y = "F-value Diet") +
     xlim(NA, max_axis) + ylim(NA, max_axis)
