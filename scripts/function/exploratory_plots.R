@@ -9,17 +9,12 @@
 #### LOAD PACKAGES ####
 library(dplyr)
 library(tidyr)
-#library(stringr)
-#library(tibble)
 library(phyloseq)
 library(microViz)
-#library(cowplot)
 library(microbiome)
 library(rphylopic)
-#library(vegan)
 library(ggplot2)
 library(ggnewscale)
-#library(RColorBrewer)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -42,8 +37,12 @@ source(file.path("..","ordination_functions.R"))
 #####  LOAD INPUT #####
 #######################
 
-# Phyloseq object
+# Phyloseq objecta
 phy_gene_clr <- readRDS(file.path(outdir, "phy_gene_clr.RDS"))
+
+phy_gene_all <- readRDS(file.path(outdir, "phy_gene_all.RDS"))
+phy_gene_all_clr <- readRDS(file.path(outdir, "phy_gene_all_clr.RDS"))
+
 phy_function <- readRDS(file.path(outdir, "phy_function.RDS"))
 
 low_content_samples <- read.csv(file.path(outdir, "low_content_samples.txt"), header = TRUE)
@@ -86,7 +85,7 @@ write.csv(arrows, file.path(subdir, "gene_ordination_arrows.txt"), quote = FALSE
 arrows_filt <- arrows %>% filter(to_plot) %>%
               select(contains(c("1", "2", "3", "4")), module)
 
-# Group uncommon headers
+# Group uncommon modules
 common_modules <- table(arrows_filt$module) %>% sort(decreasing = TRUE) %>% head(6) %>% names
 
 arrows_filt <- arrows_filt %>%
@@ -106,10 +105,10 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, si
   scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
   scale_color_manual(values=order_palette, name = "Order") +
   scale_size(name = "# Features") +
-  geom_phylopic(data = centroids(ord@ord, phy_gene_filt), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_gene_filt)$uid, width = 0.2, fill = "transparent") +
+  geom_phylopic(data = centroids(ord@ord, phy_gene_filt), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_gene_filt)$uid, width = 0.3, fill = "transparent") +
   new_scale_colour() +
   geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = module_grouped), linewidth = 0.8, alpha = 0.5) +
-  scale_color_manual(values = arrow_colours, name = "Header") +
+  scale_color_manual(values = arrow_colours, name = "Module") +
   theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
   guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
 
@@ -157,8 +156,8 @@ arrows_filt <- arrows_filt %>%
 
 arrow_colours <- c("Methanogenesis and methanotrophy" = "#FF5F17",
                    "Nitrogen metabolism" = "#FFEB17",
-                   "Sulfur metabolism" = "#13D38A",
-                   "CAZy" = "#7123D4",
+                   "Complex IV Low affinity" = "#13D38A",
+                   "Reductive" = "#7123D4",
                    "Other" = "grey80")
 
 p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
@@ -188,3 +187,83 @@ p <- ggplot(func_completeness, aes(x = Sample, y = Function, fill = Completeness
          strip.text.y = element_text(angle = 0), strip.text.x = element_text(angle = 90))
 
 ggsave(p, filename = file.path(subdir, "function_heatmap.png"), width=25, height=16)
+
+#############################
+#### NON KEGG ANNOTATIOS ####
+#############################
+
+# Plot peptidase diversity
+
+phy_merops <- phy_gene_all %>% subset_taxa(database == "MEROPS") %>%
+    subset_samples(!(sample_names(phy_gene_all) %in% low_content_samples$x))
+
+
+merops_richness <- 
+    estimate_richness(rarefy_even_depth(phy_merops, 650), measures = "Observed") %>%
+    rownames_to_column("Sample") %>%
+    left_join(sample_data(phy_merops) %>% as.data.frame() %>% rownames_to_column("Sample"))
+
+p <-
+    ggplot(merops_richness, aes(x = Species, y = Observed, fill = diet.general)) +
+    geom_boxplot() +
+    scale_fill_manual(values = diet_palette) +
+    labs(x = "Order", y = "Peptidase richness (Observed)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(file.path(subdir, "peptidase_richness.png"), width=8, height=6)
+
+# Plot peptidase abundance
+
+merops_abundance <- 
+    data.frame(transform(phy_merops_clr, "compositional")@otu_table) %>% rownames_to_column("OTU") %>%
+    pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
+    left_join(sample_data(phy_merops) %>% data.frame() %>% rownames_to_column("Sample") %>% select(Sample, Species, diet.general)) %>%
+    group_by(Sample, Species, diet.general) %>%
+    summarise(Abundance = sum(Abundance, na.rm = TRUE), .groups = "drop")
+
+p <-
+    ggplot(merops_abundance, aes(x = Species, y = Abundance, fill = diet.general)) +
+    geom_boxplot() +
+    scale_fill_manual(values = diet_palette) +
+    labs(x = "Order", y = "Peptidase abundance (CLR)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(file.path(subdir, "peptidase_abundance.png"), width=8, height=6)
+
+
+# Plot CAZy enzyme diversity
+
+phy_cazy <- phy_gene_all %>% subset_taxa(database == "CAZY") %>%
+    subset_samples(!(sample_names(phy_gene_all) %in% low_content_samples$x))
+
+cazy_richness <- 
+    estimate_richness(rarefy_even_depth(phy_cazy, 30), measures = "Observed") %>%
+    rownames_to_column("Sample") %>%
+    left_join(sample_data(phy_merops) %>% as.data.frame() %>% rownames_to_column("Sample"))
+
+p <-
+    ggplot(cazy_richness, aes(x = Species, y = Observed, fill = diet.general)) +
+    geom_boxplot() +
+    scale_fill_manual(values = diet_palette) +
+    labs(x = "Order", y = "CAZy richness (Observed)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(file.path(subdir, "cazy_richness.png"), width=8, height=6)
+
+# Plot CAZy enzyme abundance
+cazy_abundance <- 
+    data.frame(transform(phy_cazy, "compositional")@otu_table) %>% rownames_to_column("OTU") %>%
+    pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
+    left_join(sample_data(phy_cazy) %>% data.frame() %>% rownames_to_column("Sample") %>% select(Sample, Species, diet.general)) %>%
+    group_by(Sample, Species, diet.general) %>%
+    summarise(Abundance = sum(Abundance, na.rm = TRUE), .groups = "drop")
+
+p <-
+  ggplot(cazy_abundance, aes(x = Species, y = Abundance, fill = diet.general)) +
+  geom_boxplot() +
+  scale_fill_manual(values = diet_palette) +
+  labs(x = "Order", y = "CAZy abundance (CLR)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(file.path(subdir, "cazy_abundance.png"), width=8, height=6)
+
