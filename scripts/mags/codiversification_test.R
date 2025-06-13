@@ -347,7 +347,7 @@ create_plots(bac_tree_drep, bac_meta_drep, host_consensus, bac_cod_results, "bac
 # Save plots
 dir.create(file.path(subdir, "ar_cophylo_plots"), showWarnings = FALSE)
 
-create_plots(ar_tree_drep, ar_meta_dre[], host_consensus, ar_cod_results, "ar_cophylo_plots")
+create_plots(ar_tree_drep, ar_meta_drep, host_consensus, ar_cod_results, "ar_cophylo_plots")
 
 #### Plot entire tree ####
 

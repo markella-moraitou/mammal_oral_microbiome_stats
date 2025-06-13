@@ -28,8 +28,7 @@ large_font <- function() {
       axis.title=element_text(size = 18, face = "bold"),
       legend.title=element_text(size = 14, face = "bold"),
       legend.text=element_text(size=12),
-      strip.background = element_rect(fill = "white", colour = "black"),
-      axis.title.x = element_blank()
+      strip.background = element_rect(fill = "white", colour = "black")
     )
 }
 
