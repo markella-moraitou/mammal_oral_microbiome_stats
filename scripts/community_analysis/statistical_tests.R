@@ -19,6 +19,7 @@ library(coda)
 library(car)
 library(lme4)
 library(tibble)
+library(ggregplot)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -124,29 +125,30 @@ phy_genus_clr@sam_data$ruminant <- factor(ifelse(phy_genus_clr@sam_data$digestio
 # Test for hypsodont differences
 phy_genus_clr@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_genus_clr@sam_data$molar_category), "Hypsodont", "Other"), levels = c("Other", "Hypsodont"))
 
-# OTU table
-otu <- phy_genus_clr@otu_table %>% data.frame %>%
-    rownames_to_column("OTU") %>% pivot_longer(cols = where(is.numeric), names_to = "Sample", values_to = "Abundance")
-
-# Metadata
-sam <- phy_genus_clr@sam_data %>% data.frame %>%
-    select(Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count)%>% rownames_to_column("Sample")
-
-# Combine data
-data <- left_join(otu, sam, relationship = "many-to-one") %>%
-  # Have sus scrofa as sus scrofa domesticus
-  mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
-                             TRUE ~ Species))
-
-data_wide <- data %>% pivot_wider(names_from = "OTU", values_from = "Abundance") %>% data.frame
-colnames(data_wide) <- gsub(colnames(data_wide), pattern = ".", replacement = "_", fixed = TRUE)
+# Melt
+data <- psmelt(phy_genus_clr) %>%
+        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count)
 
 # Get a metrics for diet
-data_diet <- data_wide %>% select(Species, diet_general, cp, cf, ee, nfe) %>% unique %>%
+data <- data %>%
   mutate(animalivory = log((cp + ee)/(cf+nfe)),
-         frugivory = log((nfe + 5)/(cf + 5)))
+         frugivory = log((nfe + 5)/(cf + 5))) %>%
+    # Turn S. scrofa domesticus to S. scrofa to match tree
+    mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+                               TRUE ~ Species))
 
-p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet_general)) +
+# Keep only 50 most abundant taxa
+#top <- data %>% group_by(OTU) %>%
+#  summarise(av_abundance = mean(Abundance)) %>%
+#  arrange(desc(av_abundance)) %>%
+#  slice_head(n = 100) %>% pull(OTU)
+
+#data <- data %>% filter(OTU %in% top)
+
+# Plot animalivory and frugivory
+data_diet <- data %>% select(animalivory, frugivory, diet.general, Species) %>% unique
+
+p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet.general)) +
   geom_point(size = 2) + theme_bw() +
   geom_text(aes(label = Species)) +
   scale_color_manual(values = diet_palette)
@@ -159,9 +161,6 @@ data_diet[nrow(data_diet), "Species"] <- "Sus scrofa domesticus"
 phy_genus_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
 phy_genus_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
 
-# Add variables to big data table
-data_wide <- data_diet %>% right_join(data_wide)
-
 # Phylogeny
 host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
 host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
@@ -171,27 +170,33 @@ Ainv <- inverseA(host_consensus)$Ainv
 #### RUN MCMCglmm ####
 ######################
 
+# Based on tutorial by Sweeny et al. 2023, mSystems
+
 if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
     cat("MCMCglmm output exists. Loading...\n")
     m <- readRDS(file.path(subdir, "mcmcglmm_output.RDS"))
 } else {
     cat("Running MCMCglmm...\n")
     set.seed(14)
-    responses <- intersect(colnames(data_wide), gsub(" ", "_", unique(otu$OTU)))
-    formula <- as.formula(paste(
-        "cbind(",
-        paste(responses, collapse = ", "),
-        ")  ~ -1 + trait + trait:animalivory + trait:frugivory + trait:habitat_general + trait:Order + trait:ruminant"
-        ))
+    # Prep formula
+    response <- "Abundance"
+    fixed <- c("animalivory:OTU", "frugivory:OTU", "ruminant:OTU", "habitat.general:OTU")
+    formula <- as.formula(paste(response, "~", paste(fixed, collapse = "+")))
+    n_taxa <- length(unique(data$OTU))
+    # Set priors
+    prior = list(R = list(V = diag(1), nu = 0.002),
+                 G = list(G1 = list(V = diag(1), nu = 0.002, alpha.mu = rep(0,1), alpha.V = diag(1)*100),
+                          G2 = list(V = diag(n_taxa), nu = 0.002, alpha.mu = rep(0, n_taxa), alpha.V = diag(n_taxa)*100)))
+    # Run MCMCglmm
     m <- mclapply(1:10, function(i) {
-    MCMCglmm(formula,
-           random = ~idh(trait):Species,
-           ginverse=list(Species=Ainv),
-           rcov = ~idh(trait):units,
-           data = data_wide, family = rep("gaussian", length(responses)),
-           verbose = TRUE,
-           nitt = 100000,
-           burnin = 30000,
+        MCMCglmm(fixed = formula,
+           random = ~ OTU + idh(OTU):Species,
+           ginverse = list(Species=Ainv),
+           prior = prior,
+           data = data,
+           verbose = TRUE, # pr = TRUE, pl = TRUE,
+           nitt = 51000,
+           burnin = 1000,
            thin = 100)
     }, mc.cores = 10)
     saveRDS(m, file.path(subdir, "mcmcglmm_output.RDS"))
@@ -223,17 +228,21 @@ diag(autocorr(m1$VCV)[2, , ])
 HPDinterval(m1$VCV)
 
 # Collect results into tables
-fixed_results <- summary(m1)$solutions %>% data.frame %>% rownames_to_column("term") %>%
-  mutate(term = str_remove(term, "trait")) %>%
-  separate(term, into = c("OTU", "term"), sep = ":", fill = "right")%>%
+fixed_results <- summary(m1)$solutions %>%
+  data.frame %>% rownames_to_column("term") %>%
+  mutate(OTU = str_extract(term, "OTU[^:]*")) %>% # Separate OTU
+  mutate(term = str_remove(term, OTU) %>% str_remove(":")) %>%  # Separate term
+  mutate(OTU = str_remove_all(OTU, "OTU|:")) %>% # Remove fluff from OTU name
   # Remove intercepts
-  filter(!is.na(term))
+  filter(!is.na(OTU))
 
 random_results <- summary(m1)$Gcovariances %>%
   data.frame %>% rownames_to_column("term") %>%
-  mutate(term = str_remove(term, "trait")) %>%
-  separate(term, into = c("OTU", "term"), sep = "[.]") %>%
-  mutate(pMCMC = NA)
+  mutate(OTU = str_extract(term, "OTU[^.]*")) %>% # Separate OTU
+  mutate(term = str_remove(term, paste0(OTU, "."))) %>%  # Separate term
+  mutate(OTU = str_remove_all(OTU, "OTU")) %>% # Remove fluff from OTU name
+  mutate(pMCMC = NA) %>%
+  filter(OTU == "")
 
 # Combine resulrts
 mcmc_res <- rbind(fixed_results, random_results) %>%
@@ -242,20 +251,81 @@ mcmc_res <- rbind(fixed_results, random_results) %>%
 
 write.csv(mcmc_res, file = file.path(subdir, "mcmcglmm_results.csv"), quote = FALSE, row.names = FALSE)
 
-#### Plot differentially abundant taxa ####
-# There is no significant results, so keep the 100 smallest qvalues
-mcmc_signif <- mcmc_res %>%
-            filter(!term %in% c("Species", "Total_abundance")) %>%
-            filter(pMCMC < 0.05)
+#### Extract diet and phylogeny effects per taxon ####
 
-mcmc_res_label <- mcmc_signif %>%
-            # label association (positive and negative)
-            mutate(assoc = case_when(post.mean < 0 ~ paste0(term, "-"),
-                                     post.mean > 0 ~ paste0(term, "+"))) %>%
-            mutate(assoc = str_remove(assoc, "Order|habitat_general|ruminant")) %>%
-            # Then summarise all associations per taxon
-            group_by(OTU) %>%
-            summarise(label = paste(assoc, collapse=" "))
+# Calculate phylogenetic lambda (λ)
+lambda <- m1$VCV %>% as.data.frame %>%
+    pivot_longer(cols = contains("OTU"), names_to = "term", values_to = "Variance") %>%
+    mutate(OTU = str_extract(term, "OTU[^.]*")) %>% # Separate OTU
+    mutate(term = str_remove(term, paste0(OTU, "."))) %>%  # Separate term
+    mutate(OTU = str_remove_all(OTU, "OTU")) %>% # Remove fluff from OTU name
+    filter(term != "OTU") %>%
+    # Calculate lambda
+    mutate(lambda = Variance/(Variance + units)) %>%
+    # Average
+    group_by(OTU) %>%
+    summarise(lambda = mean(lambda, na.rm = TRUE))
+
+write.csv(lambda, file = file.path(subdir, "mcmcglmm_lambda.csv"), quote = FALSE, row.names = FALSE)
+
+# Calculate fixed effect R2 per Nakagawa & Schielzeth (2013)
+# Get fitted values from fixed effects only
+get_r2 <- function(n, model) {
+    X_sub <- model$X[, grep(n, colnames(model$X))]
+    sol_means <- colMeans(model$Sol[, grep(n, colnames(model$Sol))])
+    fitted_fixed <- X_sub %*% sol_means
+    # Variance of the fixed effects
+    V_fixed <- var(as.numeric(fitted_fixed))
+    #V_random <- sum(colMeans(model$VCV[, grepl(n, colnames(model$VCV)) | colnames(model$VCV) == "OTU"]))
+    V_residual <- mean(model$VCV[, "units"])
+    # Marginal R² (excluding random effects)
+    R2 <- V_fixed / (V_fixed + V_residual)
+    return(R2)
+}
+
+r2 <- data.frame(OTU = lambda$OTU, R2 = sapply(lambda$OTU, get_r2, model = m1))
+
+write.csv(r2, file = file.path(subdir, "mcmcglmm_r2.csv"), quote = FALSE, row.names = FALSE)
+
+# Combine lamda and R2
+phylo_v_eco <-
+    full_join(lambda, r2, by = "OTU") %>%
+    # Add taxonomy
+    left_join(phy_genus_clr@tax_table %>% as.data.frame %>% rownames_to_column("OTU"), by = "OTU") %>%
+    mutate(phylum_grouped = case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                      superkingdom == "Bacteria" ~ "Other Bacteria",
+                                      superkingdom == "Archaea" ~ "Other Archaea"))
+
+p <- ggplot(phylo_v_eco, aes(x = lambda, y = phylum_grouped, colour = phylum_grouped)) +
+    geom_jitter(size = 3, alpha = 0.8, height = 0.2, width = 0) +
+    scale_colour_manual(values = phylum_palette, name = "Phylum")
+
+ggsave(p, filename = file.path(subdir, "mcmcglmm_lambda.png"), width = 8, height = 6)
+
+p <- ggplot(phylo_v_eco, aes(x = lambda, y = R2, colour = phylum_grouped)) +
+    geom_point() +
+    scale_colour_manual(values = phylum_palette, name = "Phylum") +
+    labs(x = "Phylogenetic lambda (λ)", y = "Ecology effects (fixed R2)") +
+    theme(legend.position = "bottom")
+
+ggsave(p, filename = file.path(subdir, "mcmcglmm_lambda_v_diet.png"), width = 8, height = 6)
+
+#### Variance explained ####
+
+solutions_df <- m1$Sol %>% as.data.frame
+
+solutions_species <- solutions_df %>% select(contains("Species:OTU"))
+
+propvar <- MCMCRep(m1) %>% 
+  as.data.frame() %>% 
+  mutate_at(c("Mode", "lHPD", "uHPD"), as.numeric) 
+
+#
+mFixed <- m1$X[,1:ncol(m1$X)] %*% colMeans(m1$Sol[, 1:ncol(m1$Sol)])
+
+mVarF<- var(mFixed)
+
+#### Get differentially abundant taxa ####
 
 # Get abundances per sample for the differentially abundant taxa
 abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
