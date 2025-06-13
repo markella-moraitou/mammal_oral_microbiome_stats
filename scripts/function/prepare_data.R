@@ -204,7 +204,62 @@ write.csv(process_presence, file.path(outdir, "process_presence.csv"), row.names
 ##################################
 
 #### GENE PHYLOSEQ ####
-## Based on filtered raw output
+# Get OTU table
+gene_table <- distill %>% select(gene_id, contains("final_contigs")) %>% unique %>%
+  # Some genes appear in more than one line (due to different names, modules) -- get average (the abundance should be the same in every replicate line)
+  group_by(gene_id) %>% summarise(across(everything(), ~ mean(as.numeric(.)))) %>%
+  column_to_rownames(var="gene_id") %>%
+  # make sure all columns are numeric
+  mutate(across(everything(), ~ as.numeric(.)))
+
+# Fix names
+colnames(gene_table) <-  meta$new_name[match(str_remove(colnames(gene_table), "_final_contigs"), meta$Ext.ID)]
+
+# Get get gene taxonomy e.g. header, subheader, module
+gene_tax <- distill %>% select(header, subheader, module, gene_description, gene_id) %>% unique %>%
+        # When a gene id shows up in more than one module, collapse together module names
+        group_by(gene_id) %>%
+        summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(.cols, collapse = " & ")} else {.cols[1]}}) %>%
+        as.matrix
+
+rownames(gene_tax) <- gene_tax[, "gene_id"]
+
+otu <- otu_table(gene_table, taxa_are_rows = TRUE)
+
+sam <- sample_data(column_to_rownames(meta, "new_name"))
+
+tax <- tax_table(gene_tax)
+
+phy_gene <- phyloseq(otu, sam, tax)
+
+# Count total abundance of features in otu table
+phy_gene@sam_data$Total_abundance <- colSums(phy_gene@otu_table)
+
+# Count unique gene richness
+phy_gene@sam_data$Gene_richness <- estimate_richness(phy_gene, measure="Observed")[[1]]
+
+#### Identify low content samples
+# Identify when number of genes plateaus
+contigs_to_genes <- data.frame(phy_gene@sam_data) %>% select(contig_count, len_median, Total_abundance, Gene_richness)
+
+p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour = contig_count)) +
+    geom_point() +
+    scale_color_viridis_c()
+
+ggsave(p, filename = file.path(outdir, "contigs_to_genes.png"))
+
+# low content samples
+low_content_samples <- names(which(colSums(phy_gene@otu_table) < 1000))
+
+write.csv(low_content_samples, file.path(outdir, "low_content_samples.txt"), quote = FALSE, row.names = FALSE)
+
+# CLR normalisation
+phy_gene_clr <- transform(phy_gene, "clr")
+
+saveRDS(phy_gene, file.path(outdir, "phy_gene.RDS"))
+saveRDS(phy_gene_clr, file.path(outdir, "phy_gene_clr.RDS"))
+
+## Big gene table based on filtered raw output
 
 # Write a function to keep only top-level classifications, e.g. "GH13" instead of "GH13; GH13_14; GH13_16; GH13_17; GH13_18; GH13_1; GH13_20; GH13_21; GH13_23; GH13_29; GH13_2; GH13_30; GH13_31; GH13_32; GH13_35; GH13_36; GH13_39; GH13_3; GH13_40; GH13_4" 
 shorten_id <- function(large_id) {
@@ -225,7 +280,7 @@ shorten_id <- function(large_id) {
 # Get OTU table
 annot$gene_id_short <- sapply(annot$gene_id, shorten_id)
 
-gene_table <-
+big_gene_table <-
     annot %>%
     # Remove genes with more than one EC
     filter(!grepl(".*EC.*EC.*", gene_description)) %>%
@@ -235,63 +290,36 @@ gene_table <-
     column_to_rownames("gene_id_short")
 
 # Fix names
-colnames(gene_table) <-  meta$new_name[match(str_remove(colnames(gene_table), "_final_contigs"), meta$Ext.ID)]
+colnames(big_gene_table) <-  meta$new_name[match(str_remove(colnames(big_gene_table), "_final_contigs"), meta$Ext.ID)]
 
-# Get get gene taxonomy e.g. header, subheader, module
-gene_tax <- summary_form %>% select(header, sheet, module, gene_id) %>% unique %>%
-        # When a gene id shows up in more than one module, collapse together module names
-        group_by(gene_id) %>%
-        summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(unique(.cols), collapse = " & ")} else {.cols[1]}}) %>%
-        mutate_all(.funs = function(.cols) {str_remove(str_remove(.cols, "^ & "), " & $")}) %>%
-        # Keep only taxa in gene_table
-        right_join(data.frame(gene_id = rownames(gene_table),
-                              gene_description = annot$gene_description[match(rownames(gene_table), annot$gene_id)],
-                              database = annot$database[match(rownames(gene_table), annot$gene_id)]))
+big_gene_tax <- annot %>% select(database, gene_description, gene_id_short) %>% rename("gene_id" = "gene_id_short") %>%
+    unique %>%
+    # When a gene id shows up in more than one module, collapse together module names
+    group_by(gene_id) %>%
+    summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(.cols, collapse = " & ")} else {.cols[1]}}) %>%
+    as.matrix
 
-# Several genes are missing, which were not in the summary_form table. For these I don't have some grouping info like header module etc
-# So I will just use the database as header
-gene_tax <- gene_tax %>% mutate(header = case_when(is.na(header) ~ database,
-                                                  TRUE ~ header)) %>% as.matrix
+rownames(big_gene_tax) <- big_gene_tax[, "gene_id"]
 
-rownames(gene_tax) <- gene_tax[,"gene_id"]
-
-otu <- otu_table(gene_table, taxa_are_rows = TRUE)
+otu <- otu_table(big_gene_table, taxa_are_rows = TRUE)
 
 sam <- sample_data(column_to_rownames(meta, "new_name"))
 
-tax <- tax_table(gene_tax)
+tax <- tax_table(big_gene_tax)
 
-phy_gene <- phyloseq(otu, sam, tax)
-
-# Remove genes with prevalence below 5%
-phy_gene <- phy_gene %>% subset_taxa(prevalence(phy_gene) > 0.05)
+phy_gene_all <- phyloseq(otu, sam, tax)
 
 # Count total abundance of features in otu table
-phy_gene@sam_data$Total_abundance <- colSums(phy_gene@otu_table)
+phy_gene_all@sam_data$Total_abundance <- colSums(phy_gene_all@otu_table)
 
 # Count unique gene richness
-phy_gene@sam_data$Gene_richness <- estimate_richness(phy_gene, measure="Observed")[[1]]
-
-#### Identify low content samples
-# Identify when number of genes plateaus
-contigs_to_genes <- data.frame(phy_gene@sam_data) %>% select(contig_count, len_median, Total_abundance, Gene_richness)
-
-p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour = contig_count)) +
-    geom_point() +
-    scale_color_viridis_c()
-
-ggsave(p, filename = file.path(outdir, "contigs_to_genes.png"))
-
-# low content samples
-low_content_samples <- names(which(colSums(phy_gene@otu_table) < 5000))
-
-write.csv(low_content_samples, file.path(outdir, "low_content_samples.txt"), quote = FALSE, row.names = FALSE)
+phy_gene_all@sam_data$Gene_richness <- estimate_richness(phy_gene_all, measure="Observed")[[1]]
 
 # CLR normalisation
-phy_gene_clr <- transform(phy_gene, "clr")
+phy_gene_all_clr <- transform(phy_gene_all, "clr")
 
-saveRDS(phy_gene, file.path(outdir, "phy_gene.RDS"))
-saveRDS(phy_gene_clr, file.path(outdir, "phy_gene_clr.RDS"))
+saveRDS(phy_gene_all, file.path(outdir, "phy_gene_all.RDS"))
+saveRDS(phy_gene_all_clr, file.path(outdir, "phy_gene_all_clr.RDS"))
 
 #### FUNCTION PHYLOSEQ ####
 ## Based on product, combining both coverage and presence/absence info as presence absence
