@@ -146,7 +146,7 @@ for (ord in unique(core_species_per_order$host_order)) {
 }
 
 core_species_venn <- 
-  ggVennDiagram(core_taxa, set_color = order_palette[names(core_genera)], label_alpha = 0) +
+  ggVennDiagram(core_taxa, set_color = order_palette[names(core_taxa)], label_alpha = 0) +
   scale_fill_gradient(low = "white", high = "grey40", name = "N. genera") +
   theme(plot.background = element_rect(fill = "white", color = "white"),
         legend.position = "bottom")
@@ -320,7 +320,7 @@ mamm_core_abund <- mamm_core_abund %>% mutate(genus = ifelse(genus %in% top_gene
                   mutate(genus = factor(genus, levels = rev(c(top_genera, "Other"))))
 
 # Plot
-colours <- rev("Other", c(wes_palette("Darjeeling1", 5, type = "discrete")))
+colours <- rev(c("transparent", c(wes_palette("Darjeeling1", 5, type = "discrete"))))
 names(colours) <- c(top_genera, "Other")
 
 p2 <- ggplot(mamm_core_abund, aes(y = Common.name, x = mean_abundance, fill = genus)) +
