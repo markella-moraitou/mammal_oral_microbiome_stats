@@ -54,7 +54,7 @@ phy_spr <- transform(phy_sp, "compositional")
 phy_phylum <- tax_glom(phy_sp, taxrank = "phylum")
 taxa_names(phy_phylum) <- as.vector(phy_phylum@tax_table[,"phylum"])
 
-# Get only 10 most common phyla and turn rest to other
+# Get only the most common phyla and turn rest to "other"
 phylum_grouped = data.frame(abundance = taxa_sums(phy_phylum), superkingdom = phy_phylum@tax_table[,"superkingdom"]) %>% rownames_to_column("phylum") %>% arrange(-abundance) %>%
   mutate(phylum_grouped = ifelse(row_number() > 5, paste("Other", superkingdom, sep = " "), phylum))
 
@@ -67,10 +67,11 @@ taxa_names(phy_phylum) <- phy_phylum@tax_table[,"phylum"]
 
 # Melt and turn phyla into a factor and reorder
 phy_phylum_melt <- psmelt(transform(phy_phylum, "compositional"))
-phy_phylum_melt$OTU <- factor(phy_phylum_melt$OTU , levels=names(phylum_palette))
+phy_phylum_melt$OTU <- factor(phy_phylum_melt$OTU , levels=unique(phylum_grouped$phylum_grouped))
 
-# Order by fusobacteriota
-sample_levels <- select(phy_phylum_melt, c(Sample, Species, Order_grouped, OTU, Abundance)) %>% filter(OTU == "Pseudomonadota") %>%
+# Order by most abundant phylum
+top_phylum <- phylum_grouped$phylum[1]
+sample_levels <- select(phy_phylum_melt, c(Sample, Species, Order_grouped, OTU, Abundance)) %>% filter(OTU == top_phylum) %>%
   arrange(Order_grouped, Species, desc(Abundance)) %>% pull(Sample)
 
 phy_phylum_melt$Sample <- factor(phy_phylum_melt$Sample, levels=sample_levels)
@@ -188,6 +189,8 @@ ggsave(file.path(subdir, "phy_sp_sample_PCA_3_4.png"), p, width=8, height=10)
 grad_palette <- colorRampPalette(c("#2D627B","#FFF7A4", "#E7C46E","#C24141"))
 grad_palette <- grad_palette(10)
 
+phy_sp@tax_table <- phy_sp@tax_table[, which(colnames(phy_sp@tax_table) != "lineage")] # Remove lineage taxrank, it breaks heatmap function
+
 png(filename = file.path(subdir, "phy_sp_heatmap.png"), width=16, height=20, units="in", res=300)
 plot_taxa_heatmap(phy_sp, subset.top=ntaxa(phy_sp), transformation="clr",
                   VariableA=c("Order", "diet.general", "unmapped_count"),
@@ -197,11 +200,10 @@ plot_taxa_heatmap(phy_sp, subset.top=ntaxa(phy_sp), transformation="clr",
 dev.off()
 
 #### Rarefaction curves ####
-#p <- plot_alpha_rcurve(phy_sp) +
-#  scale_fill_manual(values = order_palette, name = "Host order") +
-#  scale_colour_manual(values = order_palette, name = "Host order")
+p <- plot_alpha_rcurve(phy_sp, group = "Species", line.opacity.main = 0.8, type = "SD", label.min = FALSE) +
+  scale_colour_manual(values = species_palette, name = "Host species")
 
-#ggsave(file.path(subdir, "phy_sp_rarefaction.png"), p, width=8, height=6)
+ggsave(file.path(subdir, "phy_sp_rarefaction.png"), p, width=8, height=6)
 
 #### Prevalence at different abundance thresholds ####
 prevalence <- data.frame()
