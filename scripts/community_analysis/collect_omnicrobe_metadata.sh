@@ -7,7 +7,8 @@ scriptdir=".."
 outdir="../../output/community_analysis"
 
 #### PREP INPUT ####
-cut -d, -f 2 $outdir/names_to_ids_filt.csv > $outdir/taxids.tmp
+cut -d, -f 2 $outdir/names_to_ids_filt.csv | sort | uniq > $outdir/taxids.tmp
+
 # Remove NAs and header
 sed -i '/NA/d' $outdir/taxids.tmp
 sed -i '/ids/d' $outdir/taxids.tmp
