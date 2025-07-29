@@ -1,6 +1,6 @@
 ##### GENERATE PHYLOSEQ #####
 
-#### Use MALT output table and sample metadata
+#### Use CAT taxonomy, abundance based on contig mapping, and sample metadata
 #### to generate a phyloseq object for further analysis
 
 ################
@@ -24,11 +24,10 @@ indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq
 subdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # subdirectory for the output of this script
 phydir <- normalizePath(file.path(subdir, "phyloseq_objects")) # subdirectory for the phyloseq objects
 
+dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 dir.create(phydir, showWarnings = FALSE)
 
 options(ENTREZ_KEY = Sys.getenv("API_KEY"))
-
-dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 
 #######################
 #####  LOAD INPUT #####
@@ -36,8 +35,8 @@ dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 
 #### Define file paths
 # OTU table
-otu_table_path <- file.path(indir, "malt_abundance_matrix_sam.txt")
-tax_names = file.path(indir, "taxname_to_id.txt")
+otu_table_path <- file.path(indir, "abundance_table_CAT.tsv")
+tax_table_path = file.path(indir, "taxonomy_table_CAT.tsv")
 
 # Sample metadata
 metadata_path <- file.path(indir, "sample_metadata.csv")
@@ -51,7 +50,7 @@ decom_path <- file.path(indir, "decOM_output.csv")
 #### Load files
 # Load OTU table
 otu_table <- read.table(otu_table_path, sep="\t", comment.char="", header=TRUE)
-names_to_ids <- read.table(tax_names, sep="\t", comment.char="", header=FALSE, col.names=c("names", "ids"), colClasses=c("character", "character"))
+tax_table <- read.table(tax_table_path, sep="\t", comment.char="", header=TRUE)
 
 # Load metadata
 metadata <- read.csv(metadata_path) # Sample metadata
@@ -145,110 +144,57 @@ meta$new_name <- rename$new_name[match(meta$Ext.ID, rename$old_name)]
 # Keep a version with all lab metadata (not just for samples in OTU table)
 meta_all <- meta
 
-############################
-#### PREPARE OTU TABLE #####
-############################
+################################
+#### PREPARE TABLES FOR PS #####
+################################
 
-#### Adapt table to use in phyloseq ####
-# Get taxids (this will be used to get taxonomic info)
-tbl <- otu_table
-rownames(tbl) <- names_to_ids$ids[match(rownames(tbl), names_to_ids$names)]
+#### OTU TABLE ####
+
+# May remove this later: decimals in abundance are throwing errors when calculating richness
+# therefore I will round everything down to the next lower integer
+# this means anything with abundance less than 1 will appear as absent (fine with that!)
+
+tbl <- otu_table %>% column_to_rownames("lineage") %>%
+  mutate(across(everything(), floor))
 
 # Get new names
-tbl <- tbl %>% rename_with(~str_remove(., "_unmapped"), everything()) %>%
+tbl <- tbl %>%
   rename_with(~rename$new_name[match(., rename$old_name)], everything())
 
+OTU = otu_table(tbl, taxa_are_rows = TRUE)
+
+#### SAMPLE DATA ####
 # Keep only samples that exist in tbl
 meta <- meta %>% filter(new_name %in% colnames(tbl))
 
 # Get rownames
 rownames(meta) <- meta$new_name
 
-###############################
-####  GET TAXONOMIC INFO  #####
-###############################
+SAM = sample_data(meta)
 
-# If the file already exists, load it, otherwise start an empty file
-if(file.exists(file.path(subdir, "taxonomy_all.tsv"))) {
-  taxonomy <- read.table(file.path(subdir, "taxonomy_all.tsv"), sep = "\t", colClasses = "character", header=TRUE)
-  cont <- TRUE
-} else {
-  taxonomy <- data.frame(superkingdom=character(),
-                       phylum=character(),
-                       order=character(),
-                       family=character(),
-                       genus=character(),
-                       species=character(),
-                       tax.id=character())
-  cont <- FALSE
-}
+#### TAX TABLE ####
 
-# Retrieve taxonomic information from NCBI
-taxids <- rownames(tbl) # Tax IDs from OTU table
-levels <- colnames(taxonomy) # Taxonomic levels
+taxonomy <- tax_table %>% select(c("superkingdom", "phylum", "class", "order", "family", "genus", "species", "lineage")) %>%
+          filter(lineage %in% taxa_names(OTU)) %>%
+          # Remove suffixes e.g. _A from Bacillota_A
+          mutate(across(everything(), ~ str_remove_all(., "_[A-Z]"))) %>%
+          as.matrix()
 
-for (i in 1:length(taxids)) {
-  id <- taxids[i]
-  # If a pre-existing file was loaded check if the id is already there and if yes skip
-  if (cont==TRUE) {
-    if (id %in% taxonomy$tax.id) {
-      cat(i, "ID ", id, " already there, skipping\n")
-      next
-    }
-  }
-  # Get classification of this taxon.
-  #If it fails, retry after 5 seconds, if it fails a second time, return NA
-  classif <- tryCatch({
-    taxize::classification(id, db="ncbi")
-  }, error = function(e) {
-    cat("Error occurred for taxon ", id, ": \n", conditionMessage(e), "\n")
-    cat("Retrying after 5 seconds...\n")
-    Sys.sleep(5)
-    tryCatch({
-      taxize::classification(id, db="ncbi")
-    }, error = function(e) {
-      cat("Error occurred again for taxon ", id, ": \n", conditionMessage(e), "\n")
-      cat("Returning NA \n")
-      na_table = data.frame(names = NA, rank = levels, name = NA)
-      return(na_table)
-    })
-  })
-  # Bring to the right format to combine with the big taxonomy table
-  classif_tbl <- data.frame()
-  for (level in levels){
-    # Get the name on that taxonomic level
-    name <- classif[[1]] %>% filter(rank == level) %>% pull(name)
-    # If there is no name at that level, just use NA
-    name <- ifelse(is.null(name), as.character(NA), name)
-    classif_tbl[1, level] <- name
-  }
-  classif_tbl["tax.id"] <- id
-  
-  # Add to the big taxonomy table
-  taxonomy <- rbind(taxonomy, classif_tbl)
-  
-  # Print most specific taxonomic info as it progresses
-  cat(i, ":", length(taxids), "ID ", id, " -- ", classif_tbl$species, "\n")
-}
-
-taxonomy <- as.matrix(taxonomy)
 # Get taxa names as row names
-row.names(taxonomy) <- taxonomy[, "tax.id"]
+row.names(taxonomy) <- taxonomy[, "lineage"]
+
+TAX = tax_table(taxonomy) %>% unique
 
 ###################################
 ####  CREATE PHYLOSEQ TABLES  #####
 ###################################
 
-#### Create phyloseq object, agglomerate at species level, and filter
-OTU = otu_table(tbl, taxa_are_rows = TRUE)
-TAX = tax_table(taxonomy) %>% unique
-SAM = sample_data(meta)
-
 # Create phyloseq object and filter out empty samples
 cat("Creating phyloseq table\n")
 phy <- phyloseq(OTU, SAM, TAX)
 
-phy <- subset_taxa(phy, taxa_sums(phy) > 0)
+# To reduce the size of this table and make it more manageable, remove taxa with less than 500 abundance
+phy <- subset_taxa(phy, taxa_sums(phy) > 500)
 phy <- subset_samples(phy, sample_sums(phy) > 0)
 
 # Agglomerate to species level and keep only prokaryotes and archaea
@@ -276,6 +222,41 @@ phy_sp@sam_data <- phy_sp@sam_data %>% data.frame %>% mutate(oral_to_soil_ratio=
 # CLR-normalisation
 phy_sp_clr <- phy_sp %>% transform('clr')
 
+##################################
+#### GET TAXIDS FOR OMNICROBE ####
+##################################
+
+taxnames <- taxa_names(phy_sp)
+
+# Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
+taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
+
+# Search database to get NCBI codes
+taxids <- get_ids(unique(taxsimple), "ncbi")
+
+# Collect results in dataframe
+taxids_df <- data.frame(taxids$ncbi) %>% select(ids, match)
+taxids_df$searchnames = names(taxids$ncbi)
+
+# Identify those not found and search only with genus name
+missing = taxids_df %>% filter(match != "found") %>% pull(searchnames)
+taxids_df = taxids_df %>% filter(!searchnames %in% missing)
+replacement = str_remove(missing, " .*")
+# Search again
+taxids_miss = get_ids(unique(replacement), "ncbi")
+
+# Collect results in dataframe
+taxids_miss_df <- data.frame(taxids_miss$ncbi) %>% select(ids, match)
+taxids_miss_df$searchnames = names(taxids_miss$ncbi)
+
+# Combine two table and add original taxon name
+taxids_df <- rbind(taxids_df, taxids_miss_df) %>% filter(!is.na(ids)) %>% select(ids, searchnames) %>% unique
+
+names_to_ids <- data.frame(names = taxnames, searchnames = taxsimple) %>%
+    left_join(taxids_df) %>% select(names, ids, searchnames)
+
+names_to_ids_filt <- names_to_ids %>% filter(!is.na(ids))
+
 #####################
 #### SAVE OUTPUT ####
 #####################
@@ -300,6 +281,5 @@ meta_all <- meta_all %>% left_join(data.frame(phy_sp@sam_data)) %>%
 
 write.table(meta_all, file.path(subdir, "metadata_all.tsv"), sep = "\t", row.names=FALSE, quote=TRUE)
 
-# Save names and ids of retained taxa
-names_to_ids_filt <- names_to_ids %>% filter(names %in% rownames(otu_table(phy_sp)))
+# Save names and ids
 write.table(names_to_ids_filt, file.path(subdir, "names_to_ids_filt.csv"), sep=",", row.names=FALSE, quote=FALSE)
