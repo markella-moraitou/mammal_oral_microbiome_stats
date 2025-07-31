@@ -9,6 +9,8 @@ library(dplyr)
 library(tidyr)
 library(tibble)
 library(phyloseq)
+library(microbiomeutilities)
+library(cowplot)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -81,11 +83,12 @@ plot_list <- list()
 for (ord in unique(phy_sp_f@sam_data$Order_grouped)) { 
   phy_subset <- phy_sp_f %>% subset_samples(Order_grouped == ord)
   p <- plot_alpha_rcurve(phy_subset, index="observed", subsamples=subsamples,
-                         lower.conf = 0.025, upper.conf = 0.975,
+                         type = "SD",
                          group="Species", label.color = "brown3",
                          label.size = 3, label.min = TRUE) +
     scale_fill_manual(values=species_palette, name = "Species") +
-    scale_color_manual(values=species_palette, name = "Species")
+    scale_color_manual(values=species_palette, name = "Species") +
+    guides(colour = guide_legend(ncol = 2, override.aes = list(size = 3)))
   plot_list[[ord]] <- p
 }
 

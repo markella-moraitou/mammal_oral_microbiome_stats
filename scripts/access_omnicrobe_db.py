@@ -57,7 +57,7 @@ def search_relations(taxon, OBT_search):
                 break  # If successful, exit the retry loop
             except Exception as e:
                 print(f"Attempt {attempt + 1} failed: {e}")
-                time.sleep(10)  # Wait 1 second before retrying
+                time.sleep(10)  # Wait 10 second before retrying
                 if attempt == max_retries - 1:
                     print("Max retries reached. Skipping this OBT.")
                     rels = []
@@ -73,17 +73,24 @@ def simplify_results(relations):
     simplified = relations.groupby(list(relations.columns.values)).size().reset_index(name='occurences')
     return simplified
 
-def search_relations_taxa_list(taxon_list, search_terms_list, obt_type_list):
+def search_relations_taxa_list(taxon_list, search_terms_list, obt_type_list, output):
     ''' Gets a list of taxa and a list of search terms and obt types and finds if the taxa are related to any of the search terms '''
-    relations = pd.DataFrame(columns=["taxon", "OBT", "id", "obt_type"])
+    all_relations = []
     # Identify OBTs to search
     obts = search_OBT_list(search_terms_list, obt_type_list)
     # The check the OBTs agaist each taxon
     for t in taxon_list:
-        taxon_obj = Taxon(t)
-        rels = search_relations(taxon_obj, obts)
-        relations = pd.concat([relations, rels], ignore_index=True)
-    return(simplify_results(relations))
+        try:
+            taxon_obj = Taxon(t)
+            relations = search_relations(taxon_obj, obts)
+            # Simplify results
+            relations = simplify_results(relations)
+            all_relations.append(relations)
+            relations.to_csv(output, mode = 'a',
+                             header=not os.path.exists(output),
+                             index = False)
+        except Exception as e:
+            print(f"Error processing taxon {t}: {e}")
 
 if __name__ == "__main__":
     print("Accessing omnicrobe database")
@@ -121,15 +128,12 @@ if __name__ == "__main__":
     
     if relation_type == "habitat":
         print("HABITATS:")
-        habitat_relations = search_relations_taxa_list(taxon_list, habitat_terms, ["habitat"]*len(habitat_terms))
-        habitat_relations.to_csv(os.path.join(outdir, "habitat_relations.csv"), index=False)
+        habitat_relations = search_relations_taxa_list(taxon_list, habitat_terms, ["habitat"]*len(habitat_terms), os.path.join(outdir, "habitat_relations.csv"))
     
     if relation_type == "phenotype":
         print("PHENOTYPES:")
-        phenotype_relations = search_relations_taxa_list(taxon_list, phenotype_terms, ["phenotype"]*len(phenotype_terms))
-        phenotype_relations.to_csv(os.path.join(outdir,"phenotype_relations.csv"), index=False)
+        phenotype_relations = search_relations_taxa_list(taxon_list, phenotype_terms, ["phenotype"]*len(phenotype_terms), os.path.join(outdir, "phenotype_relations.csv"))
     
     if relation_type == "use":
         print("USES:")
-        use_relations = search_relations_taxa_list(taxon_list, use_terms, ["use"]*len(use_terms))
-        use_relations.to_csv(os.path.join(outdir, "use_relations.csv"), index=False)
+        use_relations = search_relations_taxa_list(taxon_list, use_terms, ["use"]*len(use_terms), os.path.join(outdir, "use_relations.csv"))
