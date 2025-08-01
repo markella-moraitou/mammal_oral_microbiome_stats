@@ -177,7 +177,7 @@ SAM = sample_data(meta)
 taxonomy <- tax_table %>% select(c("superkingdom", "phylum", "class", "order", "family", "genus", "species", "lineage")) %>%
           filter(lineage %in% taxa_names(OTU)) %>%
           # Remove suffixes e.g. _A from Bacillota_A
-          mutate(across(everything(), ~ str_remove_all(., "_[A-Z]"))) %>%
+          mutate(across(everything(), ~ str_remove_all(., "_[A-Z]+"))) %>%
           as.matrix()
 
 # Get taxa names as row names
@@ -226,36 +226,34 @@ phy_sp_clr <- phy_sp %>% transform('clr')
 #### GET TAXIDS FOR OMNICROBE ####
 ##################################
 
-taxnames <- taxa_names(phy_sp)
-
-# Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
-taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
-
-# Search database to get NCBI codes
-taxids <- get_ids(unique(taxsimple), "ncbi")
-
-# Collect results in dataframe
-taxids_df <- data.frame(taxids$ncbi) %>% select(ids, match)
-taxids_df$searchnames = names(taxids$ncbi)
-
-# Identify those not found and search only with genus name
-missing = taxids_df %>% filter(match != "found") %>% pull(searchnames)
-taxids_df = taxids_df %>% filter(!searchnames %in% missing)
-replacement = str_remove(missing, " .*")
-# Search again
-taxids_miss = get_ids(unique(replacement), "ncbi")
-
-# Collect results in dataframe
-taxids_miss_df <- data.frame(taxids_miss$ncbi) %>% select(ids, match)
-taxids_miss_df$searchnames = names(taxids_miss$ncbi)
-
-# Combine two table and add original taxon name
-taxids_df <- rbind(taxids_df, taxids_miss_df) %>% filter(!is.na(ids)) %>% select(ids, searchnames) %>% unique
-
-names_to_ids <- data.frame(names = taxnames, searchnames = taxsimple) %>%
-    left_join(taxids_df) %>% select(names, ids, searchnames)
-
-names_to_ids_filt <- names_to_ids %>% filter(!is.na(ids))
+if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
+  taxnames <- taxa_names(phy_sp)
+  # Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
+  taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
+  # Search database to get NCBI codes
+  taxids <- get_ids(unique(taxsimple), "ncbi")
+  # Collect results in dataframe
+  taxids_df <- data.frame(taxids$ncbi) %>% select(ids, match)
+  taxids_df$searchnames = names(taxids$ncbi)
+  # Identify those not found and search only with genus name
+  missing = taxids_df %>% filter(match != "found") %>% pull(searchnames)
+  taxids_df = taxids_df %>% filter(!searchnames %in% missing)
+  replacement = str_remove(missing, " .*")
+  # Search again
+  taxids_miss = get_ids(unique(replacement), "ncbi")
+  # Collect results in dataframe
+  taxids_miss_df <- data.frame(taxids_miss$ncbi) %>% select(ids, match)
+  taxids_miss_df$searchnames = names(taxids_miss$ncbi)
+  # Combine two table and add original taxon name
+  taxids_df <- rbind(taxids_df, taxids_miss_df) %>% filter(!is.na(ids)) %>% select(ids, searchnames) %>% unique
+  names_to_ids <- data.frame(names = taxnames, searchnames = taxsimple) %>%
+      left_join(taxids_df) %>% select(names, ids, searchnames)
+  names_to_ids_filt <- names_to_ids %>% filter(!is.na(ids))
+  # Save names and ids
+  write.table(names_to_ids_filt, file.path(subdir, "names_to_ids_filt.csv"), sep=",", row.names=FALSE, quote=FALSE)
+} else {
+  cat("Not creating names_to_ids.csv because it already exists. Delete or rename it and rerun script to update it.")
+}
 
 #####################
 #### SAVE OUTPUT ####
@@ -280,6 +278,3 @@ meta_all <- meta_all %>% left_join(data.frame(phy_sp@sam_data)) %>%
   mutate(is.neg=grepl("blank|control", Species))
 
 write.table(meta_all, file.path(subdir, "metadata_all.tsv"), sep = "\t", row.names=FALSE, quote=TRUE)
-
-# Save names and ids
-write.table(names_to_ids_filt, file.path(subdir, "names_to_ids_filt.csv"), sep=",", row.names=FALSE, quote=FALSE)
