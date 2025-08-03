@@ -9,6 +9,7 @@
 #### LOAD PACKAGES ####
 library(dplyr)
 library(tidyr)
+library(tibble)
 library(phyloseq)
 library(microViz)
 library(microbiome)
@@ -37,20 +38,16 @@ source(file.path("..","ordination_functions.R"))
 #####  LOAD INPUT #####
 #######################
 
-# Phyloseq objecta
+# Phyloseq objects
+phy_gene <- readRDS(file.path(outdir, "phy_gene.RDS"))
 phy_gene_clr <- readRDS(file.path(outdir, "phy_gene_clr.RDS"))
-
-phy_gene_all <- readRDS(file.path(outdir, "phy_gene_all.RDS"))
-phy_gene_all_clr <- readRDS(file.path(outdir, "phy_gene_all_clr.RDS"))
-
-phy_function <- readRDS(file.path(outdir, "phy_function.RDS"))
 
 low_content_samples <- read.csv(file.path(outdir, "low_content_samples.txt"), header = TRUE)
 
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
 ###################
-#### PCA PLOTS ####
+#### RDA PLOTS ####
 ###################
 
 #### GENE ABUNDANCE (CLR) ####
@@ -58,7 +55,28 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 # Filter out low content samples
 phy_gene_filt <- phy_gene_clr %>% subset_samples(!sample_names(phy_gene_clr) %in% low_content_samples$x)
 
-ord <- ord_calc(phy_gene_filt, method = "PCA")
+# Recode order and habitat as TRUE and FALSE
+# Also scale protein, fiber and carbohydrate content
+phy_gene_filt <- phy_gene_filt %>%
+        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+                  Carnivora = (Order == "Carnivora"),
+                  Perissodactyla = (Order == "Perissodactyla"),
+                  Primates = (Order == "Primates"),
+                  Rodentia = (Order == "Rodentia"),
+                  ruminant = (digestion == "Ruminant"),
+                  marine = (habitat.general == "Marine"),
+                  herbivore = (diet.general == "Herbivore"),
+                  frugivore = (diet.general == "Frugivore"),
+                  omnivore = (diet.general == "Omnivore"),
+                  animalivore = (diet.general == "Animalivore"))
+
+
+# Species traits to use as constraints
+species_traits <- c("Artiodactyla", "Perissodactyla", "Primates", "Rodentia",
+                    "ruminant", "marine", "herbivore", "frugivore", "omnivore", "animalivore")
+
+# Ordinate using all data
+ord <- ord_calc(phy_gene_filt, constraints = species_traits, method = "RDA")
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -114,92 +132,17 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, si
 
 ggsave(p, filename = file.path(subdir, "gene_ordination.png"), width=8, height=10)
 
-#### FUNCTION PRESENCE-ABSENCE ####
-
-# Filter out low content samples
-phy_function <- phy_function %>% subset_samples(sample_sums(phy_function) > 0 | Order == "Control/blank")
-phy_function <- phy_function %>% subset_samples(!(sample_names(phy_function) %in% low_content_samples$x))
-
-ord <- ord_calc(phy_function, method = "PCA")
-
-# Scree plot
-p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
-            xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
-
-ggsave(file.path(subdir, "screeplot_functions.png"), p, width=8, height=6)
-
-# Color by order
-#### Get shape scales for plotting ####
-diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
-
-# Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_function)
-
-# Get gene module
-arrows$category <- as.character(phy_function@tax_table[match(rownames(arrows),  rownames(phy_function@tax_table)), "category"])
-
-arrows$to_plot <- (arrows$r > quantile(arrows$r, 0.50))
-
-# Save
-write.csv(arrows, file.path(subdir, "function_ordination_arrows.txt"), quote = TRUE)
-
-# Keep only strongest associations
-arrows_filt <- arrows %>% filter(to_plot) %>%
-              select(contains(c("1", "2", "3", "4")), category)
-
-# Group uncommon function categories
-common_categories <- table(arrows_filt$category) %>% sort(decreasing = TRUE) %>% head(4) %>% names
-
-arrows_filt <- arrows_filt %>%
-    mutate(category_grouped = factor(case_when(category %in% common_categories ~ category,
-                                            TRUE ~ "Other"), levels = c(common_categories, "Other")))
-
-arrow_colours <- c("Methanogenesis and methanotrophy" = "#FF5F17",
-                   "Nitrogen metabolism" = "#FFEB17",
-                   "Complex IV Low affinity" = "#13D38A",
-                   "Reductive" = "#7123D4",
-                   "Other" = "grey80")
-
-p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
-  custom_theme() +
-  scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
-  scale_color_manual(values=order_palette, name = "Order") +
-  geom_phylopic(data = centroids(ord@ord, phy_function), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_function)$uid, width = 0.05, fill = "transparent") +
-  new_scale_colour() +
-  geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1, yend = PC2, colour = category_grouped), linewidth = 0.8, alpha = 0.5) +
-  scale_color_manual(values = arrow_colours, name = "Header") +
-  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-  guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
-
-ggsave(p, filename = file.path(subdir, "function_ordination.png"), width=8, height=10)
-
-###############################
-#### PLOT FUNCTION HEATMAP ####
-###############################
-
-func_completeness <- psmelt(phy_function) %>% rename("Completeness" = "Abundance", "Function" = "OTU") %>% select(Completeness, Function, category, Sample, Species)
-
-p <- ggplot(func_completeness, aes(x = Sample, y = Function, fill = Completeness)) +
-    geom_tile() +
-    scale_fill_gradient(high = "#146AB7", low = "#FFE5C0") +
-    facet_grid(cols = vars(Species), rows = vars(category), scales = "free", space = "free") +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_text(size = 10),
-         strip.text.y = element_text(angle = 0), strip.text.x = element_text(angle = 90))
-
-ggsave(p, filename = file.path(subdir, "function_heatmap.png"), width=25, height=16)
-
 #############################
 #### NON KEGG ANNOTATIOS ####
 #############################
 
 # Plot peptidase diversity
 
-phy_merops <- phy_gene_all %>% subset_taxa(database == "MEROPS") %>%
-    subset_samples(!(sample_names(phy_gene_all) %in% low_content_samples$x))
-
+phy_merops <- phy_gene %>% subset_taxa(database == "MEROPS") %>%
+    subset_samples(!(sample_names(phy_gene) %in% low_content_samples$x))
 
 merops_richness <- 
-    estimate_richness(rarefy_even_depth(phy_merops, 650), measures = "Observed") %>%
+    estimate_richness(rarefy_even_depth(phy_merops, 5000), measures = "Observed") %>%
     rownames_to_column("Sample") %>%
     left_join(sample_data(phy_merops) %>% as.data.frame() %>% rownames_to_column("Sample"))
 
@@ -215,29 +158,28 @@ ggsave(file.path(subdir, "peptidase_richness.png"), width=8, height=6)
 # Plot peptidase abundance
 
 merops_abundance <- 
-    data.frame(transform(phy_merops_clr, "compositional")@otu_table) %>% rownames_to_column("OTU") %>%
+    data.frame(transform(phy_merops, "compositional")@otu_table) %>% rownames_to_column("OTU") %>%
     pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
     left_join(sample_data(phy_merops) %>% data.frame() %>% rownames_to_column("Sample") %>% select(Sample, Species, diet.general)) %>%
     group_by(Sample, Species, diet.general) %>%
-    summarise(Abundance = sum(Abundance, na.rm = TRUE), .groups = "drop")
+    summarise(Abundance = mean(Abundance, na.rm = TRUE), .groups = "drop")
 
 p <-
     ggplot(merops_abundance, aes(x = Species, y = Abundance, fill = diet.general)) +
-    geom_boxplot() +
+    geom_bar(stat = "identity") +
     scale_fill_manual(values = diet_palette) +
     labs(x = "Order", y = "Peptidase abundance (CLR)") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ggsave(file.path(subdir, "peptidase_abundance.png"), width=8, height=6)
 
-
 # Plot CAZy enzyme diversity
 
-phy_cazy <- phy_gene_all %>% subset_taxa(database == "CAZY") %>%
-    subset_samples(!(sample_names(phy_gene_all) %in% low_content_samples$x))
+phy_cazy <- phy_gene %>% subset_taxa(database == "CAZY") %>%
+    subset_samples(!(sample_names(phy_gene) %in% low_content_samples$x))
 
 cazy_richness <- 
-    estimate_richness(rarefy_even_depth(phy_cazy, 30), measures = "Observed") %>%
+    estimate_richness(rarefy_even_depth(phy_cazy, 500), measures = "Observed") %>%
     rownames_to_column("Sample") %>%
     left_join(sample_data(phy_merops) %>% as.data.frame() %>% rownames_to_column("Sample"))
 
@@ -256,7 +198,7 @@ cazy_abundance <-
     pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
     left_join(sample_data(phy_cazy) %>% data.frame() %>% rownames_to_column("Sample") %>% select(Sample, Species, diet.general)) %>%
     group_by(Sample, Species, diet.general) %>%
-    summarise(Abundance = sum(Abundance, na.rm = TRUE), .groups = "drop")
+    summarise(Abundance = mean(Abundance, na.rm = TRUE), .groups = "drop")
 
 p <-
   ggplot(cazy_abundance, aes(x = Species, y = Abundance, fill = diet.general)) +
