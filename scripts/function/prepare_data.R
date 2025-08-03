@@ -9,7 +9,7 @@
 #### LOAD PACKAGES ####
 library(dplyr)
 library(tidyr)
-library(readxl)
+library(readr)
 library(stringr)
 library(tibble)
 library(phyloseq)
@@ -21,6 +21,7 @@ library(ggplot2)
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata 
 outdir <- normalizePath(file.path("..", "..", "output", "function")) # subdirectory for the output of this script
+taxdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # Directory with taxonomy analyses
 
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
@@ -33,15 +34,13 @@ theme_set(custom_theme())
 #####  LOAD INPUT #####
 #######################
 
-# DRAM and CAT output (contig annotations)
-annot <- read.table(file.path(indir, "sample_annotations_counts.tsv"),
-                        sep = "\t", header = TRUE, check.names=FALSE, quote = "", comment = "")
+# DRAM and CAT output (stratified annotations)
+annot_str <- read_tsv(file.path(indir, "gene_abundance_stratified.tsv.gz"))
 
-distill <- read_excel(file.path(indir, "sample_metabolism_summary.xlsx")) %>%
-            unique
-
-product <- read.table(file.path(indir, "sample_product.tsv"),
-                        sep = "\t", header = TRUE, check.names=FALSE, quote = "", comment = "")
+# Contaminant taxa list
+contam <- read.csv(file.path(taxdir, "assess_contamination", "assess_taxa.csv")) %>%
+  filter(!passed_ratio) %>%
+  pull(OTU)
 
 # DRAM genome summary form
 summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
@@ -136,99 +135,65 @@ meta$new_name <- rename$new_name[match(meta$Ext.ID, rename$old_name)]
 
 write.csv(meta, file.path(outdir, "meta.csv"), row.names = FALSE)
 
-#######################################
-#### PREP DRAM OUTPUT FOR PLOTTING ####
-#######################################
+########################################
+#### GET GENE ABUNDANCES PER SAMPLE ####
+########################################
 
-#### Distill table ####
+# Remove taxa that were identified as contaminants by community-wide analysis
+annot_mod <- annot_str %>%
+    filter(!species %in% contam)
 
-# Make longer for plotting
-distill_long <- distill %>%
-                pivot_longer(cols = contains("final_contigs"), names_to = "Sample", values_to = "Count") %>%
-                mutate(Sample = str_remove(Sample, "_final_contigs")) %>%
-                mutate(Count = as.numeric(Count)) %>%
-                # Get percentages
-                group_by(Sample) %>%
-                mutate(Percentage = Count * 100 / sum(Count)) %>%
-                filter(sum(Count) > 0)
+# Simplify CAZY annotations
+annot_mod <- annot_mod %>%
+        # For CAZY annotations, remove the subcategories and keep only the two top level categories
+        # If this leads to two different descriptions in the same category, revert to long name
+        mutate(gene_id_temp = case_when(grepl(";.*;", gene_id) ~ str_extract(gene_id, "^([^;]+; [^;]+)"),
+                                   TRUE ~ gene_id)) %>%
+        mutate(gene_id_temp = case_when(n_distinct(gene_description) > 1 ~ gene_id,
+                                   TRUE ~ gene_id_temp)) %>%
+        mutate(gene_id = gene_id_temp,
+                gene_id_temp = NULL) %>%
+        # Also, shorten gene names
+        mutate(gene_name = gene_description) %>%
+        mutate(gene_name = case_when(database == "CAZY" & grepl("; ", gene_name) ~ str_remove(gene_name, "; .*"),
+                                     TRUE ~ gene_name)) %>%
+        mutate(gene_name = case_when(database == "CAZY" & str_length(gene_name) > 100 ~ str_remove(gene_name, " .*"),
+                                     database == "MEROPS" & str_length(gene_name) > 100 ~ str_remove(gene_name, "#*#.()"),
+                                     TRUE ~ gene_name))
 
-# Add sample metadata
-distill_long <- select(meta, c(Ext.ID, new_name, Common.name, Order, diet.general)) %>%
-                right_join(distill_long, by=c("Ext.ID"="Sample"))
+# Save the modified annotations
+write.table(annot_mod, file.path(outdir, "gene_abundance_stratified_modified.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
 
-write.csv(distill_long, file.path(outdir, "distill_long.csv"), quote = FALSE, row.names = FALSE)
+# Sum gene abundances per sample and make wider
+annot <- annot_mod %>% group_by(sample, gene_id) %>%
+        summarise(abundance = sum(totalAvgDepth)) %>%
+        pivot_wider(names_from = sample, values_from = abundance, values_fill = 0) %>%
+        column_to_rownames("gene_id")
 
-#### Product table ####
+write.table(annot, file.path(outdir, "gene_abundance.tsv"),
+            sep = "\t", quote = FALSE, row.names = TRUE)
 
-# Fix names
-product$genome <- product$genome %>% str_remove("_final_contigs")
+# Get gene info
+annot_info <- annot_mod %>%
+        select(database, gene_id, gene_name, gene_description) %>% unique
 
-# Make sure logical columns are read as logical
-product <- product %>% mutate(across(where(~ all(. %in% c("True", "False"))), ~ as.logical(str_to_upper(.)))) 
-
-### TEMPORARY?
-product <- product[-which(product$genome == "fasta"),]
-
-rownames(product) <- NULL
-
-# Make longer
-pathway_completeness <- product %>% select(genome, where(is.numeric)) %>%
-  pivot_longer(cols = -c(genome), names_to = "feature", values_to = "completeness") %>%
-  # Separate columns into categorie and feature
-  separate(col=feature, into=c("category", "feature"), sep=": ", fill="left") %>%
-  # In the cases where there is no overall category (these pathways that are grouped under module in the product HTML)
-  # just use the feature name, simplified
-  mutate(category = case_when(is.na(category) ~ str_remove(feature, ", .*") %>% str_remove(" (.*)"),
-                              TRUE ~ category))
-
-process_presence <- product %>% select(genome, where(is.logical)) %>%
-  pivot_longer(cols = -c(genome), names_to = "feature", values_to = "presence") %>%
-  # Separate columns into categorie and feature
-  separate(col=feature, into=c("category", "feature"), sep=": ", fill="left")
-
-#### Add metadata ####
-pathway_completeness <- pathway_completeness %>%
-  left_join(select(meta, c(Ext.ID, new_name, Common.name, Order, diet.general)), by=c("genome"="Ext.ID")) %>%
-  mutate(sample_category = paste(Order, diet.general, sep="\n"))
-
-write.csv(pathway_completeness, file.path(outdir, "pathway_completeness.csv"), row.names = FALSE, quote = FALSE)
-
-process_presence <- process_presence %>%
-  left_join(select(meta, c(Ext.ID, new_name, Common.name, Order, diet.general)), by=c("genome"="Ext.ID")) %>%
-  mutate(sample_category = paste(Order, diet.general, sep="\n"))
-
-write.csv(process_presence, file.path(outdir, "process_presence.csv"), row.names = FALSE, quote = FALSE)
+write.table(annot, file.path(outdir, "gene_info.csv"),
+            sep = "\t", quote = FALSE, row.names = TRUE)
 
 ##################################
-#### PREPARE PHYLOSEQ OBJECTS ####
+#### PREPARE PHYLOSEQ OBJECT  ####
 ##################################
 
-#### GENE PHYLOSEQ ####
-# Get OTU table
-gene_table <- distill %>% select(gene_id, contains("final_contigs")) %>% unique %>%
-  # Some genes appear in more than one line (due to different names, modules) -- get average (the abundance should be the same in every replicate line)
-  group_by(gene_id) %>% summarise(across(everything(), ~ mean(as.numeric(.)))) %>%
-  column_to_rownames(var="gene_id") %>%
-  # make sure all columns are numeric
-  mutate(across(everything(), ~ as.numeric(.)))
-
 # Fix names
-colnames(gene_table) <-  meta$new_name[match(str_remove(colnames(gene_table), "_final_contigs"), meta$Ext.ID)]
+colnames(annot) <-  meta$new_name[match(colnames(annot), meta$Ext.ID)]
 
-# Get get gene taxonomy e.g. header, subheader, module
-gene_tax <- distill %>% select(header, subheader, module, gene_description, gene_id) %>% unique %>%
-        # When a gene id shows up in more than one module, collapse together module names
-        group_by(gene_id) %>%
-        summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(.cols, collapse = " & ")} else {.cols[1]}}) %>%
-        as.matrix
-
-rownames(gene_tax) <- gene_tax[, "gene_id"]
-
-otu <- otu_table(gene_table, taxa_are_rows = TRUE)
+tbl <- annot %>% mutate(across(where(is.numeric), floor))
+otu <- otu_table(tbl, taxa_are_rows = TRUE)
 
 sam <- sample_data(column_to_rownames(meta, "new_name"))
 
-tax <- tax_table(gene_tax)
+tax <- tax_table(as.matrix(column_to_rownames(annot_info, "gene_id")))
 
 phy_gene <- phyloseq(otu, sam, tax)
 
@@ -244,12 +209,15 @@ contigs_to_genes <- data.frame(phy_gene@sam_data) %>% select(contig_count, len_m
 
 p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour = contig_count)) +
     geom_point() +
+    scale_x_log10() +
+    geom_vline(xintercept = 10^4) +
+    scale_y_log10() +
     scale_color_viridis_c()
 
 ggsave(p, filename = file.path(outdir, "contigs_to_genes.png"))
 
 # low content samples
-low_content_samples <- names(which(colSums(phy_gene@otu_table) < 1000))
+low_content_samples <- names(which(colSums(phy_gene@otu_table) < 10^4))
 
 write.csv(low_content_samples, file.path(outdir, "low_content_samples.txt"), quote = FALSE, row.names = FALSE)
 
@@ -258,110 +226,3 @@ phy_gene_clr <- transform(phy_gene, "clr")
 
 saveRDS(phy_gene, file.path(outdir, "phy_gene.RDS"))
 saveRDS(phy_gene_clr, file.path(outdir, "phy_gene_clr.RDS"))
-
-## Big gene table based on filtered raw output
-
-# Write a function to keep only top-level classifications, e.g. "GH13" instead of "GH13; GH13_14; GH13_16; GH13_17; GH13_18; GH13_1; GH13_20; GH13_21; GH13_23; GH13_29; GH13_2; GH13_30; GH13_31; GH13_32; GH13_35; GH13_36; GH13_39; GH13_3; GH13_40; GH13_4" 
-shorten_id <- function(large_id) {
-  # If there is only one ID, just original ID
-  if (!grepl(";", large_id)) {
-    return(large_id)
-  }
-  ids <- str_split(large_id, "; ")[[1]]
-  # Check if the all start with the same id plus a suffix
-  if (length(unique(str_remove(ids, "_.*"))) == 1) {
-    short_id = ids[1]
-  } else {
-    short_id = large_id
-  }
-  return(short_id)
-}
-
-# Get OTU table
-annot$gene_id_short <- sapply(annot$gene_id, shorten_id)
-
-big_gene_table <-
-    annot %>%
-    # Remove genes with more than one EC
-    filter(!grepl(".*EC.*EC.*", gene_description)) %>%
-    # Unstratified gene counts (disregard what species they came from)
-    select(gene_id_short, fasta, count) %>% group_by(gene_id_short, fasta) %>%
-    summarise(count = sum(count)) %>% pivot_wider(names_from = "fasta", values_from = "count", values_fill = 0) %>%
-    column_to_rownames("gene_id_short")
-
-# Fix names
-colnames(big_gene_table) <-  meta$new_name[match(str_remove(colnames(big_gene_table), "_final_contigs"), meta$Ext.ID)]
-
-big_gene_tax <- annot %>% select(database, gene_description, gene_id_short) %>% rename("gene_id" = "gene_id_short") %>%
-    unique %>%
-    # When a gene id shows up in more than one module, collapse together module names
-    group_by(gene_id) %>%
-    summarise_all(.funs = function(.cols) {if (n_distinct(.cols) > 1) {paste(.cols, collapse = " & ")} else {.cols[1]}}) %>%
-    as.matrix
-
-rownames(big_gene_tax) <- big_gene_tax[, "gene_id"]
-
-otu <- otu_table(big_gene_table, taxa_are_rows = TRUE)
-
-sam <- sample_data(column_to_rownames(meta, "new_name"))
-
-tax <- tax_table(big_gene_tax)
-
-phy_gene_all <- phyloseq(otu, sam, tax)
-
-# Count total abundance of features in otu table
-phy_gene_all@sam_data$Total_abundance <- colSums(phy_gene_all@otu_table)
-
-# Count unique gene richness
-phy_gene_all@sam_data$Gene_richness <- estimate_richness(phy_gene_all, measure="Observed")[[1]]
-
-# CLR normalisation
-phy_gene_all_clr <- transform(phy_gene_all, "clr")
-
-saveRDS(phy_gene_all, file.path(outdir, "phy_gene_all.RDS"))
-saveRDS(phy_gene_all_clr, file.path(outdir, "phy_gene_all_clr.RDS"))
-
-#### FUNCTION PHYLOSEQ ####
-## Based on product, combining both coverage and presence/absence info as presence absence
-
-cov_table <- product %>% select(genome, where(is.numeric))
-cov_table$new_name <- meta$new_name[match(cov_table$genome, meta$Ext.ID)]
-cov_table <- cov_table %>% select(-genome) %>%
-  column_to_rownames(var="new_name")
-
-# Fix colnames
-colnames(cov_table) <- str_remove(colnames(cov_table), ".*: ")
-
-# Turn presence absence table to numeric (1 if TRUE, 0 if FALSE)
-pres_table <- product %>% select(genome, where(is.logical))
-pres_table$new_name <- meta$new_name[match(pres_table$genome, meta$Ext.ID)]
-pres_table <- pres_table %>% select(-genome) %>%
-  column_to_rownames(var="new_name") %>%
-  # make sure all columns are numeric
-  mutate(across(everything(), ~ as.numeric(.)))
-
-# Fix colnames
-colnames(pres_table) <- str_remove(colnames(pres_table), ".*: ")
-
-# Combine
-function_table <- cbind(cov_table, pres_table)
-
-# Remove duplicate columns
-function_table <- function_table[,!duplicated(colnames(function_table))]
-
-# Get groupings by category
-func_group <- rbind(select(pathway_completeness, c(category, feature)),
-                    select(process_presence, c(category, feature))) %>%
-                    # When a feature shows up in more than one category, collapse together category names
-                    group_by(feature) %>%
-                    summarise(category = case_when(n_distinct(category) > 1 ~ paste(unique(category), collapse = " & "),
-                                                       TRUE ~ category[1])) %>%
-                    column_to_rownames("feature") %>% as.matrix
-
-otu <- otu_table(function_table, taxa_are_rows = FALSE)
-
-tax <- tax_table(func_group)
-
-phy_function <- phyloseq(otu, sam, tax)
-
-saveRDS(phy_function, file.path(outdir, "phy_function.RDS"))
