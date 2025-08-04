@@ -22,13 +22,7 @@
 
 ## For functional analysis ##
 
-**DRAM_genomes_summary_form.tsv** : DRAM table matching genes to modules etc # MIGHT CHANGE
-
 **gene_abundance_stratified.tsv** : Abundance of genes annotated in DRAM based on contig average depth
-
-**sample_metabolism_summary.xlsx** : Distilled DRAM output # MIGHT CHANGE
-
-**sample_product**: Final DRAM output # MIGHT CHANGE
 
 
 
