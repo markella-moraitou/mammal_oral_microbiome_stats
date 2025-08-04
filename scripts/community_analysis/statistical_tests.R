@@ -111,7 +111,7 @@ write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspe
 phy_genus <- phy_sp_f %>% tax_glom("genus")
 phy_genus_clr <- phy_genus %>% transform("clr")
 
-taxa_names(phy_genus_clr) <- phy_genus_clr@tax_table[, "genus"]
+taxa_names(phy_genus_clr) <- make.unique(phy_genus_clr@tax_table[, "genus"])
 
 # Combine Sirenia/Proboscidea in one clades
 phy_genus_clr@sam_data$Order <- ifelse(phy_genus_clr@sam_data$Order %in% c("Sirenia", "Proboscidea"), "Sirenia/Proboscidea", as.character(phy_genus_clr@sam_data$Order))
