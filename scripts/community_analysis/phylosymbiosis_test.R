@@ -50,6 +50,7 @@ host_trees <- read.nexus(file.path(indir, "mammal_vertlife.nex"))
 #### PHYLOSYMBIOSIS ####
 ########################
 
+#### Distances ####
 ## Do host distances correlate with microbiome distances?
 
 # Get host distances
@@ -178,3 +179,43 @@ p_philr <- ggplot(dist_df_same_diet, aes(x=host_distance, y=microbiome_distance_
 p <- plot_grid(p_clr, p_philr, nrow = 2, rel_heights = c(1, 1.5), axis = "rl", align = "v")
 
 ggsave(file.path(subdir, "host_microbiome_distance_correlation_same_diet.png"), p, width=5, height=8)
+
+#### Tree congruence ####
+
+# Create a list of samples per species
+links <- data.frame(phy_sp_f@sam_data) %>% 
+        select(Species) %>%
+        mutate(Species = recode(Species, "Sus scrofa domesticus" ="Sus scrofa")) %>%
+        rename("phy1" = "Species") %>%
+        rownames_to_column("phy2") %>% select(phy1, phy2)
+
+links$colour <- species_palette[as.character(links$phy1)]
+
+# Remove tips that are not in the metadata
+host_consensus <- drop.tip(host_consensus, tip = setdiff(host_consensus$tip.label, links$phy1))
+
+# Microbiome tree from CLR distances
+mb_tree_clr <- nj(as.dist(mb_dist_clr))
+
+# Cophyloplot
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
+
+png(file.path(subdir, "cophyloplot_clr.png"), width = 2200, height = 2200)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.type="curved",link.lwd=4, link.lty="solid", link.col=links$colour)
+# Add title
+#text(x = 0.5, y = 0.95, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+dev.off()
+
+# Microbiome tree from philr distances
+mb_tree_philr <- nj(as.dist(mb_dist_philr))
+
+# Cophyloplot
+coph <- cophylo(tr1=mb_tree_philr, tr2=host_consensus, assoc=links, rotate = TRUE)
+
+png(file.path(subdir, "cophyloplot_philr.png"), width = 2200, height = 2200)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, tr1=mb_tree_philr, link.type="curved",link.lwd=4, link.lty="solid", link.col=links$colour)
+# Add title
+#text(x = 0.5, y = 0.95, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+dev.off()
