@@ -149,8 +149,10 @@ write.csv(meta, file.path(subdir, "meta.csv"), row.names = FALSE)
 annot_mod <- annot_str %>%
     filter(!species %in% contam)
 
-# Simplify CAZY annotations
 annot_mod <- annot_mod %>%
+        # Remove _[A-Z] from taxon names
+        mutate(across(c(superkingdom, phylum, class, order, family, genus, species), 
+                      ~ str_remove_all(., "_[A-Z]+"))) %>%
         # For CAZY annotations, remove the subcategories and keep only the two top level categories
         # If this leads to two different descriptions in the same category, revert to long name
         mutate(gene_id_temp = case_when(grepl(";.*;", gene_id) ~ str_extract(gene_id, "^([^;]+; [^;]+)"),
