@@ -105,20 +105,12 @@ loadings_plot_rda <- function(ordination, axes, top_taxa = 20) {
   return(p)
 }
 
-arrow_coord <- function(ordination, phyloseq) {
-   # Get fit vectors of taxa on ordination (transpose if taxa_are_rows)
-   if(taxa_are_rows(phyloseq)) { otu_tbl <- as.data.frame(t(otu_table(phyloseq))) } else { otu_tbl <- as.data.frame(otu_table(phyloseq)) }
-   envfit_obj <- envfit(ordination, otu_tbl, permute = F, choices=c(1,2,3,4))
-   # Extract relevant information for plotting (adapted from Jackie Zorz: https://jkzorz.github.io/2020/04/04/NMDS-extras.html)
-   en_coord = as.data.frame(scores(envfit_obj, "vectors")) * ordiArrowMul(envfit_obj)
-   # Add effect size and order and p-value
-   en_coord$r <- envfit_obj$vectors$r
-   en_coord$pval <- envfit_obj$vectors$pval
-   # Get only significant fits and order by r
-   sig <- names(which(envfit_obj$vectors$pval < 0.05))
-   en_coord <- en_coord[sig,]
-   en_coord <- en_coord[rev(order(en_coord$r)),]
-   return(en_coord)
+arrow_coord <- function(ordination, axes) {
+   # Get taxon pca scores
+   scores = data.frame(scores(ord@ord, choices = axes, display = "species"))
+   scores$distance = sqrt(scores[,1]^2 + scores[,2]^2)
+   scores <- scores[order(scores$distance, decreasing = TRUE),]
+   return(scores) 
 }
 
 library(RColorBrewer)
