@@ -103,7 +103,7 @@ arrows$category <- as.character(phy_gene_f_clr@tax_table[match(rownames(arrows),
 arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Save
-write.csv(arrows, file.path(subdir, "gene_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
+write.csv(rownames_to_column(arrows, "gene"), file.path(subdir, "gene_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
 
 # Keep only strongest associations
 arrows_filt <- arrows %>% filter(to_plot) %>%
