@@ -136,11 +136,13 @@ ggsave(file.path(subdir, "screeplot_all.png"), p, width=8, height=6)
 
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_sp_f_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
 arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
 arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
 arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -149,11 +151,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
@@ -170,6 +170,30 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.8) +
   guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_order_1_2.png"), p, width=8, height=10)
+
+
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
+# Get genus and phylum
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
 # Axes 3 & 4
 p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", axes = c(3, 4), alpha = 0.8) +
@@ -223,11 +247,13 @@ ggsave(file.path(subdir, "screeplot_deep.png"), p, width=8, height=6)
 
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_deep_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
-arrows$genus <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "genus"])
-arrows$phylum <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "phylum"])
-arrows$superkingdom <- as.character(phy_deep_clr@tax_table[match(rownames(arrows),  phy_deep_clr@tax_table[, "species"]), "superkingdom"])
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -236,11 +262,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
@@ -256,6 +280,29 @@ p <- ord_plot(ord, colour="Order", shape="diet.general", alpha = 0.8) +
   guides(colour = guide_legend(ncol = 3, size = 1, byrow = TRUE))
 
 ggsave(file.path(subdir, "PCA_subset_deep_1_2.png"), p, width=8, height=10)
+
+#### Get arrows ####
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
+# Get genus and phylum
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
+
+# Group phyla for better plotting
+arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                       superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                       superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+          # Turn genus into factor
+          arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
+
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
+
+arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
 # Axes 3 & 4
 p <- ord_plot(ord, colour="Order", shape="diet.general", axes = c(3, 4), alpha = 0.8) +
@@ -280,13 +327,16 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_artio.png"), p, width=8, height=6)
 
+
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_artio_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
-arrows$genus <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "genus"])
-arrows$phylum <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "phylum"])
-arrows$superkingdom <- as.character(phy_artio_clr@tax_table[match(rownames(arrows),  phy_artio_clr@tax_table[, "species"]), "superkingdom"])
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -295,11 +345,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
@@ -319,13 +367,16 @@ ggsave(file.path(subdir, "PCA_subset_artio_1_2.png"), p, width=8, height=10)
 #### Carnivora ####
 ord <- ord_calc(phy_carni_clr, method = "PCA")
 
+
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_carni_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
-arrows$genus <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "genus"])
-arrows$phylum <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "phylum"])
-arrows$superkingdom <- as.character(phy_carni_clr@tax_table[match(rownames(arrows),  phy_carni_clr@tax_table[, "species"]), "superkingdom"])
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -334,11 +385,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
@@ -370,13 +419,16 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "screeplot_prim.png"), p, width=8, height=6)
 
+
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_prim_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
-arrows$genus <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "genus"])
-arrows$phylum <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "phylum"])
-arrows$superkingdom <- as.character(phy_prim_clr@tax_table[match(rownames(arrows),  phy_prim_clr@tax_table[, "species"]), "superkingdom"])
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -385,11 +437,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
@@ -409,13 +459,16 @@ ggsave(file.path(subdir, "PCA_subset_prim_1_2.png"), p, width=8, height=10)
 #### Habitat ####
 ord <- ord_calc(phy_habitat_clr, method = "PCA")
 
+
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_habitat_clr)
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 # Get genus and phylum
-arrows$genus <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "genus"])
-arrows$phylum <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "phylum"])
-arrows$superkingdom <- as.character(phy_habitat_clr@tax_table[match(rownames(arrows),  phy_habitat_clr@tax_table[, "species"]), "superkingdom"])
+arrows$genus <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "genus"])
+arrows$phylum <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "phylum"])
+arrows$superkingdom <- as.character(phy_sp_f_clr@tax_table[match(rownames(arrows),  phy_sp_f_clr@tax_table[, "species"]), "superkingdom"])
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 500))
 
 # Group phyla for better plotting
 arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
@@ -424,11 +477,9 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped)
 
 arrow_colours <- expand_palette(subcategories_df = unique(select(arrows_filt, c(phylum_grouped, genus))), base_colours = phylum_palette)
 
