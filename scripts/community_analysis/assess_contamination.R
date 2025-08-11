@@ -124,14 +124,39 @@ p_a <- ggplot(abundance_ratios, aes(x = mean_ratio, y = OTU)) +
 
 ##### PREVALENCE AND AVERAGE RELATIVE ABUNDANCE ####
 # Get prevalence of OTU in samples, controls and blanks
-prevalence_df <-
-  rownames_to_column(data.frame(prevalence = prevalence(subset_samples(phy_sp_r, !is.neg), detection = min_ab)), "OTU") %>% 
-  mutate(OTU = factor(OTU, levels = otu_order))
 
-p_p <- ggplot(prevalence_df, aes(x = prevalence, fill = prevalence, y = OTU)) +
-  geom_point(shape = 21) +
+# Identify low prevalence taxa (anything that doesn't exist in more than 20% of samples in least one species)
+species <- phy_sp@sam_data$Species %>% levels
+prevalence <- data.frame(row.names = species)
+
+for (spe in species) {
+  subset <- phy_sp %>% subset_samples(Species == spe)
+  temp <- prevalence(subset, detection = min_ab, include.lowest = TRUE, sort = TRUE) %>% data.frame() %>% t
+  rownames(temp) <- spe
+  prevalence <- rbind(prevalence, temp)
+}
+
+prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
+                rownames_to_column("OTU")
+
+write.csv(prevalence, file.path(subdir, "taxon_prevalence_per_species.csv"), quote = FALSE, row.names = FALSE)
+
+prevalence_summ <- prevalence %>%
+  pivot_longer(cols = -OTU, names_to = "Species", values_to = "prevalence") %>%
+  mutate(OTU = factor(OTU, levels = otu_order)) %>%
+  group_by(OTU) %>% summarise(median = median(prevalence, na.rm = TRUE),
+            q1 = quantile(prevalence, 0.25, na.rm = TRUE),
+            q3 = quantile(prevalence, 0.75, na.rm = TRUE),
+            min = min(prevalence, na.rm = TRUE),
+            max = max(prevalence, na.rm = TRUE))
+
+p_p <- ggplot(prevalence_summ, aes(x = median, fill = median, y = OTU)) +
+  geom_errorbar(aes(xmin = q1, xmax = q3), linewidth = 0.5, colour = "grey") +
+  geom_point(aes(colour = median, alpha = 0.5)) +
+  geom_hline(yintercept = ythresh, linetype = "dashed") +
   scale_colour_viridis_c(option = "magma") + xlab("prevalence\nin samples") +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
+  geom_vline(xintercept = 0.2, linetype = "dashed") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), , axis.title.x.top = element_text())
 
@@ -224,12 +249,13 @@ habitats_wide <- habitats %>% select(taxon, habitat, perc_occurences) %>% pivot_
 
 # Combine sample/negative abundance ratio, prevalence, mean abundance and habitat info
 assess_taxa <- abundance_ratios %>%
-               left_join(prevalence_df) %>%
                left_join(abundance_df) %>%
                left_join(habitats_wide, by = c("OTU" = "taxon")) %>%
                left_join(rename(select(damage_df, c(OTU, median)), p_damage_max_median = median)) %>%
+               left_join(rename(select(prevalence_summ, c(OTU, max)), prevalence_max = max)) %>%
                # Identify OTUs that don't pass the filters
-               mutate(passed_ratio = mean_ratio > s_b_ratio)
+               mutate(passed_ratio = mean_ratio > s_b_ratio,
+                      passed_prevalence = prevalence_max > 0.2)
 
 # Save table
 write.table(assess_taxa, file=file.path(subdir, "assess_taxa.csv"), sep=",", row.names=FALSE, quote=FALSE)
@@ -425,6 +451,7 @@ write.table(assess_samples, file=file.path(subdir, "assess_samples.csv"), sep=",
 #### FILTERING ####
 ###################
 
+#### Filter samples ####
 # Remove samples with an oral/contam ratio < 1 samples with less reads than the threshold
 contaminated_samples <- assess_samples %>% filter(!passed_oral_contam_ratio & !is.neg) %>% pull(new_name)
 shallow_samples <- assess_samples %>% filter(!passed_min_reads & !is.neg) %>% pull(new_name)
@@ -435,6 +462,7 @@ phy_sp_f <- prune_samples(!(sample_names(phy_sp_f) %in% shallow_samples), phy_sp
 # Remove blanks and controls
 phy_sp_f <- prune_samples(!(phy_sp_f@sam_data$is.neg), phy_sp_f)
 
+#### Filter taxa ####
 # Filter out taxa based on their abundance ratio in samples vs controls
 common_in_contols <- assess_taxa %>% filter(!passed_ratio) %>% pull(OTU)
 phy_sp_f <- phy_sp_f %>% subset_taxa(!(taxa_names(phy_sp_f) %in% common_in_contols))
@@ -442,6 +470,15 @@ phy_sp_f <- phy_sp_f %>% subset_taxa(!(taxa_names(phy_sp_f) %in% common_in_conto
 # Filter out abundances less than the threshold
 phy_sp_f@otu_table[transform(phy_sp_f, "compositional")@otu_table < min_ab] <- 0
 
+# Identify taxa that have at least 10% prevalence in a single species
+high_prevalence_taxa <- prevalence_summ %>%
+  filter(max > 0.2) %>%
+  pull(OTU)
+
+# Remove taxa that do not have high prevalence in any species
+phy_sp_f <- prune_taxa(as.character(high_prevalence_taxa), phy_sp_f)
+
+#### Collect info on decontaminated dataset ####
 # Get number of taxa
 phy_sp_f@sam_data$taxa_filt <- estimate_richness(phy_sp_f, measures="Observed")$Observed
 
@@ -450,3 +487,34 @@ phy_sp_f <- prune_taxa(taxa_sums(phy_sp_f) > 0, phy_sp_f)
 
 # Save filtered phyloseq object
 saveRDS(phy_sp_f, file.path(phydir, "phy_sp_f.RDS"))
+
+#### Run cuperdec again ####
+## Run cuperdec to identify good and bad samples
+
+# Get the OTU table
+otu_table <- phy_sp_f@otu_table %>% data.frame %>% rownames_to_column(var="Taxon")
+cpdc_taxa <- load_taxa_table(otu_table) 
+
+# Get isolation sources using the habitat table
+# If it is reported as oral more frequently than environmental (soil + marine) it is considered oral
+isol <- habitats %>% filter(habitat %in% c("oral", "marine", "soil")) %>%
+  pivot_wider(names_from = "habitat", values_from = "occurences", id_cols = "taxon", values_fill = 0) %>%
+  group_by(taxon) %>% filter(oral > (soil+marine)) %>%
+  select("taxon") %>% unique %>% rename("Taxon" = "taxon") %>%
+  mutate(Isolation_Source="oral")
+
+cpdc_db <- load_database(isol, target = "oral")
+
+# Metadata map
+metadata_map <- load_map(data.frame(phy_sp_f@sam_data),
+                         sample_col = "new_name",
+                         source_col = "Order")
+
+# Run cuperdec
+curves <- calculate_curve(cpdc_taxa, database = cpdc_db)
+
+filter_result <- simple_filter(curves, percent_threshold = 50)
+
+cpdc_plot <- plot_cuperdec(curves, metadata_map, filter_result) + theme(plot.background=element_rect(fill="white"))
+
+ggsave(file=file.path(subdir, "cuperdec_plot_after_filtering.png"), cpdc_plot, width=16, height=8)
