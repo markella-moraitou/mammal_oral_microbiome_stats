@@ -53,13 +53,13 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 #################
 
 # Aggregate to genus level
-phy_gen <- phy_sp_f %>%
+phy_gen_rarefied <- phy_sp_f %>%
     tax_glom(taxrank = "genus")
 
-taxa_names(phy_gen) <- make.unique(phy_gen@tax_table[,"genus"])
+taxa_names(phy_gen_rarefied) <- make.unique(phy_gen_rarefied@tax_table[,"genus"])
 
 # Since we are dealing with presence absence, I will rarefy the same number of reads
-phy_gen_rarefied <- phy_gen %>% rarefy_even_depth(rngseed=123, sample.size = 200, replace = FALSE)
+phy_gen_rarefied <- phy_gen %>% rarefy_even_depth(rngseed=123, sample.size = 1000, replace = FALSE)
 
 ## Calculate prevalence of each genus in each species
 
@@ -68,7 +68,7 @@ species <- phy_gen_rarefied@sam_data$Species %>% levels
 prevalence <- data.frame()
 
 for (spe in species) {
-  subset <- phy_gen %>% subset_samples(Species == spe)
+  subset <- phy_gen_rarefied %>% subset_samples(Species == spe)
   temp <- prevalence(subset, sort = TRUE) %>% data.frame() %>% t
   rownames(temp) <- spe
   prevalence <- rbind(prevalence, temp)
@@ -80,15 +80,23 @@ prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
 write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = FALSE, row.names = FALSE)
 
 #### Get core taxa per species ####
-## 80% prevalence
+## 75% prevalence
 
 core_genera <- data.frame(core_taxa = character(), host_species = character())
+core_plots <- list()
 
 for (sp in species) {
-  sp_dot <- gsub(pattern = " ", replacement = ".", sp)
+  phy_sub <- phy_gen_rarefied %>% subset_samples(Species == sp) %>% transform("compositional")
+  # Plot core taxa for this species
+  p <- plot_core(phy_sub, prevalences = c(0.5, 0.6, 0.7, 0.8, 0.9, 1), detections = 10^(c(-5, -4, -3, -2, -1, 0)), 
+          plot.type = "heatmap") +
+          scale_fill_viridis_c(limits = c(0.5, 1)) +
+          theme(legend.position = "none", axis.text.y = element_blank()) +
+          xlab("") + ylab("") + labs(title = sp)
+  if (sp == species[length(species)]) {p <- p + theme(legend.position = "right")} # Add legend to last plot
+  core_plots[[sp]] <- p
   # Get core microbiota for this species
-  core_taxa <- prevalence %>% select(taxon, !!sym(sp_dot)) %>%
-        filter(!!sym(sp_dot) >= 0.8) %>% pull(taxon)
+  core_taxa <- phy_sub %>% core_members(prevalence = 0.75, detection = 0.01)
   # If there are no core taxa, print warning and skip
   # otherwise, add to df
   if (length(core_taxa) == 0) {
@@ -99,6 +107,10 @@ for (sp in species) {
                    host_species = sp)
   core_genera <- rbind(core_genera, df)
 }
+
+# Save core taxa plots
+p <- plot_grid(plotlist = core_plots, ncol = 4, align = "hv", axis = "tb")
+ggsave(p, file = file.path(subdir, "core_thresholds.png"), width = 20, height = 20)
 
 # Add extra information
 # on the taxa
@@ -124,11 +136,11 @@ core_genera_summary <- core_genera_summary %>%
         arrange(host_order, host_species)
 
 # Save tables
-write.csv(core_genera_summary, file = file.path(subdir, "core_mb_per_host_species.csv"), quote = FALSE, row.names = FALSE)
+write.csv(core_genera, file = file.path(subdir, "core_mb_per_host_species.csv"), quote = FALSE, row.names = FALSE)
 write.csv(core_genera_summary, file = file.path(subdir, "core_mb_per_host_species_summary.csv"), quote = FALSE, row.names = FALSE)
 
 # For orders with more than two species, get core taxa per order
-# defined as taxa that are considered core in at least 3/4 of species in that order
+# defined as taxa that are considered core in at least half of species in that order
 
 core_genera_per_order <- core_genera %>% group_by(host_order) %>%
         filter(n_distinct(host_species) > 2) %>%
@@ -137,7 +149,7 @@ core_genera_per_order <- core_genera %>% group_by(host_order) %>%
         # Calculate prevalence in order
         group_by(core_taxa, core_phylum, host_order) %>%
         summarise(prevalence_in_order = n_distinct(host_species)/first(n_species)) %>%
-        filter(prevalence_in_order >= 3/4) %>%
+        filter(prevalence_in_order >= 0.5) %>%
         arrange(host_order, core_taxa) %>%
         # How many orders is this taxon core in?
         group_by(core_taxa, core_phylum) %>%
@@ -154,8 +166,8 @@ write.csv(core_genera_per_order_summary, file = file.path(subdir, "core_mb_per_h
 
 #### Plot Venn Diagrams ####
 
-## Species level
-# Collect core species in a list
+# Host order level
+# Collect core taxa in a list
 core_taxa <- list()
 
 for (ord in unique(core_genera_per_order$host_order)) {
@@ -173,9 +185,22 @@ core_genera_venn <-
 ggsave(core_genera_venn, file=file.path(subdir, "core_genera_venn.png"),
        device = "png", width = 5, height = 5)
 
+#### Core genera per host species heatmap ####
+core_df <- core_genera %>% mutate(is.core = 1) %>%
+        ggplot(aes(x = host_species, y = core_taxa, fill = is.core)) +
+        facet_grid(cols = vars(host_order), rows = vars(core_phylum), scales = "free", space = "free") +
+        geom_tile() +
+        theme(strip.text.y = element_text(angle = 0,),
+              strip.text.x = element_text(angle = 90),
+              axis.text.x = element_text(hjust = 1, vjust = 0.5),
+              legend.position = "none")
+
+ggsave(core_df, file = file.path(subdir, "core_genera_heatmap.png"),
+       device = "png", width = 10, height = 10)
+
 #### PCA with only core order taxa ####
 
-phy_core_gen <- phy_gen %>% subset_taxa(genus %in% unique(unlist(core_taxa))) %>%
+phy_core_gen <- phy_gen_rarefied %>% subset_taxa(genus %in% unique(unlist(core_taxa))) %>%
     subset_samples(Order %in% core_genera_per_order$host_order) 
 
 phy_core_clr <- transform(phy_core_gen, "clr")
@@ -188,7 +213,7 @@ diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herb
 
 # Axes 1 & 2
 p <- 
-  ord_plot(ord, colour="Order", shape = "diet.general", alpha = 0.5, plot_taxa = 1:8) +
+  ord_plot(ord, colour="Order", shape = "diet.general", alpha = 0.5, plot_taxa = 1:10) +
   custom_theme() +
   scale_shape_manual(values = diet_shape_scale, name = "Diet") +
   scale_color_manual(values=order_palette, name = "Order") +
@@ -199,7 +224,7 @@ ggsave(p, file = file.path(subdir, "pca_core_order_1_2.png"), width = 5, height 
 
 # Axes 3 & 4
 p <- 
-  ord_plot(ord, colour="Order", shape = "diet.general", alpha = 0.5, plot_taxa = 1:8, axes = c(3, 4)) +
+  ord_plot(ord, colour="Order", shape = "diet.general", alpha = 0.5, plot_taxa = 1:10, axes = c(3, 4)) +
   custom_theme() +
   scale_color_manual(values=order_palette, name = "Order") +
   scale_shape_manual(values = diet_shape_scale, name = "Diet") +
@@ -208,10 +233,10 @@ p <-
 
 ggsave(p, file = file.path(subdir, "pca_core_order_3_4.png"), width = 5, height = 6)
 
-#### Heatmap ####
+#### Abundance heatmap ####
 
 # Get more info on taxon category
-heat_data <- transform(phy_core, "compositional") %>% psmelt %>%
+heat_data <- transform(phy_core_gen, "compositional") %>% psmelt %>%
         select(OTU, genus, Sample, Order, Abundance) %>%
         # Log transform relative abundance
         mutate(Abundance = log10(Abundance + 0.0001)) %>%
@@ -250,7 +275,7 @@ ggsave(file.path(subdir, "heatmap_core_genera.png"), p, width=8, height=11)
 # This reflects how representative the above PCA is of the whole community
 
 # Calculate the proportion of abundance that is made up of core taxa
-phy_melt <- transform(phy_gen, "compositional") %>% psmelt %>% filter(Abundance > 0)
+phy_melt <- transform(phy_gen_rarefied, "compositional") %>% psmelt %>% filter(Abundance > 0)
 
 core_genera_per_order$is.core <- "Core in this order"
 
