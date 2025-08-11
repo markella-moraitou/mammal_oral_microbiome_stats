@@ -13,6 +13,7 @@ flowchart TD;
     E-->J[Phylosymbiosis tests];
     E-->K[Microbial phenotypes - host diet hypotheses];
     E-->L[Statistical tests];
+    E-->L[Machine learning];
 ```
 Analysis workflow for functional community-level analysis:
 ```mermaid
