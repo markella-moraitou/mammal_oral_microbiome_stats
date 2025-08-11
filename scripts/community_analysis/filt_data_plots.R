@@ -50,6 +50,54 @@ for (phy_file in list.files(phydir, pattern = "*.RDS")) {
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
 #########################
+#####  BETA DISPER  #####
+#########################
+
+# Calculate beta disper for species, order and diet, and run tukey's test
+
+tukey_results <- data.frame()
+plot_list <- list()
+
+# Compare species
+for (var in c("Species", "Order", "diet.general")) {
+  disp <- betadisper(vegdist(t(otu_table(phy_sp_f_clr)), method = "euclidean"), group = phy_sp_f_clr@sam_data[[var]])
+  
+  disp_tukey <- TukeyHSD(disp, which = "group", ordered = FALSE)$group %>% data.frame %>% rownames_to_column("Comparison") %>%
+    separate(Comparison, into = c("Group1", "Group2"), sep = "-")
+  
+  disp_tukey$Variable <- var
+    
+  tukey_results <- rbind(tukey_results, disp_tukey)
+  
+  disp_df <- data.frame(Sample = sample_names(phy_sp_f_clr),
+                        Species = phy_sp_f_clr@sam_data$Species,
+                        diet.general = phy_sp_f_clr@sam_data$diet.general,
+                        Order_grouped = phy_sp_f_clr@sam_data$Order_grouped,
+                        Order = phy_sp_f_clr@sam_data$Order,
+                        Distance = disp$distances)
+  if (var %in% c("Species", "diet.general")) {
+    p <- ggplot(data = disp_df, aes(x = !!sym(var), y = Distance)) +
+      geom_boxplot(outlier.shape = NA, aes(fill = diet.general)) +
+      geom_jitter(alpha = 0.5, width = 0.2) +
+      scale_fill_manual(values = diet_palette, name = "Estimated diet") +
+      theme(legend.position = "none", axis.text.x = element_text(hjust = 1))
+  } else {
+    p <- ggplot(data = disp_df, aes(x = !!sym(var), y = Distance)) +
+     geom_boxplot(outlier.shape = NA, aes(fill = Order)) +
+     geom_jitter(alpha = 0.5, width = 0.2) +
+     scale_fill_manual(values = order_palette, name = "Order") +
+     theme(legend.position = "none", axis.text.x = element_text(hjust = 1))
+  }
+  plot_list[[var]] <- p
+}
+
+write.csv(tukey_results, file = file.path(subdir, "betadisper_tukey_results.csv"), row.names = FALSE, quote = FALSE)
+
+p <- plot_grid(plotlist = plot_list, ncol = 1, align = "v")
+
+ggsave(file.path(subdir, "betadisper.png"), p, width = 8, height = 12)
+
+#########################
 #####  COMPOSITION  #####
 #########################
 
