@@ -271,7 +271,6 @@ phy_habitat <- phy_habitat %>% subset_taxa(taxa_sums(phy_habitat) > 0)
 phy_habitat_clr <- mirror_subset(phy_subset=phy_habitat, phy_norm=phy_sp_f_clr, TRUE)
 phy_habitat_philr <- mirror_subset(phy_subset=phy_habitat, phy_norm=phy_sp_philr, FALSE)
 
-## Planned contrasts in more deeply sampled Order (Artiodactyla, Carnivora, Primates)
 # Artiodactyla
 phy_artio <- phy_sp_f %>%
   subset_samples(Order == "Artiodactyla")
@@ -296,9 +295,9 @@ phy_prim <- phy_prim %>% subset_taxa(taxa_sums(phy_prim) > 0)
 phy_prim_clr <- mirror_subset(phy_subset=phy_prim, phy_norm=phy_sp_f_clr, TRUE)
 phy_prim_philr <- mirror_subset(phy_subset=phy_prim, phy_norm=phy_sp_philr, FALSE)
 
-# All together
+# Planned contrasts in more deeply sampled Order (Artiodactyla, Carnivora, Primates)
 phy_deep <- phy_sp_f %>%
-  subset_samples(Order %in% c("Artiodactyla", "Carnivora", "Primates"))
+  subset_samples(Order %in% c("Artiodactyla", "Carnivora", "Primates", "Perissodactyla"))
 phy_deep <- phy_deep %>% subset_taxa(taxa_sums(phy_deep) > 0)
 
 phy_deep_clr <- mirror_subset(phy_subset=phy_deep, phy_norm=phy_sp_f_clr, TRUE)

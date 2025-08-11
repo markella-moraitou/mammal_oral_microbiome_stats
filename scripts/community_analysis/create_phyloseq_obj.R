@@ -202,6 +202,10 @@ cat("Agglomerating to species level\n")
 phy_sp <- phy %>% tax_glom(taxrank="species") %>%
  subset_taxa(superkingdom %in% c("Bacteria", "Archaea"))
 
+# Extra lineage column causes issues with some scripts
+phy_sp@tax_table <- phy_sp@tax_table[,c("superkingdom", "phylum", "class", "order", "family", "genus", "species")]
+
+
 phy_sp <- subset_taxa(phy_sp, taxa_sums(phy_sp) > 0)
 phy_sp <- subset_samples(phy_sp, sample_sums(phy_sp) > 0)
 

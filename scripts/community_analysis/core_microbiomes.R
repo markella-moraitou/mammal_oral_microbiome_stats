@@ -53,10 +53,10 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 #################
 
 # Aggregate to genus level
-phy_gen_rarefied <- phy_sp_f %>%
+phy_gen <- phy_sp_f %>%
     tax_glom(taxrank = "genus")
 
-taxa_names(phy_gen_rarefied) <- make.unique(phy_gen_rarefied@tax_table[,"genus"])
+taxa_names(phy_gen) <- make.unique(phy_gen@tax_table[,"genus"])
 
 # Since we are dealing with presence absence, I will rarefy the same number of reads
 phy_gen_rarefied <- phy_gen %>% rarefy_even_depth(rngseed=123, sample.size = 1000, replace = FALSE)
@@ -200,10 +200,10 @@ ggsave(core_df, file = file.path(subdir, "core_genera_heatmap.png"),
 
 #### PCA with only core order taxa ####
 
-phy_core_gen <- phy_gen_rarefied %>% subset_taxa(genus %in% unique(unlist(core_taxa))) %>%
+phy_core <- phy_gen %>% subset_taxa(genus %in% unique(unlist(core_taxa))) %>%
     subset_samples(Order %in% core_genera_per_order$host_order) 
 
-phy_core_clr <- transform(phy_core_gen, "clr")
+phy_core_clr <- transform(phy_core, "clr")
 
 # PCA ordination
 ord <- ord_calc(phy_core_clr, method = "PCA") 
@@ -236,7 +236,7 @@ ggsave(p, file = file.path(subdir, "pca_core_order_3_4.png"), width = 5, height 
 #### Abundance heatmap ####
 
 # Get more info on taxon category
-heat_data <- transform(phy_core_gen, "compositional") %>% psmelt %>%
+heat_data <- transform(phy_core, "compositional") %>% psmelt %>%
         select(OTU, genus, Sample, Order, Abundance) %>%
         # Log transform relative abundance
         mutate(Abundance = log10(Abundance + 0.0001)) %>%
