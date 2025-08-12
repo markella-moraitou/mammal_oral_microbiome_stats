@@ -72,15 +72,11 @@ phy_sp_f_clr <- phy_sp_f_clr %>%
                   Primates = (Order == "Primates"),
                   Rodentia = (Order == "Rodentia"),
                   ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  herbivore = (diet.general == "Herbivore"),
-                  frugivore = (diet.general == "Frugivore"),
-                  omnivore = (diet.general == "Omnivore"),
-                  animalivore = (diet.general == "Animalivore"))
+                  marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates", "Rodentia",
-                    "ruminant", "marine", "herbivore", "frugivore", "omnivore", "animalivore")
+                    "ruminant", "marine", "cf", "cp")
 
 # Ordinate using all data
 ord <- ord_calc(phy_sp_f_clr, constraints = species_traits, method = "RDA")
@@ -98,7 +94,7 @@ ggsave(file.path(subdir, "rda_screeplot_all.png"), p, width=8, height=6)
 #### SAMPLE PLOTS ####
 # Color by diet
 # Axes 1,2 -- colour by diet
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = 1, alpha = 0.8) +
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = 1) +
   custom_theme() +
   scale_shape_manual(values=order_shape_scale, name = "Order") +
   scale_color_manual(values=diet_palette, name = "Estimated diet") +
@@ -149,7 +145,8 @@ ggsave(file.path(subdir, "RDA_all_2_3_order.png"), p, width=5, height=7)
 
 # Get taxa scores and add taxonomic info
 taxa_rda <- data.frame(scores(ord@ord, display="species", choices=1:3)) %>%
-            cbind(tax_table(phy_sp_f_clr)) %>% rownames_to_column("OTU") %>% select(-tax.id) %>%
+            cbind(tax_table(phy_sp_f_clr)[, c("superkingdom", "phylum", "genus", "species")]) %>%
+            rownames_to_column("OTU") %>%
             # Get grouped phylum
             mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
                                       superkingdom == "Bacteria" ~ "Other Bacteria",
@@ -158,28 +155,29 @@ taxa_rda <- data.frame(scores(ord@ord, display="species", choices=1:3)) %>%
 # Add mean relative abundance log10-transformed with pseudocount
 taxa_rda$mean_abund <- rowMeans(phy_sp_f_clr@otu_table)[taxa_rda$OTU]
 
-# Identify 12 genera with most abundance, group remaining genera to "Other"
-top_genera <- taxa_rda %>% group_by(genus) %>% summarise(total = sum(mean_abund, na.rm = TRUE)) %>% top_n(12, total) %>% pull(genus)
+# Identify 15 genera with most abundance, group remaining genera to "Other"
+top_genera <- taxa_rda %>% group_by(genus) %>% summarise(total = sum(mean_abund, na.rm = TRUE)) %>% top_n(15, total) %>% pull(genus)
 
 taxa_rda <- taxa_rda %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Other")) %>%
-            mutate(genus = factor(genus, levels = c(top_genera, "Other"))) %>%
-            mutate(abund_log10 = log10(mean_abund))
+            mutate(genus = factor(genus, levels = top_genera)) %>%
+            filter(genus != "Other") 
 
-# Get centroids to place labels
-genus_centroids <- taxa_rda %>% 
-                select(genus, phylum_grouped, mean_abund, RDA1, RDA2, RDA3) %>%
-                group_by(genus, phylum_grouped) %>% summarise_all(mean)
+genus_centroids <- taxa_rda %>% select(OTU, RDA1, RDA2, RDA3, genus, phylum_grouped) %>% ungroup %>%
+                group_by(genus, phylum_grouped) %>%
+                summarise(RDA1 = mean(RDA1),
+                          RDA2 = mean(RDA2),
+                          RDA3 = mean(RDA3)) %>%
+                filter(!grepl("Other", genus))
 
-phylum_centroids <- genus_centroids %>% ungroup %>% select(-genus) %>%
-                group_by(phylum_grouped) %>% summarise_all(mean) %>%
-                filter(!grepl("Other", phylum_grouped))
+# Get colours
+genus_palette <- expand_palette(select(genus_centroids, c(phylum_grouped, genus)), phylum_palette)
 
 # Axes 1,2
 set.seed(245)
-p <- ggplot(genus_centroids, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, size = mean_abund, colour = phylum_grouped)) +
-  geom_segment(linewidth = 0.5, alpha = 0.4) +
-  scale_color_manual(values = phylum_palette, name = "Microbial phylum") +
-  geom_label(data = phylum_centroids, aes(label = phylum_grouped, x = RDA1, y = RDA2),
+p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = genus)) +
+  geom_segment(linewidth = 0.2, alpha = 0.8) +
+  scale_color_manual(values = genus_palette, name = "Microbial genus") +
+  geom_label(data = genus_centroids, aes(label = genus, x = RDA1, y = RDA2),
             size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
   scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
   custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
@@ -188,13 +186,13 @@ p <- ggplot(genus_centroids, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, size = 
 ggsave(file.path(subdir, "RDA_all_1_2_taxa.png"), p, width=5, height=5)
 
 # Axes 2, 3
-p <- ggplot(genus_centroids, aes(x = 0, y = 0, xend = RDA2, yend = RDA3, size = mean_abund, colour = phylum_grouped)) +
-  geom_segment(linewidth = 0.5, alpha = 0.4) +
-  scale_color_manual(values = phylum_palette, name = "Microbial phylum") +
-  geom_label(data = phylum_centroids, aes(label = phylum_grouped, x = RDA2, y = RDA3),
+p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA2, yend = RDA3, colour = genus)) +
+  geom_segment(linewidth = 0.2, alpha = 0.8) +
+  scale_color_manual(values = genus_palette, name = "Microbial genus") +
+  geom_label(data = genus_centroids, aes(label = genus, x = RDA2, y = RDA3),
             size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
   scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
-  custom_theme() + xlab("RDA2 scores") + ylab("RDA3 scores") +
+  custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
   theme(legend.position = "none")
 
 ggsave(file.path(subdir, "RDA_all_2_3_taxa.png"), p, width=5, height=5)
@@ -216,4 +214,4 @@ p <- ggplot(rda_res, aes(y = Order, x = Value, fill = diet.general, colour = die
       facet_grid(cols = vars(Axis), scales = "free") +
       theme(legend.position = "none", axis.title = element_blank())
 
-ggsave(file.path(subdir, "RDA_axis_comparison.png"), p, width=5, height=2)
+ggsave(file.path(subdir, "RDA_axis_comparison.png"), p, width=8, height=8)

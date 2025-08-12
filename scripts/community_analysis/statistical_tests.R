@@ -111,7 +111,7 @@ write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspe
 phy_genus <- phy_sp_f %>% tax_glom("genus")
 phy_genus_clr <- phy_genus %>% transform("clr")
 
-taxa_names(phy_genus_clr) <- phy_genus_clr@tax_table[, "genus"]
+taxa_names(phy_genus_clr) <- make.names(phy_genus_clr@tax_table[, "genus"], unique = TRUE)
 
 # Combine Sirenia/Proboscidea in one clades
 phy_genus_clr@sam_data$Order <- ifelse(phy_genus_clr@sam_data$Order %in% c("Sirenia", "Proboscidea"), "Sirenia/Proboscidea", as.character(phy_genus_clr@sam_data$Order))
@@ -131,35 +131,35 @@ data <- psmelt(phy_genus_clr) %>%
 
 # Get a metrics for diet
 data <- data %>%
-  mutate(animalivory = log((cp + ee)/(cf+nfe)),
-         frugivory = log((nfe + 5)/(cf + 5))) %>%
+    #mutate(animalivory = log((cp + ee)/(cf+nfe)),
+    #     frugivory = log((nfe + 5)/(cf + 5))) %>%
     # Turn S. scrofa domesticus to S. scrofa to match tree
     mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
                                TRUE ~ Species))
 
-# Keep only 50 most abundant taxa
-#top <- data %>% group_by(OTU) %>%
-#  summarise(av_abundance = mean(Abundance)) %>%
-#  arrange(desc(av_abundance)) %>%
-#  slice_head(n = 100) %>% pull(OTU)
+# Keep only most abundant taxa
+top <- data %>% group_by(OTU) %>%
+  summarise(av_abundance = mean(Abundance)) %>%
+  arrange(desc(av_abundance)) %>%
+  slice_head(n = 200) %>% pull(OTU)
 
-#data <- data %>% filter(OTU %in% top)
+data <- data %>% filter(OTU %in% top)
 
 # Plot animalivory and frugivory
-data_diet <- data %>% select(animalivory, frugivory, diet.general, Species) %>% unique
+#data_diet <- data %>% select(animalivory, frugivory, diet.general, Species) %>% unique
 
-p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet.general)) +
-  geom_point(size = 2) + theme_bw() +
-  geom_text(aes(label = Species)) +
-  scale_color_manual(values = diet_palette)
+#p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet.general)) +
+#  geom_point(size = 2) + theme_bw() +
+#  geom_text(aes(label = Species)) +
+#  scale_color_manual(values = diet_palette)
 
-ggsave(p, filename = file.path(subdir, "diet_variables.png"), width = 8, height = 8)
+#ggsave(p, filename = file.path(subdir, "diet_variables.png"), width = 8, height = 8)
 
 # Add to phyloseq
 data_diet <- rbind(data_diet, data_diet[which(data_diet$Species == "Sus scrofa"),])
 data_diet[nrow(data_diet), "Species"] <- "Sus scrofa domesticus"
-phy_genus_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
-phy_genus_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
+#phy_genus_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
+#phy_genus_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
 
 # Phylogeny
 host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
@@ -180,13 +180,16 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
     set.seed(14)
     # Prep formula
     response <- "Abundance"
-    fixed <- c("animalivory:OTU", "frugivory:OTU", "ruminant:OTU", "habitat.general:OTU")
+    fixed <- c("cp:OTU", "cf:OTU", "ruminant:OTU", "habitat.general:OTU")
     formula <- as.formula(paste(response, "~", paste(fixed, collapse = "+")))
     n_taxa <- length(unique(data$OTU))
     # Set priors
     prior = list(R = list(V = diag(1), nu = 0.002),
                  G = list(G1 = list(V = diag(1), nu = 0.002, alpha.mu = rep(0,1), alpha.V = diag(1)*100),
                           G2 = list(V = diag(n_taxa), nu = 0.002, alpha.mu = rep(0, n_taxa), alpha.V = diag(n_taxa)*100)))
+    start.time <- Sys.time()
+    cat("Starting MCMCglmm... ")
+    cat(start.time, "\n")
     # Run MCMCglmm
     m <- mclapply(1:10, function(i) {
         MCMCglmm(fixed = formula,
@@ -199,6 +202,13 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
            burnin = 1000,
            thin = 100)
     }, mc.cores = 10)
+    end.time <- Sys.time()
+    cat("Finished MCMCglmm. ")
+    cat(end.time, "\n")
+    time.lapsed <- end.time - start.time
+    cat("Time lapsed for MCMCglmm: ")
+    print(time.lapsed)
+    # Save output
     saveRDS(m, file.path(subdir, "mcmcglmm_output.RDS"))
 }
 
@@ -320,12 +330,20 @@ propvar <- MCMCRep(m1) %>%
   as.data.frame() %>% 
   mutate_at(c("Mode", "lHPD", "uHPD"), as.numeric) 
 
-#
 mFixed <- m1$X[,1:ncol(m1$X)] %*% colMeans(m1$Sol[, 1:ncol(m1$Sol)])
 
 mVarF<- var(mFixed)
 
 #### Get differentially abundant taxa ####
+
+mcmc_res_label <- mcmc_res %>% filter(pMCMC < 0.05) %>%
+            # label association (positive and negative)
+            mutate(assoc = case_when(post.mean < 0 ~ paste0(term, "-"),
+                                     post.mean > 0 ~ paste0(term, "+"))) %>%
+            # Then summarise all associations per taxon
+            group_by(OTU) %>%
+            summarise(label = paste(assoc, collapse=" ")) %>%
+            mutate(label = str_remove_all(label, "ruminant|habitat.general"))
 
 # Get abundances per sample for the differentially abundant taxa
 abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
@@ -357,7 +375,7 @@ p <- ggplot(mcmc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill
           legend.position = "bottom") + ylab("CLR-transformed abundances") +
     guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
-ggsave(p, filename = file.path(subdir, "mcmc_abundances.png"), width = 12, height = 20)
+ggsave(p, filename = file.path(subdir, "mcmcglmm_abundances.png"), width = 12, height = 20)
 
 #####################
 #### RUN ANCOMBC ####
@@ -365,13 +383,16 @@ ggsave(p, filename = file.path(subdir, "mcmc_abundances.png"), width = 12, heigh
 
 phy_genus@sam_data <- phy_genus_clr@sam_data
 
+# Use the same taxa as MCMCglmm
+phy_genus <- prune_taxa(top, phy_genus)
+
 # Check if output is there, if not run
 if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
     cat("Output already there, so analysis will not be repeated! Loading existing ANCOMBC results...\n")
         out <- readRDS(file.path(subdir, "ancombc_results.rds"))
 } else {
     out <- ancombc2(data = phy_genus,
-                 fix_formula = "animalivory + frugivory + habitat.general + ruminant",
+                 fix_formula = "cp + cf + habitat.general + ruminant",
                  rand_formula = "(1|Species)",
                  tax_level = "genus",
                  p_adj_method = "holm", prv_cut = 0.1, # Some parameters. prv_cut=0.10 means that taxa found in less than 10% of samples are ignored

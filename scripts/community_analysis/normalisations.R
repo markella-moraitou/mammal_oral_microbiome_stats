@@ -14,6 +14,7 @@ library(rotl)
 library(ape)
 library(stringr)
 library(philr)
+library(microbiome)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -40,79 +41,122 @@ phy_sp_f <- readRDS(file.path(phydir, "phy_sp_f.RDS"))
 
 ## Match phyloseq taxa to Open Tree of Life 
 
-# For a few taxa, we need to use a synonym to match
-synonyms <- list("Hoylesella enoeca" = "Prevotella enoeca",
-                 "Segatella bryantii" = "Prevotella bryantii",
-                 "Segatella oris" = "Prevotella oris",
-                 "Xylanibacter ruminicola" = "Prevotella ruminicola",
-                 "Flagellimonas marinaquae" = "Muricauda aquimarina",
-                 "Thermaerobacillus caldiproteolyticus" = "Anoxybacillus caldiproteolyticus",
-                 "Aedoeadaptatus ivorii" = "Peptoniphilus ivorii")
-
-synonyms_df <- data.frame(phy_name = names(synonyms), search_string = unlist(synonyms))
-
-write.table(synonyms_df, file=file.path(outdir, "rotl_synonyms.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+# Modify names to match with Open Tree of Life
+matchnames <- data.frame(phy_name = taxa_names(phy_sp_f))
+matchnames$search_name <- str_remove(taxa_names(phy_sp_f), " sp[0-9]+") %>% str_remove("\\*")
+matchnames$superkingdom <- phy_sp_f@tax_table[,"superkingdom"]
 
 # Match names to open tree taxonomic names
-bacteria_names <- phy_sp_f %>% subset_taxa(superkingdom == "Bacteria") %>% taxa_names
-# Replace with synonyms
-bacteria_names <- ifelse(bacteria_names %in% synonyms_df$phy_name, synonyms_df$search_string[match(bacteria_names, synonyms_df$phy_name)], bacteria_names)
+bacteria_names <- matchnames %>% filter(superkingdom == "Bacteria") %>% pull(search_name) %>% unique
 
+# Search OTL
 resolved_names_b <- tnrs_match_names(bacteria_names, context_name = "Bacteria")
 resolved_names_b$superkingdom <- "Bacteria"
+resolved_names_b$search_name <- bacteria_names
 
-archaea_names <- phy_sp_f %>% subset_taxa(superkingdom == "Archaea") %>% taxa_names
+# Missing taxa: search genus name (if only genus name was searched previously, remove)
+missing <- resolved_names_b %>% filter(is.na(ott_id) & grepl(" ", search_name)) %>% pull(search_name)
+
+# Update matchnames
+matchnames <- matchnames %>% filter(!search_name %in% missing)
+matchnames <- matchnames %>% rbind(data.frame(phy_name = missing,
+                                              search_name = str_remove(missing, " .*$"),
+                                              superkingdom = "Bacteria"))
+
+# Search again
+bacteria_names <- matchnames %>% filter(superkingdom == "Bacteria") %>% pull(search_name) %>% unique
+resolved_names_b <- tnrs_match_names(bacteria_names, context_name = "Bacteria")
+resolved_names_b$search_name <- bacteria_names
+
+# For Archaea
+archaea_names <- matchnames %>% filter(superkingdom == "Archaea") %>% pull(search_name) %>% unique
 resolved_names_a <- tnrs_match_names(archaea_names, context_name = "Archaea")
-resolved_names_a$superkingdom <- "Archaea"
+resolved_names_a$search_name <- archaea_names
 
 # Combine the bacteria and archea tables
 resolved_names <- rbind(resolved_names_b, resolved_names_a)
 
 # Remove incertae sedis and replace with genus name (better to get the genus level placement than nothing)
-incertae_sedis <- resolved_names %>% filter(grepl("incertae_sedis", flags) | grepl("unplaced", flags))
-incertae_sedis$genus <- gsub(" .*", "", incertae_sedis$search_string)
+invalid_ids <- resolved_names %>% filter(grepl("incertae_sedis", flags) | grepl("unplaced", flags) | grepl("merged", flags))
+invalid_ids$genus <- gsub(" .*", "", invalid_ids$search_string)
 
-write.table(incertae_sedis, file = file.path(outdir, "rotl_incertae_sedis.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(invalid_ids, file = file.path(outdir, "rotl_invalid_ids.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
 
-# Remove incertae sedis and unplaced taxa
-resolved_names <- resolved_names %>% filter(!(search_string %in% incertae_sedis$search_string)) %>%
-   filter(!grepl("unplaced", flags))
+# Save resolved names
+resolved_names <- resolved_names %>% filter(!(search_string %in% invalid_ids$search_string)) %>%
+   # Add phynames
+   full_join(matchnames, by = "search_name")
 
 write.table(resolved_names, file.path(outdir, "rotl_resolved_names.tsv"), sep="\t", row.names=FALSE, quote=FALSE)
 
+# Get valid is
+ott_ids <- resolved_names %>% filter(!is.na(ott_id) & !ott_id %in% invalid_ids$ott_id) %>%
+  pull(ott_id) %>% unique
+
+rep_taxa <- filter(resolved_names, ott_id %in% ott_ids) %>% pull(phy_name) %>% unique
+nonrep_taxa <- filter(resolved_names, !ott_id %in% ott_ids) %>% pull(phy_name) %>% unique
+
+print(paste("Found", length(ott_ids), "valid ids (species- or genus-level) in Open Tree of Life."))
+print(paste("These represent", length(rep_taxa), "species in the dataset."))
+print(paste("There are", length(nonrep_taxa), "(in", 
+            filter(resolved_names, phy_name %in% nonrep_taxa) %>% pull(phy_name) %>% str_remove(" .*") %>% unique %>% length, "genera) that could not be matched to Open Tree of Life."))
+non_rep_abundance <- phy_sp_f %>% transform("compositional") %>% subset_taxa(taxa_names(phy_sp_f) %in% nonrep_taxa) %>%
+  sample_sums
+print(paste("These represent on average", round(mean(non_rep_abundance)*100, 2), "% of per-sample abundance (from", 
+            round(min(non_rep_abundance)*100, 2), "to", round(max(non_rep_abundance)*100, 2), "%)"))
+
 # Get the phylogenetic tree
-tree <- tol_induced_subtree(ott_ids = resolved_names$ott_id)
+tree <- tol_induced_subtree(ott_ids = ott_ids)
 
 #########################
 #### MANIPULATE TREE ####
 #########################
 
+resolved_names_filt <- filter(resolved_names, !is.na(ott_id))
+
 ## So that the tips match the phyloseq object
 rename_tip_labels <- data.frame(original =  tree$tip.label,
                                 ott = as.numeric(gsub(".*ott", "", tree$tip.label))) %>%
                       # Get the taxa names by matching the OTT
-                      left_join(select(resolved_names, c(search_string, ott_id)), by = c("ott" = "ott_id")) %>%
-                      mutate(taxon = str_to_sentence(search_string)) %>%
-                      # Get only genus and species epithet (remove infraspecific names)
-                      separate(taxon, c("genus", "species"), sep = " ", extra = "drop") %>%
-                      mutate(species = ifelse(is.na(species), "", species),
-                             genus = ifelse(is.na(genus), "", genus)) %>%
-                      mutate(taxon = paste(genus, species, sep = " ")) %>%
-                      # Change back to match the phyloseq taxa names
-                      mutate(taxon = case_when(taxon %in% synonyms_df$search_string ~ synonyms_df$phy_name[match(taxon, synonyms_df$search_string)],
-                                               TRUE ~ taxon)) %>%
+                      left_join(unique(select(resolved_names_filt, c(phy_name, ott_id))), by = c("ott" = "ott_id")) %>%
+                      mutate(taxon = phy_name) %>%
                       # Check if the taxon names match those in the phyloseq object
                       mutate(match = taxon %in% taxa_names(phy_sp_f))
 
+taxa_map <- split(rename_tip_labels$phy_name, rename_tip_labels$original)
+
+tree_edit <- tree
+
+# For each tip, add samples as zero-length branches
+for (tip in names(taxa_map)) {
+  taxa <- taxa_map[[tip]]
+  if (length(taxa) > 1) {
+    cat("Creating", length(taxa), "tips for", tip, "\n")
+    # Create a mini tree (polytomy) for the samples
+    polytomy <- stree(length(taxa), type = "star")
+    polytomy$tip.label <- taxa
+    polytomy$node.label <- tip
+    # Bind the polytomy at the tip
+    cat("Polytomy:\n")
+    print(polytomy)
+    tree_edit <- bind.tree(tree_edit, polytomy, where = which(tree_edit$tip.label == tip))
+    # Drop the original tip
+    tree_edit <- drop.tip(tree_edit, tip)
+  } else {
+    # Just rename the tip
+    tree_edit$tip.label[tree_edit$tip.label == tip] <- taxa
+  }
+}
+
 # Which taxa don't match those in phyloseq
-no_match_tips <- rename_tip_labels %>% filter(!match) %>% select(original, ott, search_string, taxon)
+no_match_tips <- rename_tip_labels %>% filter(!match) %>% select(original, ott, taxon)
 
 # Which phyloseq taxa are not represented?
 unrepr_taxa <- setdiff(taxa_names(phy_sp_f), rename_tip_labels$taxon)
 
 for (i in 1:nrow(no_match_tips)) {
     # If there is no taxon name, try to get the full name using the OTT
-    if (no_match_tips$taxon[i] == " ") {
+    if (no_match_tips$taxon[i] == " " | is.na(no_match_tips$taxon[i])) {
       full_name <- tol_node_info(no_match_tips$ott[i])$taxon$unique_name
       name_split <- str_split(full_name, pattern = " ")[[1]]
       taxon_name <- paste(name_split[1], name_split[2], sep = " ") %>% str_remove(" NA")
@@ -127,8 +171,7 @@ for (i in 1:nrow(no_match_tips)) {
         taxon_name <- genus_match
         cat("Match found: ", genus_match, "\n", sep = "")
       } else {
-        cat("Error: ", length(genus_match), " matches found\n", sep = "")
-        break      
+        cat(length(genus_match), " matches found!!\n", sep = "")     
       }
     }
     no_match_tips$taxon[i] <- taxon_name
@@ -156,6 +199,7 @@ rename_nodes <- data.frame(original =  tree$node.label) %>%
                 separate(temp, c("ott1", "ott2"), sep = "ott")
 
 rename_nodes$new_name <- NA
+
 for (i in 1:nrow(rename_nodes)) {
     cat("Processing node ", i, " of ", nrow(rename_nodes), "\n", sep = "")
     # For the ott1 and ott2 columns separately, check if an OTT is there, instead of a taxon name,
@@ -178,13 +222,16 @@ tree$node.label <- rename_nodes$new_name[match(tree$node.label, rename_nodes$ori
 
 write.tree(tree, file = file.path(phydir, "phy_tree.tree"))
 
-phy_sp_f <- phyloseq(otu_table(phy_sp_f), sample_data(phy_sp_f), tax_table(phy_sp_f), phy_tree(tree))
+#################################
+#### CREATE PHYLOSEQ OBJECTS ####
+#################################
 
 # CLR transformation
 phy_sp_f_clr <- phy_sp_f %>% microbiome::transform("clr")
 
 # PhiLR transformation
-philr_otu <- philr(phy_sp_f, pseudocount=10^-5)
+phy_sp_philr <- phyloseq(otu_table(phy_sp_f), sample_data(phy_sp_f), tax_table(phy_sp_f), phy_tree(tree))
+philr_otu <- philr(phy_sp_philr, pseudocount=10^-5)
 
 write.table(philr_otu, file = file.path(phydir, "phy_sp_philr_OTU.tsv"), sep = "\t", row.names = TRUE, quote = FALSE)
 
@@ -224,7 +271,6 @@ phy_habitat <- phy_habitat %>% subset_taxa(taxa_sums(phy_habitat) > 0)
 phy_habitat_clr <- mirror_subset(phy_subset=phy_habitat, phy_norm=phy_sp_f_clr, TRUE)
 phy_habitat_philr <- mirror_subset(phy_subset=phy_habitat, phy_norm=phy_sp_philr, FALSE)
 
-## Planned contrasts in more deeply sampled Order (Artiodactyla, Carnivora, Primates)
 # Artiodactyla
 phy_artio <- phy_sp_f %>%
   subset_samples(Order == "Artiodactyla")
@@ -249,9 +295,9 @@ phy_prim <- phy_prim %>% subset_taxa(taxa_sums(phy_prim) > 0)
 phy_prim_clr <- mirror_subset(phy_subset=phy_prim, phy_norm=phy_sp_f_clr, TRUE)
 phy_prim_philr <- mirror_subset(phy_subset=phy_prim, phy_norm=phy_sp_philr, FALSE)
 
-# All together
+# Planned contrasts in more deeply sampled Order (Artiodactyla, Carnivora, Primates)
 phy_deep <- phy_sp_f %>%
-  subset_samples(Order %in% c("Artiodactyla", "Carnivora", "Primates"))
+  subset_samples(Order %in% c("Artiodactyla", "Carnivora", "Primates", "Perissodactyla"))
 phy_deep <- phy_deep %>% subset_taxa(taxa_sums(phy_deep) > 0)
 
 phy_deep_clr <- mirror_subset(phy_subset=phy_deep, phy_norm=phy_sp_f_clr, TRUE)
