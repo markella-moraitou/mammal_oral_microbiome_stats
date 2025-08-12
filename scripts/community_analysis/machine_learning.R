@@ -166,8 +166,8 @@ tune_and_save <- function(learner, label, task, dir) {
 ml_data <- data.frame(phy_gen_clr@otu_table) %>% t %>%
           cbind(select(data.frame(phy_sp_f_clr@sam_data), c(Species))) %>% #, Order, diet.general, habitat.general))) %>%
           rownames_to_column("Sample") %>%
-          # Keep only species with > 3 samples
-          filter(Species %in% names(which(table(Species) > 3)))
+          # Keep only species with > 5 samples
+          filter(Species %in% names(which(table(Species) > 5)))
 
 colnames(ml_data) <- str_replace_all(colnames(ml_data), pattern = " ", replacement = ".") %>%
       str_replace_all(pattern = "-", replacement = "_") %>% make.names(unique = TRUE)
@@ -255,7 +255,7 @@ saveRDS(object = lrn_rpart, file = file.path(dir, "lrn_rpart.RDS"))
 
 #### Tune GLM with regularisation ####
 lrn_glmnet = lrn("classif.glmnet",
-                lambda = to_tune(p_dbl(0.1, 1)), # Regularization parameter
+                lambda = to_tune(p_dbl(0.2, 1)), # Regularization parameter
                 nlambda = to_tune(p_int(10, 100)), # Number of lambda values to generate
                 standardize = TRUE
                 )
