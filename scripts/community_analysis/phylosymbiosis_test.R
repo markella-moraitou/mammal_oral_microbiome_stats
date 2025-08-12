@@ -200,22 +200,18 @@ mb_tree_clr <- nj(as.dist(mb_dist_clr))
 # Cophyloplot
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
 
-png(file.path(subdir, "cophyloplot_clr.png"), width = 2200, height = 2200)
+png(file.path(subdir, "cophyloplot_clr.png"), width = 1800, height = 1400)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.type="curved",link.lwd=4, link.lty="solid", link.col=links$colour)
-# Add title
-#text(x = 0.5, y = 0.95, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
 # Microbiome tree from philr distances
 mb_tree_philr <- nj(as.dist(mb_dist_philr))
 
 # Cophyloplot
-coph <- cophylo(tr1=mb_tree_philr, tr2=host_consensus, assoc=links, rotate = TRUE)
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_philr, assoc=links, rotate = TRUE)
 
-png(file.path(subdir, "cophyloplot_philr.png"), width = 2200, height = 2200)
+png(file.path(subdir, "cophyloplot_philr.png"), width = 1800, height = 1400)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, tr1=mb_tree_philr, link.type="curved",link.lwd=4, link.lty="solid", link.col=links$colour)
-# Add title
-#text(x = 0.5, y = 0.95, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()

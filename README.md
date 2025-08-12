@@ -7,11 +7,13 @@ flowchart TD;
     D-->E[Normalisation];
     D-->F[Sample summary plots];
     D-->G[Core microbiome];
+    D-->G[Alpha diversity];
     E-->H[Filtered dataset plots];
     E-->I[RDA analysis];
     E-->J[Phylosymbiosis tests];
     E-->K[Microbial phenotypes - host diet hypotheses];
-    D-->L[Statistical tests];
+    E-->L[Statistical tests];
+    E-->L[Machine learning];
 ```
 Analysis workflow for functional community-level analysis:
 ```mermaid
