@@ -54,6 +54,7 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 
 # Aggregate to genus level
 phy_gen <- tax_glom(phy_sp_f, taxrank = "genus")
+taxa_names(phy_gen) <- make.unique(phy_gen@tax_table[, "genus"])
 phy_gen_clr <- microbiome::transform(phy_gen, "clr")
 
 # Extract relevant species metadata
@@ -168,7 +169,8 @@ ml_data <- data.frame(phy_gen_clr@otu_table) %>% t %>%
           # Keep only species with > 3 samples
           filter(Species %in% names(which(table(Species) > 3)))
 
-colnames(ml_data) <- str_replace_all(colnames(ml_data), pattern = " ", replacement = ".") %>% str_replace_all(pattern = "-", replacement = "_")
+colnames(ml_data) <- str_replace_all(colnames(ml_data), pattern = " ", replacement = ".") %>%
+      str_replace_all(pattern = "-", replacement = "_") %>% make.names(unique = TRUE)
 
 # Turn habitat into factor
 #ml_data$habitat.general <- factor(ml_data$habitat.general, levels = c("Terrestrial", "Marine"))
