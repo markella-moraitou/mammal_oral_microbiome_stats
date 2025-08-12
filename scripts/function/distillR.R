@@ -99,6 +99,8 @@ p <- ggplot(GIFTs_elements_long, aes(y=Sample, x=Element)) +
   
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_community.png"), width = 25, height = 20)
 
+write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_community.csv"), row.names = FALSE)
+
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
 GIFTs_functions <- GIFTs_functions[, colSums(GIFTs_functions) > 0] # Remove empty columns
@@ -122,7 +124,15 @@ p <- ggplot(GIFTs_functions_long, aes(y=Sample, x=Function)) +
 
 ggsave(p, filename = file.path(subdir, "GIFTs_functions_community.png"), width = 10, height = 15)
 
+write.csv(GIFTs_functions_long, file.path(subdir, "GIFTs_functions_long.csv"), row.names = FALSE)
+
 #### PCA ####
+# Remove AMR genes
+
+amr <- GIFTs_elements_long %>% filter(Function == "Antibiotic degradation") %>% pull(Code_element) %>% unique
+
+GIFTs_elements <- GIFTs_elements[, !colnames(GIFTs_elements) %in% amr] # Remove AMR genes
+
 ord <- prcomp(GIFTs_elements)
 
 # Get some info for plotting
@@ -148,10 +158,10 @@ pca <- ggplot(aes(x = PC1, y = PC2, colour = metadata$Order), data = data.frame(
   scale_size_continuous(trans = "log10") +
   xlab(paste("PC1 -", var_explained[1], "%")) +
   ylab(paste("PC2 -", var_explained[2], "%")) +
-  geom_segment(data = loadings[1:8,], aes(x = 0, y = 0, xend = (PC1*10),
+  geom_segment(data = loadings[1:10,], aes(x = 0, y = 0, xend = (PC1*10),
                                        yend = (PC2*10)), arrow = arrow(length = unit(0.5, "picas")),
                color = "black") +
-  geom_label(data = loadings[1:8,], aes(x = (PC1*10), y = (PC2*10), label = Variables),
+  geom_label(data = loadings[1:10,], aes(x = (PC1*10), y = (PC2*10), label = Variables),
             size = 2, hjust = 0.5, vjust = -0.5, color = "black", alpha = 0.7) +
   theme(legend.position = "bottom") +
   guides(colour = guide_legend(nrow =3), shape = guide_legend(nrow = 3))
@@ -160,9 +170,8 @@ ggsave(pca, filename = file.path(subdir, "PCA_GIFTs_community.png"), width = 10,
 
 # Extract info on functions explaining the most variance (top 20)
 var_gifts <- loadings %>% head(20) %>%
-    separate(Variables, into = c("Element", "Domain"), sep = " ") %>%
     # Get genes implicated in these orders
-    left_join(GIFT_db) %>%
+    left_join(mutate(GIFT_db, Variables = paste(Element, Domain))) %>%
     select(Element, Domain, Function, Definition)
 
 write.csv(var_gifts, file.path(subdir, "GIFTs_explaining_variance.csv"), row.names = FALSE)
@@ -196,7 +205,7 @@ if(file.exists(file.path(subdir, "GIFTs_by_taxon.csv"))) {
     # Combine species and sample into a "genome" column
     mutate(genome = paste(species, sample, sep = " - ")) %>%
     # Remove genomes with less than 200 genes
-    group_by(genome) %>% %>% mutate(n_genes = n_distinct(gene_id)) %>% filter(n_genes > 400) %>%
+    group_by(genome) %>% mutate(n_genes = n_distinct(gene_id)) %>% filter(n_genes > 400) %>%
     # Keep microbial species found in at least 5 samples
     group_by(species) %>% filter(n_distinct(sample) > 5) %>% ungroup %>%
     select(genome, gene_id)
@@ -229,6 +238,8 @@ p <- ggplot(GIFTs_elements_long, aes(y=genome, x=Element)) +
   
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_by_taxon.png"), width = 25, height = 20)
 
+write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_by_taxon.csv"), row.names = FALSE)
+
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
 GIFTs_functions <- GIFTs_functions[, colSums(GIFTs_functions) > 0] # Remove empty columns
@@ -252,7 +263,12 @@ p <- ggplot(GIFTs_functions_long, aes(y=genome, x=Function)) +
 
 ggsave(p, filename = file.path(subdir, "GIFTs_functions_by_taxon.png"), width = 10, height = 15)
 
+write.csv(GIFTs_functions_long, file.path(subdir, "GIFTs_functions_by_taxon.csv"), row.names = FALSE)
+
 #### PCA ####
+amr <- GIFTs_elements_long %>% filter(Function == "Antibiotic degradation") %>% pull(Code_element) %>% unique
+GIFTs_elements <- GIFTs_elements[, !colnames(GIFTs_elements) %in% amr]
+
 ord <- prcomp(GIFTs_elements)
 
 # Get some info for plotting
