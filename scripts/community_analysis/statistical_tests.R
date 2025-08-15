@@ -109,9 +109,10 @@ write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspe
 #########################
 
 phy_genus <- phy_sp_f %>% tax_glom("genus")
-phy_genus_clr <- phy_genus %>% transform("clr")
 
-taxa_names(phy_genus_clr) <- make.names(phy_genus_clr@tax_table[, "genus"], unique = TRUE)
+taxa_names(phy_genus) <- make.names(phy_genus@tax_table[, "genus"], unique = TRUE)
+
+phy_genus_clr <- phy_genus %>% transform("clr")
 
 # Combine Sirenia/Proboscidea in one clades
 phy_genus_clr@sam_data$Order <- ifelse(phy_genus_clr@sam_data$Order %in% c("Sirenia", "Proboscidea"), "Sirenia/Proboscidea", as.character(phy_genus_clr@sam_data$Order))
@@ -141,7 +142,7 @@ data <- data %>%
 top <- data %>% group_by(OTU) %>%
   summarise(av_abundance = mean(Abundance)) %>%
   arrange(desc(av_abundance)) %>%
-  slice_head(n = 200) %>% pull(OTU)
+  slice_head(n = 100) %>% pull(OTU)
 
 data <- data %>% filter(OTU %in% top)
 
@@ -332,7 +333,7 @@ propvar <- MCMCRep(m1) %>%
 
 mFixed <- m1$X[,1:ncol(m1$X)] %*% colMeans(m1$Sol[, 1:ncol(m1$Sol)])
 
-mVarF<- var(mFixed)
+#mVarF<- var(mFixed)
 
 #### Get differentially abundant taxa ####
 
@@ -384,7 +385,7 @@ ggsave(p, filename = file.path(subdir, "mcmcglmm_abundances.png"), width = 12, h
 phy_genus@sam_data <- phy_genus_clr@sam_data
 
 # Use the same taxa as MCMCglmm
-phy_genus <- prune_taxa(top, phy_genus)
+phy_genus <- subset_taxa(phy_genus, taxa_names(phy_genus) %in% top)
 
 # Check if output is there, if not run
 if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
@@ -409,6 +410,7 @@ if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
 }
 
 #### Summary plots ####
+out$res$taxon <- str_replace(out$res$taxon, "-", ".") # Replace - with .
 
 # Get ancom results in a long format
 lfc <-
@@ -448,7 +450,7 @@ p <- filter(ancombc_res_long) %>%
     ggplot(aes(x = lfc, y = -log10(pval), shape = sensitivity, colour = (qval <= 0.05))) +
     geom_point() +
     geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
-    facet_wrap(~ term, ncol = 3) +
+    facet_wrap(~ term, ncol = 3, scale = "free_x") +
     scale_shape_manual(values = c("cross", "circle")) +
     scale_colour_manual(values = c("TRUE" = "#F6BD23", "FALSE" = "#0C1950"), name = "q-value <= 0.05") +
     labs(x = "Log-fold Change", y = "-log10 p-value") +
@@ -564,6 +566,8 @@ manyanovas <- function(physeq, formula) {
     return(results)
 }
 
+# Keep only top taxa
+phy_genus_clr <- subset_taxa(phy_genus_clr, taxa_names(phy_genus_clr) %in% top)
 
 # Run multiple anovas
 anovas_res <- manyanovas(phy_genus_clr, formula = "Abundance ~ Order + diet.general + habitat.general + ruminant")

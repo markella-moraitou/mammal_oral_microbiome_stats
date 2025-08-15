@@ -547,11 +547,14 @@ ggsave(file.path(subdir, "PCA_subset_habitat_1_2.png"), p, width=8, height=10)
 #### Print phylopics legend ####
 phylopics$Common.name <- phy_sp_f@sam_data$Common.name[match(phylopics$Species, as.vector(phy_sp_f@sam_data$Species))]
 
-p <- ggplot(phylopics[!is.na(phylopics$Common.name),], aes(y = Common.name, x = 1)) +
+p <- ggplot(phylopics[!is.na(phylopics$Common.name),], aes(y = Common.name, x = 1, colour = Species)) +
     geom_phylopic(aes(uuid = uid), height = 0.8) +
+    scale_color_manual(values = species_palette, name = "Species") +
     theme_void() + theme(axis.title = element_blank(), axis.text.x = element_blank(),
-                         plot.background = element_rect(fill = "white", color = "white"),
-                         axis.text.y = element_text(size = 5, hjust = 1))
+                         axis.text.y = element_text(size = 5, hjust = 1),
+                         legend.position = "none",
+                         plot.background = element_rect(fill = "transparent", color = "transparent"),
+                         panel.background = element_rect(fill = "transparent", color = "transparent"))
 
 ggsave(file.path(subdir, "phylopics_legend.png"), p, width=1.5, height=4)
 
