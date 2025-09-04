@@ -45,9 +45,6 @@ phy_gene_f <- readRDS(file.path(datadir, "phy_gene_f.RDS"))
 gene_str <- read.table(file.path(datadir, "gene_abundance_stratified_modified.tsv"),
                       quote = "", comment.char = "", header = TRUE, sep = "\t")
 
-# Differentially abundant taxa
-ancom_res <- read.csv(file.path(taxdir, "statistical_tests", "ancomb_long.csv"))
-
 ################################
 #### DISTILL COMMUNITY WIDE ####
 ################################
@@ -179,14 +176,6 @@ write.csv(var_gifts, file.path(subdir, "GIFTs_explaining_variance.csv"), row.nam
 ##########################
 #### DISTILL BY TAXON ####
 ##########################
-
-# Identify diff abundant taxa
-#diff_taxa <- select(gene_str, c(species, genus)) %>% unique %>%
-#      inner_join(ancom_res, by = c("genus" = "taxon")) %>%
-#      filter(pval < 0.05 & sensitivity == TRUE & lfc > 0) %>%
-#      select(species, genus, term) %>% unique %>%
-#      group_by(species, genus) %>%
-#      summarise(term = paste(term, collapse = ", "))
 
 if(file.exists(file.path(subdir, "GIFTs_by_taxon.csv"))) {
   cat("Loading GIFTs from file\n")

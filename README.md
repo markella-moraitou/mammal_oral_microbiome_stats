@@ -15,11 +15,15 @@ flowchart TD;
     E-->L[Statistical tests];
     E-->L[Machine learning];
 ```
+
 Analysis workflow for functional community-level analysis:
 ```mermaid
 flowchart TD;
-    A[Prepare data]-->B[Plot ordinations]
-    A[Prepare data]-->B[Statistical tests];
+    A[Prepare data]-->B[Plot ordinations];
+    A-->C[Exploratory plots];
+    A-->D[Pathway analysis];
+    A-->E[DistillR];
+    D-->F[Functional core microbiome];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
