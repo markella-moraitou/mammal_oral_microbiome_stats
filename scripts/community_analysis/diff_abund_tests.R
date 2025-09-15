@@ -1,6 +1,6 @@
-##### STATISTICAL TESTS #####
+##### DIFFERENTIAL ABUNDANCE TESTS #####
 
-#### Run PERMANOVA, differential abundance analysis and other tests on filtered data using
+#### Run differential abundance analysis on filtered data
 
 ################
 #### SET UP ####
@@ -11,7 +11,7 @@ library(phyloseq)
 library(microbiome)
 library(tidyr)
 library(stringr)
-library(vegan)
+#library(vegan)
 library(ANCOMBC)
 library(MCMCglmm)
 library(parallel)
@@ -26,7 +26,7 @@ library(ggregplot)
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata
 outdir <- normalizePath(file.path("..", "..", "output", "community_analysis"))
-subdir <- normalizePath(file.path(outdir, "statistical_tests"))
+subdir <- normalizePath(file.path(outdir, "differential_abundance"))
 phydir <- normalizePath(file.path(outdir, "phyloseq_objects")) # Directory with phyloseq objects
 
 # Create output directory if it doesn't exist
@@ -64,45 +64,6 @@ phenotype_table <- read.csv(file.path(outdir, "phenotype_relations.csv"))
 
 # Host phylogeny
 host_consensus <- read.tree(file.path(outdir, "host_consensus.tre"))
-
-###################
-#### PERMANOVA ####
-###################
-
-# Explanatory variables
-
-order <- sample_data$Order
-diet <- sample_data$diet.general
-habitat <- sample_data$habitat.general
-ruminant <- (sample_data$digestion == "Ruminant")
-hypsodont <- grepl("hyps", sample_data$molar_category)
-species <- sample_data$Species
-
-#### CLR-transformed data
-set.seed(123)
-
-perm <- adonis2(t(otu_table(phy_sp_f_clr)) ~ order + diet + habitat + ruminant + hypsodont,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_allfactors.csv"), row.names = TRUE, quote = TRUE)
-
-perm <- adonis2(t(otu_table(phy_sp_f_clr)) ~ sample_data$Species,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
-
-#### PhILR-transformed data
-set.seed(123)
-
-perm <- adonis2(otu_table(phy_sp_philr) ~ order + diet + habitat + ruminant + hypsodont,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_allfactors.csv"), row.names = TRUE, quote = TRUE)
-
-perm <- adonis2(otu_table(phy_sp_philr) ~ sample_data$Species,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
 
 #########################
 #### PREP TEST INPUT ####
@@ -249,11 +210,11 @@ fixed_results <- summary(m1)$solutions %>%
 
 random_results <- summary(m1)$Gcovariances %>%
   data.frame %>% rownames_to_column("term") %>%
-  mutate(OTU = str_extract(term, "OTU[^.]*")) %>% # Separate OTU
+  mutate(OTU = str_remove(term, ".Species")) %>% # Separate OTU
   mutate(term = str_remove(term, paste0(OTU, "."))) %>%  # Separate term
   mutate(OTU = str_remove_all(OTU, "OTU")) %>% # Remove fluff from OTU name
   mutate(pMCMC = NA) %>%
-  filter(OTU == "")
+  filter(OTU != "")
 
 # Combine resulrts
 mcmc_res <- rbind(fixed_results, random_results) %>%
