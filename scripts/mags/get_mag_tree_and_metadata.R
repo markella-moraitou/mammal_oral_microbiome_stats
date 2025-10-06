@@ -35,14 +35,18 @@ bac_tree <- read.tree(file.path(indir, "gtdbtk.bac120.decorated_itol.tree"))
 ar_tree <- read.tree(file.path(indir, "gtdbtk.ar53.decorated_itol.tree"))
 
 # bin metadata
-mag_meta <- read.csv(file.path(indir, "hq_bin_metadata.csv"), header=TRUE)
+mag_meta <- read.csv(file.path(indir, "mq_hq_bin_metadata.csv"), header=TRUE)
+
 # Replace more than one instance of . with a single .
 colnames(mag_meta) <- gsub("..", ".", colnames(mag_meta), fixed=TRUE) %>% gsub("...", ".", ., fixed=TRUE)
 
 # Host metadata
 host_taxonomy <- read.csv(file.path(indir, "host_taxonomy.csv"), header=TRUE)
-host_habitat <- read.csv(file.path(indir, "species_habitats.csv"), header=TRUE)
+host_traits <- read.csv(file.path(indir, "host_traits.csv"), header=TRUE)
 host_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv"), header=TRUE)
+
+# contig info
+contig_info <- read.table(file.path(indir, "contig_info_per_sample.txt"), header=TRUE)
 
 #################
 #### PROCESS ####
@@ -52,8 +56,9 @@ host_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv"), header=
 colnames(host_taxonomy) <- paste0("host_", tolower(colnames(host_taxonomy)))
 
 host_meta <- host_taxonomy[, colnames(host_taxonomy)!="host_species"] %>%
-    left_join(host_habitat, by=c("host_museum.species"="Species")) %>%
-    left_join(host_diet,  by=c("host_museum.species"="Species"))
+    left_join(host_traits, by=c("host_museum.species"="Species")) %>%
+    left_join(select(host_diet, c("Species", "calculated_cluster_main_diet")), by=c("host_museum.species"="Species")) %>%
+    rename("diet.general"="calculated_cluster_main_diet")
 
 # Get taxon label: the most specific taxonomic level that is not empty and is not a made up GTDB name
 get_taxon_label <- function(row) {
@@ -70,6 +75,7 @@ meta <-
     # Add host metadata
     mag_meta %>% rename("host_species"="Species") %>%
     left_join(host_meta, by=c("host_species"="host_museum.species"), relationship = "many-to-one") %>%
+    left_join(contig_info, by=c("Sample" = "sample"), relationship = "many-to-one") %>%
     separate(classification, sep=";", into=c("domain", "phylum", "class", "order", "family", "genus", "species")) %>%
     mutate(across(domain:species, ~ case_when(str_detect(.x, "^[dpcofgs]__$") ~ NA, TRUE ~ .x))) %>%
     mutate(is.mag=TRUE) %>%
@@ -77,7 +83,13 @@ meta <-
     mutate(classification=apply(., 1, get_taxon_label)) %>%
     group_by(classification) %>% mutate(label=paste(gsub(" ", "_", classification), row_number(), sep="_")) %>%
     # Remove *__ prefix
-    mutate(across(domain:species, ~ str_remove(.x, "^[dpcofgs]__"))) %>% ungroup()
+    mutate(across(domain:species, ~ str_remove(.x, "^[dpcofgs]__"))) %>% ungroup() %>%
+    rename(min_damage_model_p = min,
+                 q1_damage_model_p = q1,
+                 mean_damage_model_p = mean,
+                 median_damage_model_p = median,
+                 q3_damage_model_p = q3,
+                 max_damage_model_p = max)
 
 ## Get taxonomic ids
 get_taxon_id <- function(taxon_name) {
@@ -142,7 +154,7 @@ add_node_metadata <- function(tree, metadata, traits) {
     # Add metadata to tree
     tree_tibble <- tree %>% as_tibble() %>% mutate(node=1:nrow(.))
     tree_tibble <- tree_tibble %>% left_join(metadata, by="label")
-    tree_tibble$is.tip <- ifelse(tree_tibble$node < Ntip(tree), TRUE, FALSE)
+    tree_tibble$is.tip <- ifelse(tree_tibble$node <= Ntip(tree), TRUE, FALSE)
     # Add metadata to nodes that share a common ancestor
     for (tr in traits) {
         node_traits <- data.frame(node=integer(), val=character())
@@ -162,8 +174,13 @@ add_node_metadata <- function(tree, metadata, traits) {
     return(metadata_with_nodes)
 }
 
-bac_meta_new <- add_node_metadata(bac_tree_new, bac_meta, c("phylum", "class", "order", "family", "genus"))
-ar_meta_new <- add_node_metadata(ar_tree_new, ar_meta, c("phylum", "class", "order", "family", "genus"))
+bac_meta_new <- add_node_metadata(bac_tree_new, bac_meta, c("phylum", "class", "order", "family", "genus")) %>%
+    # remove _[A-Z] suffix from phylum to species
+    mutate(across(phylum:species, ~ str_remove(.x, "_[A-Z]$")))
+
+ar_meta_new <- add_node_metadata(ar_tree_new, ar_meta, c("phylum", "class", "order", "family", "genus")) %>%
+    # remove _[A-Z] suffix from phylum to species
+    mutate(across(phylum:species, ~ str_remove(.x, "_[A-Z]$")))
 
 #####################
 #### SAVE OUTPUT ####

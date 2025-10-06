@@ -28,9 +28,10 @@ flowchart TD;
 
 Analysis workflow for metagenomes-assembled genomes analysis:
 
-```mermaid
+```mermaid # Not sure if accurate, double check
 flowchart TD;
-    A[Prep MAG tree and metadata]-->B[Plot MAG tree]
-    A-->C[Access omnicrobe database]
-    A-->D[Codiversification tests]
+    A[get_mag_tree_and_metadata]-->B[collect_omnicrobe_metadata]
+    A-->C[mag_mapping_stats]
+    B-->D[plot_mag_tree]
+    A-->D[codiversification_test]
 ```
