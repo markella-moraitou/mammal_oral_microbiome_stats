@@ -46,8 +46,8 @@ url <- "https://data.gtdb.ecogenomic.org/releases/release220/220.0/"
 #######################
 
 # Download tree and metadata
-download.file(paste0(url, "bac120_r220.tree.gz"), file.path(outdir, "bac120_r220.tree.gz"))
 options(timeout = 600)
+download.file(paste0(url, "bac120_r220.tree.gz"), file.path(outdir, "bac120_r220.tree.gz"))
 download.file(paste0(url, "bac120_taxonomy_r220.tsv.gz"), file.path(outdir, "bac120_taxonomy_r220.tsv.gz"))
 
 bac_tree <- read.tree(gzfile(file.path(outdir, "bac120_r220.tree.gz")))

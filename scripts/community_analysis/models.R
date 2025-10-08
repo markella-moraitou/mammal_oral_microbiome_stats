@@ -53,57 +53,6 @@ host_consensus <- read.tree(file.path(outdir, "host_consensus.tre"))
 # Bacterial phylogeny (GTDB)
 bac_tree <- read.tree(file.path(phydir, "phy_tree.tree"))
 
-###################
-#### PERMANOVA ####
-###################
-
-# Explanatory variables
-
-order <- sample_data$Order
-diet <- sample_data$diet.general
-habitat <- sample_data$habitat.general
-ruminant <- (sample_data$digestion == "Ruminant")
-hypsodont <- grepl("hyps", sample_data$molar_category)
-species <- sample_data$Species
-
-#### Presence-absence
-set.seed(123)
-perm <- adonis2(t(otu_table(phy_sp_f)) ~ order + diet + habitat + ruminant + hypsodont,
-        permutations = 1000, by = "margin", method = "jaccard")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_pa_allfactors.csv"), row.names = TRUE, quote = TRUE)
-
-perm <- adonis2(t(otu_table(phy_sp_f)) ~ sample_data$Species,
-        permutations = 1000, by = "margin", method = "jaccard")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_pa_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
-
-#### CLR-transformed data
-set.seed(123)
-
-perm <- adonis2(t(otu_table(phy_sp_f_clr)) ~ order + diet + habitat + ruminant + hypsodont,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_allfactors.csv"), row.names = TRUE, quote = TRUE)
-
-perm <- adonis2(t(otu_table(phy_sp_f_clr)) ~ sample_data$Species,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
-
-#### PhILR-transformed data
-set.seed(123)
-
-perm <- adonis2(otu_table(phy_sp_philr) ~ order + diet + habitat + ruminant + hypsodont,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_allfactors.csv"), row.names = TRUE, quote = TRUE)
-
-perm <- adonis2(otu_table(phy_sp_philr) ~ sample_data$Species,
-        permutations = 1000, by = "margin", method = "euclidean")
-
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_philr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
-
 #########################################
 #### MULTIPLE REGRESSION ON MATRICES ####
 #########################################

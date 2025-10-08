@@ -1,19 +1,18 @@
 Analysis workflow for taxonomic community-level analysis:
 ```mermaid
 flowchart TD;
-    A[Create phyloseq object]-->B[Access omnicrobe database];
-    A-->C[Raw dataset plots];
-    B-->D[Assess and remove contaminants];
-    D-->E[Normalisation];
-    D-->F[Sample summary plots];
-    D-->G[Core microbiome];
-    D-->G[Alpha diversity];
-    E-->H[Filtered dataset plots];
-    E-->I[RDA analysis];
-    E-->J[Phylosymbiosis tests];
-    E-->K[Microbial phenotypes - host diet hypotheses];
-    E-->L[Statistical tests];
-    E-->L[Machine learning];
+    A[create_phyloseq_obj]-->B[collect_omnicrobe_metadata];
+    A-->C[raw_data_plots];
+    B-->D[assess_contamination];
+    D-->E[normalisations];
+    D-->F[sample_summary_plots];
+    D-->G[core_microbiomes];
+    D-->G[alpha_div];
+    E-->H[multivariate_stats];
+    E-->J[phylosymbiosis_test];
+    E-->K[microbial_phenotypes];
+    E-->L[models];
+    E-->L[machine_learning];
 ```
 
 Analysis workflow for functional community-level analysis:
