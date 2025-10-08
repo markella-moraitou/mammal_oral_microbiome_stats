@@ -33,5 +33,6 @@ flowchart TD;
     A[get_mag_tree_and_metadata]-->B[collect_omnicrobe_metadata]
     A-->C[mag_mapping_stats]
     B-->D[plot_mag_tree]
-    A-->D[codiversification_test]
+    B-->E[codiversification_test]
+    A-->F[mag_annotations]
 ```

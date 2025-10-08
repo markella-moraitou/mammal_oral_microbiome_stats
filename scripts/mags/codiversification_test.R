@@ -372,3 +372,67 @@ bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5) %<+% bac_meta_plot +
   color = guide_legend(override.aes = list(size = 5)))
 
 ggsave(bac_p, file=file.path(subdir, "bac_codiv_tree.png"), width = 22, height = 20)
+
+#######################################
+#### COMPARE CODIVERSIFYING VS NOT ####
+#######################################
+
+# Get lists of MAGs in codiversifying clades vs not codiversifying clades
+codiv_nodes <- 
+    bac_cod_results %>% filter(p.adjust <= 0.05 & r > 0) %>%
+  pull(node)
+
+# Find all descending tips
+get_desctips <- function(tree, node) {
+  sub_tree <- extract.clade(tree, node)
+  return(sub_tree$tip.label)
+}
+
+codiv_tips <- lapply(codiv_nodes, get_desctips, tree=bac_tree) %>% unlist %>% unique
+
+# Also add all remaining tips, indicating they are not codiversifying
+codiv_tips_df <- data.frame(label = codiv_tips, 
+                            codiversifying = TRUE)
+
+non_codiv_tips <- bac_tree$tip.label[!(bac_tree$tip.label %in% codiv_tips)]
+
+codiv_tips_df <- rbind(codiv_tips_df, data.frame(label = non_codiv_tips, 
+                                               codiversifying = FALSE))
+
+# Add habitat info
+codiv_habitats <- bac_habitats %>% filter(label %in% codiv_tips_df$label) %>%
+  filter(habitat %in% c("gut", "oral", "rumen", "soil") & occurences > 0.3) %>%
+  select(label, habitat, occurences)
+
+codiv_tips_df <- codiv_tips_df %>% left_join(codiv_habitats, by="label") %>%
+    # Where not habitat info, fill in with "no info"
+    mutate(habitat = case_when(is.na(habitat) ~ "no info", TRUE ~ habitat)) %>%
+    mutate(habitat = factor(habitat, levels=c("oral", "rumen", "gut", "soil", "no info"))) %>%
+    # Indicate MAGs counted more than once
+    group_by(label) %>%
+    mutate(multiple_habitats = case_when(n_distinct(habitat) > 1 ~ TRUE, TRUE ~ FALSE))
+
+# Add taxonomic info
+codiv_tax <- bac_meta %>% filter(label %in% codiv_tips_df$label) %>%
+  select(label, phylum, class, order, family, genus)
+
+codiv_tips_df <- codiv_tips_df %>% left_join(codiv_tax, by="label")
+
+# Save table
+write.csv(codiv_tips_df, file=file.path(subdir, "bac_codiv_tips_info.csv"), row.names=FALSE, quote=FALSE)
+
+#### Plot how many codiversifying MAGs are associated with each habitat ####
+
+p <- ggplot(data = codiv_tips_df, aes(x = codiversifying)) +
+  geom_bar(aes(fill = multiple_habitats)) +
+  scale_fill_manual(values = c("FALSE" = "lightblue", "TRUE" = "darkblue"), name = "Multiple habitats") +
+  facet_wrap(~ habitat, scales = "free_y")
+
+ggsave(plot=p, filename=file.path(subdir, "codiv_per_habitat.png"), width=6, height=4)
+
+#### Plot how many codiversifying MAGs are associated with each phylum ####
+p <- ggplot(data = unique(select(codiv_tips_df, c(label, phylum, codiversifying))), aes(x = codiversifying)) +
+  geom_bar(fill = "lightblue") +
+  facet_wrap(~ phylum, scales = "free_y")
+
+ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=6, height=4)
