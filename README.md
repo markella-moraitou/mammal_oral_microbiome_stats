@@ -23,6 +23,7 @@ flowchart TD;
     A-->D[Pathway analysis];
     A-->E[DistillR];
     D-->F[Functional core microbiome];
+    A-->G[tax_func_procrustes]
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
