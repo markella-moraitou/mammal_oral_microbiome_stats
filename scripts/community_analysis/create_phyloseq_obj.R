@@ -194,23 +194,22 @@ cat("Creating phyloseq table\n")
 phy <- phyloseq(OTU, SAM, TAX)
 
 # To reduce the size of this table and make it more manageable, remove taxa with less than 500 abundance
-phy <- subset_taxa(phy, taxa_sums(phy) > 500)
+phy <- subset_taxa(phy, taxa_sums(phy) > 0)
 phy <- subset_samples(phy, sample_sums(phy) > 0)
 
 # Agglomerate to species level and keep only prokaryotes and archaea
 cat("Agglomerating to species level\n")
-phy_sp <- phy %>% tax_glom(taxrank="species") %>%
+phy_sp <- phy %>% tax_glom(taxrank="species") %>% subset_taxa(species != "no support") %>%
  subset_taxa(superkingdom %in% c("Bacteria", "Archaea"))
 
 # Extra lineage column causes issues with some scripts
 phy_sp@tax_table <- phy_sp@tax_table[,c("superkingdom", "phylum", "class", "order", "family", "genus", "species")]
 
-
 phy_sp <- subset_taxa(phy_sp, taxa_sums(phy_sp) > 0)
 phy_sp <- subset_samples(phy_sp, sample_sums(phy_sp) > 0)
 
 # Get taxa names instead of ids
-taxa_names(phy_sp) <- as.vector(phy_sp@tax_table[,"species"])
+taxa_names(phy_sp) <- make.unique(as.vector(phy_sp@tax_table[,"species"]))
 
 #### Collect some metadata
 
@@ -235,7 +234,10 @@ if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
   # Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
   taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
   # Search database to get NCBI codes
-  taxids <- get_ids(unique(taxsimple), "ncbi")
+  taxids <- sapply(unique(taxsimple), function(x) {
+                get_ids(x, db="ncbi", simplify=FALSE)
+                Sys.sleep(0.5) # To avoid overloading the server
+                }) 
   # Collect results in dataframe
   taxids_df <- data.frame(taxids$ncbi) %>% select(ids, match)
   taxids_df$searchnames = names(taxids$ncbi)
