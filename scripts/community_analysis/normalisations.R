@@ -10,6 +10,7 @@
 library(dplyr)
 library(phyloseq)
 library(tidyr)
+library(tibble)
 library(readr)
 library(ape)
 library(ggtree)
@@ -41,10 +42,6 @@ phy_sp_f <- readRDS(file.path(phydir, "phy_sp_f.RDS"))
 # Links to download GTDB tree
 url <- "https://data.gtdb.ecogenomic.org/releases/release220/220.0/"
 
-#######################
-#### GET TAXA TREE ####
-#######################
-
 # Download tree and metadata
 options(timeout = 600)
 download.file(paste0(url, "bac120_r220.tree.gz"), file.path(outdir, "bac120_r220.tree.gz"))
@@ -52,6 +49,10 @@ download.file(paste0(url, "bac120_taxonomy_r220.tsv.gz"), file.path(outdir, "bac
 
 bac_tree <- read.tree(gzfile(file.path(outdir, "bac120_r220.tree.gz")))
 bac_meta <- read_tsv(file.path(outdir, "bac120_taxonomy_r220.tsv.gz"), col_names = FALSE)
+
+#######################
+#### GET TAXA TREE ####
+#######################
 
 # Keep only metadata in tree
 bac_meta_f <- bac_meta %>% filter(X1 %in% bac_tree$tip.label)
@@ -112,13 +113,6 @@ mirror_subset <- function(phy_subset, phy_norm, taxa = FALSE) {
   return(phy_norm_new)
 }
 
-## Wild animals only
-phy_wild <- phy_sp_f %>% subset_samples(!(Species %in% c("Ovis aries", "Equus caballus", "Sus scrofa domesticus")))
-phy_wild <- phy_wild %>% subset_taxa(taxa_sums(phy_wild) > 0)
-
-phy_wild_clr <- mirror_subset(phy_subset=phy_wild, phy_norm=phy_sp_f_clr, TRUE)
-phy_wild_philr <- mirror_subset(phy_subset=phy_wild, phy_norm=phy_sp_philr, FALSE)
-
 ## Marine terrestrial comparisons
 phy_habitat <- phy_sp_f %>%
   subset_samples(Species %in% c("Otaria byronia", "Meles meles", "Ursus arctos", "Orcinus orca", "Hippopotamus amphibius", "Sus scrofa", "Dugong dugon", "Loxodonta africana"))
@@ -160,9 +154,9 @@ phy_deep_clr <- mirror_subset(phy_subset=phy_deep, phy_norm=phy_sp_f_clr, TRUE)
 phy_deep_philr <- mirror_subset(phy_subset=phy_deep, phy_norm=phy_sp_philr, FALSE)
 
 # Save phyloseq objects
-for (obj in c("phy_wild", "phy_habitat", "phy_artio", "phy_carni", "phy_prim", "phy_deep",
-               "phy_wild_clr", "phy_habitat_clr", "phy_artio_clr", "phy_carni_clr", "phy_prim_clr", "phy_deep_clr",
-               "phy_wild_philr", "phy_habitat_philr", "phy_artio_philr", "phy_carni_philr", "phy_prim_philr", "phy_deep_philr")) {
+for (obj in c("phy_habitat", "phy_artio", "phy_carni", "phy_prim", "phy_deep",
+               "phy_habitat_clr", "phy_artio_clr", "phy_carni_clr", "phy_prim_clr", "phy_deep_clr",
+               "phy_habitat_philr", "phy_artio_philr", "phy_carni_philr", "phy_prim_philr", "phy_deep_philr")) {
   saveRDS(get(obj), file.path(phydir, paste0(obj, ".RDS")))
 }
 

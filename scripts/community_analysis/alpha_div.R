@@ -43,7 +43,7 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 #########################
 
 # Rarefy to min depth
-phy_sp_rarefied <- rarefy_even_depth(subset_samples(phy_sp_f, sample_sums(phy_sp_f) > 1000), sample.size = 100, rngseed = 1)
+phy_sp_rarefied <- rarefy_even_depth(subset_samples(phy_sp_f, sample_sums(phy_sp_f) > 10000), sample.size = 10000, rngseed = 1)
 
 # Create a named vector for the relabeling
 order_labels <- c("Rodentia" = "Rod.", "Carnivora" = "Carniv.")

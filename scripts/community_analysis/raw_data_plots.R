@@ -140,7 +140,7 @@ ggsave(file.path(subdir, "screeplot.png"), p, width=8, height=6)
 
 #### Get arrows ####
 # Get loading arrows coordinaties
-arrows <- arrow_coord(ord@ord, phy_sp_clr)
+arrows <- arrow_coord(ord@ord,axes = c(1, 2, 3, 4))
 # Get genus and phylum
 arrows$genus <- as.character(phy_sp_clr@tax_table[match(rownames(arrows),  phy_sp_clr@tax_table[, "species"]), "genus"])
 arrows$phylum <- as.character(phy_sp_clr@tax_table[match(rownames(arrows),  phy_sp_clr@tax_table[, "species"]), "phylum"])
@@ -153,13 +153,16 @@ arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(
           # Turn genus into factor
           arrange(phylum_grouped) %>% mutate(genus = factor(genus, levels = unique(genus)))
 
-# Keep only strongest associations and summarise by genus
-arrows_filt <- arrows %>% filter(r > quantile(r, 0.75)) %>%
-              group_by(genus, phylum_grouped) %>%
-              select(contains(c("1", "2", "3", "4"))) %>%
-              summarise_all(mean)
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 10000))
 
 # Axes 1 and 2
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), genus, phylum_grouped) %>%
+              group_by(genus, phylum_grouped) %>%
+              summarise_all(mean)
+
 p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5) +
   custom_theme() +
   scale_shape_manual(values=c("swab"=0, "blank"=2, "sample"=16), name = "Is control/blank") +
@@ -173,6 +176,13 @@ p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5) +
 ggsave(file.path(subdir, "phy_sp_sample_PCA_1_2.png"), p, width=8, height=10)
 
 # Axes 3 and 4
+
+# Keep only strongest associations and summarise by genus
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("3", "4")), genus, phylum_grouped) %>%
+              group_by(genus, phylum_grouped) %>%
+              summarise_all(mean)
+
 p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5, axes = c(3,4)) +
   custom_theme() +
   scale_shape_manual(values=c("swab"=0, "blank"=2, "sample"=16), name = "Is control/blank") +
@@ -185,14 +195,14 @@ p <- ord_plot(ord, colour="Order_grouped", shape="sample_type", alpha = 0.5, axe
 
 ggsave(file.path(subdir, "phy_sp_sample_PCA_3_4.png"), p, width=8, height=10)
 
-#### Heatmap ####
+#### Heatmap genus-level ####
 grad_palette <- colorRampPalette(c("#2D627B","#FFF7A4", "#E7C46E","#C24141"))
 grad_palette <- grad_palette(10)
 
-phy_sp@tax_table <- phy_sp@tax_table[, which(colnames(phy_sp@tax_table) != "lineage")] # Remove lineage taxrank, it breaks heatmap function
+phy_gen <- tax_glom(phy_sp, taxrank = "genus")
 
-png(filename = file.path(subdir, "phy_sp_heatmap.png"), width=16, height=20, units="in", res=300)
-plot_taxa_heatmap(phy_sp, subset.top=ntaxa(phy_sp), transformation="clr",
+png(filename = file.path(subdir, "phy_gen_heatmap.png"), width=16, height=20, units="in", res=300)
+plot_taxa_heatmap(phy_gen, subset.top=ntaxa(phy_gen), transformation="clr",
                   VariableA=c("Order", "diet.general", "unmapped_count"),
                   annotation_colors = list("Order" = order_palette, "diet.general" = diet_palette),
                   show_rownames = FALSE,
@@ -293,7 +303,28 @@ p <- ggplot(data=rank_abund, aes(x=Rank, y=Abundance, colour=is.neg)) +
 
 ggsave(file=file.path(subdir, "phy_sp_rank_abundance_plot.png"), p, width=8, height=6)
 
-#### Abundance and prevalence plot ####
-set.seed(123)
-p <- microbiomeutilities::plot_abund_prev(phy_sp)
-ggsave(file.path(subdir, "phy_sp_abund_prev.png"), p, width=8, height=6)
+#### Percentage of community characterised ####
+
+# Get number of unmapped reads (post human-host mapping; "input"), reads mapping to contigs ("contig_mapped"),
+# and reads retained for analysis ("classified")
+
+read_counts <- data.frame(phy_sp@sam_data) %>% select(new_name, Species, Order, Order_grouped, unmapped_count, contig_reads_count) %>%
+    left_join(data.frame(new_name = sample_names(phy_sp),
+                        classified_count = sample_sums(phy_sp)), by = "new_name")
+
+write.csv(read_counts, file.path(subdir, "phy_sp_read_counts.csv"), row.names=FALSE, quote=FALSE)
+
+read_counts_l <- read_counts %>%
+      # Change values so that they represent only the reads in that category (not cumulative)
+      # For plotting stacked barplots
+      mutate(unmapped_count = unmapped_count - contig_reads_count,
+            contig_reads_count = contig_reads_count - classified_count) %>%
+      pivot_longer(cols = c(unmapped_count, contig_reads_count, classified_count), names_to = "Read_type", values_to = "Count") %>%
+      mutate(Read_type = factor(Read_type, levels = c("unmapped_count", "contig_reads_count", "classified_count"),
+                                labels = c("Unmapped", "Mapped to contigs", "Classified")))
+
+p <- ggplot(data = read_counts_l, aes(y = Species, x = Count, fill = Read_type)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_fill_manual(values = c("Unmapped" = "grey70", "Mapped to contigs" = "grey40", "Classified" = "darkgreen"), name = "Read type")
+
+ggsave(file.path(subdir, "phy_sp_read_counts.png"), p, width=8, height=6)

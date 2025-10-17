@@ -59,7 +59,7 @@ phy_gen <- phy_sp_f %>%
 taxa_names(phy_gen) <- make.unique(phy_gen@tax_table[,"genus"])
 
 # Since we are dealing with presence absence, I will rarefy the same number of reads
-phy_gen_rarefied <- phy_gen %>% rarefy_even_depth(rngseed=123, sample.size = 1000, replace = FALSE)
+phy_gen_rarefied <- phy_gen %>% rarefy_even_depth(rngseed=123, sample.size = 10000, replace = FALSE)
 
 ## Calculate prevalence of each genus in each species
 
@@ -96,7 +96,7 @@ for (sp in species) {
   if (sp == species[length(species)]) {p <- p + theme(legend.position = "right")} # Add legend to last plot
   core_plots[[sp]] <- p
   # Get core microbiota for this species
-  core_taxa <- phy_sub %>% core_members(prevalence = 0.75, detection = 0.01)
+  core_taxa <- phy_sub %>% core_members(prevalence = 0.75, detection = 0.001)
   # If there are no core taxa, print warning and skip
   # otherwise, add to df
   if (length(core_taxa) == 0) {
