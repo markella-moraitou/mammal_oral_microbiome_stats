@@ -10,6 +10,7 @@ library(tidyr)
 library(tibble)
 library(phyloseq)
 library(microbiome)
+library(ape)
 library(reshape2)
 library(microViz)
 library(rphylopic)
@@ -17,6 +18,8 @@ library(RColorBrewer)
 library(wesanderson)
 library(ggplot2)
 library(ggnewscale)
+library(ggtree)
+library(ggtreeExtra)
 library(vegan)
 library(microbiomeutilities)
 library(cowplot)
@@ -26,8 +29,9 @@ library(ggExtra)
 
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata 
-subdir <- normalizePath(file.path("..", "..", "output", "community_analysis", "multivariate_stats")) # subdirectory for the output of this script
-phydir <- normalizePath(file.path("..", "..", "output", "community_analysis", "phyloseq_objects")) # Directory with phyloseq objects
+outdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # subdirectory for the output of this script
+subdir <- normalizePath(file.path(outdir, "multivariate_stats")) # subdirectory for the output of this script
+phydir <- normalizePath(file.path(outdir, "phyloseq_objects")) # Directory with phyloseq objects
 
 # Create output directory if it doesn't exist
 if (!dir.exists(subdir)) dir.create(subdir, recursive = TRUE)
@@ -37,8 +41,9 @@ source(file.path("..", "plot_setup.R"))
 plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
 
-# Get ordination functions
+# Get functions
 source(file.path("..", "ordination_functions.R"))
+source(file.path("..", "phylo_functions.R"))
 
 #######################
 #####  LOAD INPUT #####
@@ -50,6 +55,8 @@ for (phy_file in list.files(phydir, pattern = "*.RDS")) {
 }
 
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
+
+host_consensus <- read.tree(file.path(outdir, "host_consensus.tre"))
 
 #########################
 #####  BETA DISPER  #####
@@ -161,6 +168,87 @@ p_bar <-
 
 ggsave(filename = file.path(subdir, "phy_sp_f_composition.png"), device="png", width=8, height=12,
        plot_grid(p, p_bar, ncol = 2, align = "h", rel_widths = c(4, 2)))
+
+##### Composition on phylogenetic tree ####
+
+# Create a copy of the tree
+sample_tree <- host_consensus
+sample_tree$tip.label <- gsub("_", " ", sample_tree$tip.label)
+
+# Create a list of samples per species
+sample_map <- split(rownames(phy_sp_f@sam_data), phy_sp_f@sam_data$Species)
+
+# For each species, add samples as zero-length branches
+for (species in names(sample_map)) {
+  if (species %in% sample_tree$tip.label) {
+    cat("Creating sample tips for", species, "\n")
+    samples <- sample_map[[species]]
+    # Create a mini tree (polytomy) for the samples
+    polytomy <- stree(length(samples), type = "star")
+    polytomy$tip.label <- samples
+    polytomy$node.label <- species
+    # Bind the polytomy at the species tip
+    polytomy$edge.length <- rep(0.5, nrow(polytomy$edge))
+    cat("Polytomy:\n")
+    print(polytomy)
+    sample_tree <- bind.tree(sample_tree, polytomy, where = which(sample_tree$tip.label == species))
+    # Drop the original species tip
+    sample_tree <- drop.tip(sample_tree, species)
+  }
+}
+
+# Get traits for tips
+host_traits <- data.frame(tip = sample_tree$tip.label,
+                          node=nodeid(sample_tree, sample_tree$tip.label),
+                          Order = phy_sp_f@sam_data[sample_tree$tip.label, "Order"],
+                          Species = phy_sp_f@sam_data[sample_tree$tip.label, "Species"],
+                          Common.name = phy_sp_f@sam_data[sample_tree$tip.label, "Common.name"],
+                          diet.general = phy_sp_f@sam_data[sample_tree$tip.label, "diet.general"],
+                          cf = phy_sp_f@sam_data[sample_tree$tip.label, "cf"],
+                          cp = phy_sp_f@sam_data[sample_tree$tip.label, "cp"],
+                          habitat.general = phy_sp_f@sam_data[sample_tree$tip.label, "habitat.general"])
+
+# Add order trait to nodes
+node_traits <- tips_to_nodes(sample_tree, host_traits, "Order") %>% left_join(host_traits) %>% arrange(node)
+
+# Plot tree
+p <- 
+  ggtree(sample_tree, aes(colour = Order), layout = "circular", open.angle = 180, size=1) %<+% node_traits +
+  # Colour branches by order
+  scale_color_manual(values = order_palette) +
+  new_scale_colour() +
+  # Colour tips by species
+  geom_tippoint(aes(colour = Species)) +
+  scale_color_manual(values = species_palette) +
+  theme(legend.position = "none")
+
+# Plot
+p_fruit <- p +
+  geom_fruit(
+    data = rename(phy_phylum_melt, "label" = "Sample"),
+    geom = geom_bar(),
+    mapping = aes(y = label, x = Abundance, fill = OTU),
+    stat = "identity",
+    axis.params = list(axis = "x", text.size = 1, hjust = 1, vjust = 0., nbreak = 3),
+    offset = 0.05,
+    pwidth = 0.3
+  ) +
+  scale_fill_manual(values = phylum_palette)
+
+#### Add phylopic at the middle sample of each species
+tree_phylopics <- host_traits %>% left_join(phylopics) %>% select(tip, Species, Common.name, uid) %>% group_by(Species, Common.name) %>%
+            mutate(is.middle = (row_number() == floor(n_distinct(tip)/2))) %>% ungroup %>%
+            mutate(uid = case_when(is.middle ~ uid),
+                  species_lab = case_when(is.middle ~ Common.name)) %>%
+            select(tip, uid, species_lab) %>% rename(label = tip)
+
+p_fruit <- p_fruit %<+% tree_phylopics +
+           new_scale_colour() +
+           geom_phylopic(aes(uuid=uid, colour = diet.general), width = 8, position=position_nudge(x=70)) +
+           geom_text(aes(label = species_lab), size = 3.5, position = position_nudge(x=110)) +
+           scale_colour_manual(values = diet_palette)
+
+ggsave(file.path(subdir, "phy_sp_f_composition_tree.png"), p_fruit, width = 10, height = 10)
 
 ##########################
 #### DEFINE FUNCTIONS ####
