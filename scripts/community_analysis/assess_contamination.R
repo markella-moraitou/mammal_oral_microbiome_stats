@@ -54,25 +54,25 @@ tax <- read.table(file.path(indir, "taxonomy_table_CAT.tsv"), sep = "\t", header
 habitats_table <- read.csv(file.path(outdir, "habitat_relations.csv"))
 
 # Match species names from omnicrobe to phyloseq
-names_ids <- read.csv(file.path(outdir, "names_to_ids_filt.csv"))
+names_ids <- read.csv(file.path(outdir, "names_to_ids_filt_old.csv")) # Remember to update
 
 ### Set up thresholds for filtering
 
 # Set minimum sample content threshold
 min_samp <- 10^4
 
-# Set minimum relative abundance threshold
+# Set minimum relative abundance detection threshold
 min_ab <- 10^-4
 
 # Set minimum ratio of abundance in samples vs controls (averaged per OTU)
-s_b_ratio <- 1
+s_b_ratio <- 5
+
+# Set minimum prevalence threshold (in at least one host species must pass it)
+prev_thresh <- 0.2 
 
 ###################################
 #### REMOVE LOW ABUNDANCE TAXA ####
 ###################################
-
-# Filter out abundances less than the threshold
-phy_sp@otu_table[transform(phy_sp, "compositional")@otu_table < min_ab] <- 0
 
 # Remove empty sample and taxa
 phy_sp <- prune_taxa(taxa_sums(phy_sp) > 0, phy_sp)
@@ -95,34 +95,29 @@ phy_sp@sam_data$sample_type <- factor(ifelse(!phy_sp@sam_data$is.neg, "sample",
 phy_sp_r <- transform(phy_sp, "compositional")
 phy_sp_m <- phy_sp_r %>% psmelt 
 
-# Is a taxons abundance higher in samples or environmental controls on average
+# Is a taxons abundance higher in samples or negative controls on average
 abundance_ratios <- 
             phy_sp_m %>%
             # Indicate when a genus is in the common contaminant list
             mutate(common.contam = genus %in% common_contams$Contaminant_genera) %>%
-            # Get mean and max abundance per OTU in samples, controls and blanks
+            # Get mean abundance per OTU in samples, controls and blanks
             group_by(OTU) %>%
-            mutate(sample_type = case_when(grepl("control", Species) ~ "negative",
-                                           grepl("blank", Species) ~ "negative",
-                                           !is.neg ~ "sample")) %>%
+            mutate(Species = case_when(is.neg ~ "negative",
+                                       !is.neg ~ Species)) %>%
             group_by(OTU, Species, common.contam) %>%
-            # First get mean abundance per OTU per species
-            # The across all samples            
-            summarise(mean_abundance_samples = mean(Abundance[sample_type == "sample"]),
-                      mean_abundance_negs = mean(Abundance[sample_type == "negative"]),
-                      ) %>% ungroup %>%
+            # Get average abundance negatives and weighted average abundance in samples
+            summarise(mean_abundance = mean(Abundance)) %>% ungroup %>%
             # Fill NAs with 0
-            mutate(mean_abundance_samples = replace(mean_abundance_samples, is.na(mean_abundance_samples), 0),
-                   mean_abundance_negs = replace(mean_abundance_negs, is.na(mean_abundance_negs), 0)) %>%
+            mutate(mean_abundance = replace(mean_abundance, is.na(mean_abundance), 0)) %>%
+            # Calculate mean species-weighted abundance in samples
             group_by(OTU, common.contam) %>%
-            summarise(mean_abundance_samples = mean(mean_abundance_samples, na.rm = TRUE),
-                      mean_abundance_negs = mean(mean_abundance_negs, na.rm = TRUE),
-                      ) %>% 
+            summarise(mean_abundance_samples = mean(mean_abundance[Species != "negative"]),
+                      mean_abundance_negs = mean(mean_abundance[Species == "negative"])) %>%
             # Only keep OTUs that are present in both samples and negatives
             filter(mean_abundance_samples > 0,
                    mean_abundance_negs > 0) %>%
             ungroup %>%
-            # Get ratios of mean and max abundances
+            # Get ratios of mean abundances
             mutate(mean_ratio = mean_abundance_samples/mean_abundance_negs) %>% select(OTU, common.contam, mean_ratio)
 
 otu_order <- abundance_ratios %>% arrange(mean_ratio) %>% pull(OTU)
@@ -145,6 +140,19 @@ p_a <- ggplot(abundance_ratios, aes(x = mean_ratio, y = OTU, fill = common.conta
   geom_vline(xintercept = 1, linetype = "dashed") +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   theme(axis.text.y = element_blank(), axis.ticks.x = element_blank(), legend.position = "none")
+
+## Plot mean ratio distribution
+abundance_ratios <- abundance_ratios %>%
+                     mutate(group = case_when(str_remove(OTU, " .*") %in% c("Streptococcus", "Actinomyces", "Pseudomonas", "Propionibacterium") ~ "oral and contam",
+                                              common.contam ~ "contam",
+                                              TRUE ~ "other"))
+
+p <- ggplot(abundance_ratios, aes(x = mean_ratio, fill = group)) +
+  geom_histogram() +
+  scale_x_log10() +
+  scale_fill_manual(values = c("contam" = "#FF5733", "oral and contam" = "yellow", "other" = "grey"))
+
+ggsave(file=file.path(subdir, "abundance_ratio_distribution.png"), p, width=6, height=4)
 
 ##### PREVALENCE AND AVERAGE RELATIVE ABUNDANCE ####
 # Get prevalence of OTU in samples, controls and blanks
@@ -180,7 +188,7 @@ p_p <- ggplot(prevalence_summ, aes(x = mean, fill = mean, y = OTU)) +
   geom_point(aes(colour = mean, alpha = 0.5)) +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   scale_colour_viridis_c(option = "magma") + xlab("prevalence\nin samples") +
-  geom_hline(yintercept = ythresh, linetype = "dashed") +
+  geom_vline(xintercept = prev_thresh, linetype = "dashed") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), , axis.title.x.top = element_text())
 
@@ -198,7 +206,6 @@ p_ma <- ggplot(abundance_df, aes(x = mean_abundance, fill = mean_abundance, y = 
   scale_colour_viridis_c() +
   scale_x_log10() + xlab("mean abundance\nin samples") +
   # Add threshold line
-  geom_vline(xintercept = min_ab, linetype = "dashed") +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), axis.title.x.top = element_text())
@@ -282,7 +289,7 @@ assess_taxa <- abundance_ratios %>%
                left_join(rename(select(prevalence_summ, c(OTU, max)), prevalence_max = max)) %>%
                # Identify OTUs that don't pass the filters
                mutate(passed_ratio = mean_ratio > s_b_ratio,
-                      passed_prevalence = prevalence_max > 0.2)
+                      passed_prevalence = prevalence_max > prev_thresh)
 
 # Save table
 write.table(assess_taxa, file=file.path(subdir, "assess_taxa.csv"), sep=",", row.names=FALSE, quote=FALSE)
@@ -318,7 +325,7 @@ write.table(neg_taxa, file=file.path(subdir, "neg_taxa.csv"), sep=",", row.names
 ###################################
 
 # Subset to contaminants
-contams <- assess_taxa$OTU[!assess_taxa$passed_ratio] %>% as.character()
+contams <- assess_taxa$OTU[!assess_taxa$passed_ratio | !assess_taxa$passed_prevalence] %>% as.character()
 phy_contams <- phy_sp %>% prune_taxa(contams, .)
 
 # Remove empty samples
@@ -339,6 +346,41 @@ p_contams <- plot_ordination(phy_contams, pcoa_samples,
                theme(legend.position = "right")
 
 ggsave(file=file.path(subdir, "contaminant_taxa_pcoa.png"), p_contams, width=8, height=6)
+
+#### Do some samples have more contaminants identified than others?
+contam_prop <- phy_sp_m %>%
+            mutate(identified.contam = (OTU %in% contams)) %>%
+            group_by(new_name, identified.contam, Species, Order_grouped, diet.general) %>%
+            # Calculate abundance and number of taxa that are identified as contaminants, per sample
+            summarise(prop_abundance = sum(Abundance),
+                      n_taxa = n_distinct(OTU[Abundance > 0])) %>%
+            # Calculate proportion of taxa identified as contaminants per sample
+            ungroup %>% group_by(new_name) %>%
+            mutate(prop_taxa = n_taxa/sum(n_taxa))
+
+write.csv(contam_prop, file.path(subdir, "contaminant_proportions_per_sample.csv"), quote = FALSE, row.names = FALSE)
+
+# Plot proportion of abundance and number of taxa identified as contaminants per sample
+
+p1 <- ggplot(contam_prop, aes(y = new_name, x = prop_abundance, fill = identified.contam)) +
+      geom_bar(stat = "identity") +
+      scale_fill_manual(values = c("TRUE" = "#FF5733", "FALSE" = "grey"), name = "Contaminant") +
+      facet_wrap(~Species, ncol = 4, scales = "free_y") +
+      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank()) +
+      labs(title = "A) Relative abundance of contaminant vs non-contaminant taxa per sample")
+
+p2 <- ggplot(contam_prop, aes(y = new_name, x = n_taxa, fill = identified.contam)) +
+      geom_bar(stat = "identity") +
+      scale_fill_manual(values = c("TRUE" = "#FF5733", "FALSE" = "grey"), name = "Contaminant") +
+      facet_wrap(~Species, ncol = 4, scales = "free_y") +
+      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank()) +
+      labs(title = "B) Number of contaminant vs non-contaminant taxa per sample")
+
+p <- plot_grid(p1 + theme(legend.position="none"),
+               p2 + theme(legend.position="none"),
+               nrow = 2, align = "v", axis = "lr")
+
+ggsave(file=file.path(subdir, "contaminant_proportions_per_sample.png"), p, width=10, height=20)
 
 #################################
 #### COLLECT INFO ON SAMPLES ####
@@ -516,6 +558,9 @@ write.table(assess_samples, file=file.path(subdir, "assess_samples.csv"), sep=",
 contaminated_samples <- assess_samples %>% filter(!passed_oral_contam_ratio & !is.neg) %>% pull(new_name)
 shallow_samples <- assess_samples %>% filter(!passed_min_reads & !is.neg) %>% pull(new_name)
 
+write.csv(contaminated_samples, file = file.path(subdir, "contaminated_samples.csv"), quote = FALSE, row.names = FALSE)
+write.csv(shallow_samples, file = file.path(subdir, "shallow_samples.csv"), quote = FALSE, row.names = FALSE)
+
 phy_sp_f <- prune_samples(!(sample_names(phy_sp) %in% contaminated_samples), phy_sp)
 phy_sp_f <- prune_samples(!(sample_names(phy_sp_f) %in% shallow_samples), phy_sp_f)
 
@@ -523,17 +568,28 @@ phy_sp_f <- prune_samples(!(sample_names(phy_sp_f) %in% shallow_samples), phy_sp
 phy_sp_f <- prune_samples(!(phy_sp_f@sam_data$is.neg), phy_sp_f)
 
 #### Filter taxa ####
+
+# Relative abundance filtering: Relative abundance under the threshold turned to 0
+otu_rel_ab <- transform_sample_counts(phy_sp_f, function(x) x/sum(x)) %>% otu_table
+phy_sp_f@otu_table[otu_rel_ab < min_ab] <- 0
+
+# Remove empty taxa
+phy_sp_f <- prune_taxa(taxa_sums(phy_sp_f) > 0, phy_sp_f)
+
 # Filter out taxa based on their abundance ratio in samples vs controls
 abundant_in_negs <- assess_taxa %>% filter(!passed_ratio) %>% pull(OTU)
-phy_sp_f <- phy_sp_f %>% subset_taxa(!(taxa_names(phy_sp_f) %in% abundant_in_negs))
 
-# Identify taxa that have at least 20% prevalence in a single species
-high_prevalence_taxa <- prevalence_summ %>%
-  filter(max > 0.2) %>%
+write.csv(abundant_in_negs, file.path(subdir, "abundant_in_negs_taxa.csv"), quote = FALSE, row.names = FALSE)
+
+# Remove taxa with less than 20% prevalence in a single species
+low_prevalence_taxa <- prevalence_summ %>%
+  filter(max < prev_thresh) %>%
   pull(OTU)
 
-# Remove taxa that do not have high prevalence in any species
-phy_sp_f <- prune_taxa(as.character(high_prevalence_taxa), phy_sp_f)
+write.csv(low_prevalence_taxa, file.path(subdir, "low_prevalence_taxa.csv"), quote = FALSE, row.names = FALSE)
+
+phy_sp_f <- phy_sp_f %>% subset_taxa(!(taxa_names(phy_sp_f) %in% abundant_in_negs))
+phy_sp_f <- subset_taxa(phy_sp_f, !(taxa_names(phy_sp_f) %in% low_prevalence_taxa))
 
 #### Collect info on decontaminated dataset ####
 # Get number of taxa
