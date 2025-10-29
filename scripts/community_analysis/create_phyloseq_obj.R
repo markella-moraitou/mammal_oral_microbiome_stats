@@ -14,7 +14,6 @@ library(renv)
 library(phyloseq)
 library(stringr)
 library(tibble)
-library(taxize)
 library(microbiome)
 
 #### VARIABLES AND WORKING DIRECTORY ####
@@ -26,8 +25,6 @@ phydir <- normalizePath(file.path(subdir, "phyloseq_objects")) # subdirectory fo
 
 dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 dir.create(phydir, showWarnings = FALSE)
-
-options(ENTREZ_KEY = Sys.getenv("API_KEY"))
 
 #######################
 #####  LOAD INPUT #####
@@ -248,60 +245,3 @@ meta_all <- meta_all %>% left_join(data.frame(phy_sp@sam_data)) %>%
   mutate(is.neg=grepl("blank|control", Species))
 
 write.table(meta_all, file.path(subdir, "metadata_all.tsv"), sep = "\t", row.names=FALSE, quote=TRUE)
-
-##################################
-#### GET TAXIDS FOR OMNICROBE ####
-##################################
-
-if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
-  taxnames <- taxa_names(phy_sp)
-  # Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
-  taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
-  # Search database to get NCBI codes
-  taxids <- sapply(unique(taxsimple), function(x) {
-    tryCatch({
-      i <- which(unique(taxsimple) == x)[1]
-      cat("Searching for ", x, " (", i, "/", length(unique(taxsimple)), ")\n", sep="")
-      id = get_ids(x, db="ncbi", simplify=FALSE)$ncbi[[1]]
-      return(id)
-      Sys.sleep(0.5) # To avoid overloading the server
-    },
-      error=function(e) {
-        message("Error:", conditionMessage(e), "\n")
-        Sys.sleep(30) # To avoid overloading the server
-        return(NA)
-        })
-    })
-  # Collect results in dataframe 
-  taxids_df <- data.frame(searchnames = names(taxids), ids = unlist(taxids))
-  # Identify those not found and search only with genus name
-  missing = taxids_df %>% filter(is.na(ids) & grepl(" ", searchnames)) %>% pull(searchnames)
-  taxids_df = taxids_df %>% filter(!searchnames %in% missing)
-  replacement = str_remove(missing, " .*")
-  # Search again
-  taxids_miss = sapply(unique(replacement), function(x) {
-    tryCatch({
-      i <- which(unique(replacement) == x)[1]
-      cat("Searching for ", x, " (", i, "/", length(unique(replacement)), ")\n", sep="")
-      id = get_ids(x, db="ncbi", simplify=FALSE)$ncbi[[1]]
-      return(id)
-      Sys.sleep(0.5) # To avoid overloading the server
-    },
-      error=function(e) {
-        message("Error:", conditionMessage(e), "\n")
-        Sys.sleep(30) # To avoid overloading the server
-        return(NA)
-        })
-    })
-  # Collect results in dataframe
-  taxids_miss_df <- data.frame(searchnames = names(taxids_miss), ids = unlist(taxids_miss))
-  # Combine two table and add original taxon name
-  taxids_df <- rbind(taxids_df, taxids_miss_df) %>% filter(!is.na(ids)) %>% unique
-  names_to_ids <- data.frame(names = taxnames, searchnames = taxsimple) %>%
-      left_join(taxids_df) %>% select(names, ids, searchnames)
-  names_to_ids_filt <- names_to_ids %>% filter(!is.na(ids))
-  # Save names and ids
-  write.table(names_to_ids_filt, file.path(subdir, "names_to_ids_filt.csv"), sep=",", row.names=FALSE, quote=FALSE)
-} else {
-  cat("Not creating names_to_ids.csv because it already exists. Delete or rename it and rerun script to update it.")
-}
