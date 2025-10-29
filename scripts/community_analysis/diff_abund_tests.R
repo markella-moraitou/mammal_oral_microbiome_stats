@@ -10,16 +10,17 @@ library(dplyr)
 library(phyloseq)
 library(microbiome)
 library(tidyr)
+library(tibble)
 library(stringr)
-#library(vegan)
-library(ANCOMBC)
+library(phyr)
+library(phytools)
 library(MCMCglmm)
 library(parallel)
 library(coda)
-library(car)
+#library(car)
 library(lme4)
-library(tibble)
-library(ggregplot)
+#library(tibble)
+#library(ggregplot)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -71,7 +72,8 @@ host_consensus <- read.tree(file.path(outdir, "host_consensus.tre"))
 
 phy_genus <- phy_sp_f %>% tax_glom("genus")
 
-taxa_names(phy_genus) <- make.names(phy_genus@tax_table[, "genus"], unique = TRUE)
+phy_genus@tax_table[, "genus"] <- make.names(phy_genus@tax_table[, "genus"], unique = TRUE)
+taxa_names(phy_genus) <- phy_genus@tax_table[, "genus"]
 
 phy_genus_clr <- phy_genus %>% transform("clr")
 
@@ -89,44 +91,186 @@ phy_genus_clr@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_genus_clr@sa
 
 # Melt
 data <- psmelt(phy_genus_clr) %>%
-        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count)
+        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count, contig_reads_count)
 
-# Get a metrics for diet
 data <- data %>%
-    #mutate(animalivory = log((cp + ee)/(cf+nfe)),
-    #     frugivory = log((nfe + 5)/(cf + 5))) %>%
     # Turn S. scrofa domesticus to S. scrofa to match tree
     mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
                                TRUE ~ Species))
 
-# Keep only most abundant taxa
-top <- data %>% group_by(OTU) %>%
+# Keep only most abundant taxa (first average by species to weight against uneven sampling, then average over species)
+top <- data %>% group_by(OTU, Species) %>%
   summarise(av_abundance = mean(Abundance)) %>%
+  group_by(OTU) %>% summarise(av_abundance = mean(av_abundance)) %>%
   arrange(desc(av_abundance)) %>%
   slice_head(n = 100) %>% pull(OTU)
 
-data <- data %>% filter(OTU %in% top)
-
-# Plot animalivory and frugivory
-#data_diet <- data %>% select(animalivory, frugivory, diet.general, Species) %>% unique
-
-#p <- ggplot(data_diet, aes(x = animalivory, y = frugivory, colour = diet.general)) +
-#  geom_point(size = 2) + theme_bw() +
-#  geom_text(aes(label = Species)) +
-#  scale_color_manual(values = diet_palette)
-
-#ggsave(p, filename = file.path(subdir, "diet_variables.png"), width = 8, height = 8)
-
-# Add to phyloseq
-data_diet <- rbind(data_diet, data_diet[which(data_diet$Species == "Sus scrofa"),])
-data_diet[nrow(data_diet), "Species"] <- "Sus scrofa domesticus"
-#phy_genus_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
-#phy_genus_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_genus_clr@sam_data$Species, data_diet$Species)]
+data_top <- data %>% filter(OTU %in% top)
 
 # Phylogeny
 host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
 host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
 Ainv <- inverseA(host_consensus)$Ainv
+
+######################
+#### PHYLO VS ECO ####
+######################
+
+# Approach inspired by Youngblut et al. 2019
+
+# list of all unique genera
+otus <- top
+
+#### PGLMM: Test for ecology after accounting for phylogeny
+pglmm_res <- data.frame(term = character(), 
+                        coef = numeric(),
+                        pval = numeric(),
+                        OTU = character())
+
+for (otu in otus) {
+    cat("Running PGLMM for OTU", which(otus == otu), "of", length(otus), "--", otu, "\n")
+    # Subset data for the current OTU
+    data_filt <- data %>% filter(OTU == otu)
+    # Run PGLMM
+    model <- pglmm(Abundance ~ cp + cf + habitat.general + ruminant +
+                   (1 | Species__), 
+                   data = data_filt, 
+                   cov_ranef = list(Species = host_consensus),
+                   family = "gaussian")
+    # Extract results
+    res <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
+            rownames_to_column %>% filter(rowname != "(Intercept)") %>%
+            mutate(rowname = str_remove(str_remove(rowname, "habitat.general"), "ruminant"))
+    colnames(res) <- c("term", "coef", "pval")
+    # Add random phylogenetic effect
+    #res <- rbind(res, data.frame(term = "phylogeny", coef = unname(model$s2r[2]), pval = NA))
+    res$OTU <- otu
+    # Combine results
+    pglmm_res <- rbind(pglmm_res, res)
+}
+
+# Make wide
+pglmm_wide <- pglmm_res %>%
+    pivot_wider(names_from = term, values_from = c(coef, pval))
+
+write.csv(pglmm_wide, file = file.path(subdir, "pglmm_results.csv"), quote = FALSE, row.names = FALSE)
+
+#### Phylogenetic signal after regressing out ecology
+
+phy_res <- data.frame(OTU = character(),
+                       lambda = numeric(),
+                       pval = numeric())
+
+for (otu in otus) {
+    cat("Running phylogenetic signal for OTU", which(otus == otu), "of", length(otus), "--", otu, "\n")
+    # Subset data for the current OTU
+    data_filt <- data %>% filter(OTU == otu)
+    # Run PGLMM
+    model <- lm(Abundance ~ cp + cf + habitat.general + ruminant,
+                   data = data_filt)
+    # Extract residuals
+    resids_df <- data.frame(Sample = data_filt$Sample,
+                            Species = data_filt$Species,
+                            residuals = residuals(model))
+    resids_by_species <- resids_df %>%
+                        group_by(Species) %>%
+                        summarise(residuals = mean(residuals)) %>% as.data.frame %>%
+                        column_to_rownames("Species")
+    # Make vector
+    resids_vec <- resids_by_species$residuals
+    names(resids_vec) <- rownames(resids_by_species)
+    # Calculate Pagel's lamda
+    pagel <- phylosig(host_consensus, resids_vec, method="lambda", test = TRUE)
+    res <- data.frame(OTU = otu,
+                      lambda = pagel$lambda,
+                      pval = pagel$P)
+    phy_res <- rbind(phy_res, res)
+}
+
+write.csv(phy_res, file = file.path(subdir, "phylogenetic_results.csv"), quote = FALSE, row.names = FALSE)
+
+#### Combine results ####
+combined_res <- phy_res %>% rename(coef_lambda = lambda,
+                                   pval_lambda = pval) %>%
+    full_join(pglmm_wide, by = "OTU") %>%
+    # Add metadata
+    left_join(unique(select(data.frame(phy_genus_clr@tax_table), -species)), by = c("OTU" = "genus"))
+
+# Adjust p-values
+combined_res <- combined_res %>%
+    mutate(padj_cp = p.adjust(pval_cp, method = "holm"),
+           padj_cf = p.adjust(pval_cf, method = "holm"),
+           padj_Marine = p.adjust(pval_Marine, method = "holm"),
+           padj_Ruminant = p.adjust(pval_Ruminant, method = "holm"),
+           padj_lambda = p.adjust(pval_lambda, method = "holm"))
+
+write.csv(combined_res, file = file.path(subdir, "combined_phylo_ecology_results.csv"), quote = FALSE, row.names = FALSE)
+
+combined_coef <- select(pivot_longer(combined_res, cols = starts_with("coef_"), names_to = "term", values_to = "coefficient"), "OTU", "term", "coefficient") %>%
+    mutate(term = str_remove(term, "coef_"))
+
+combined_pval <- select(pivot_longer(combined_res, cols = starts_with("padj_"), names_to = "term", values_to = "pvalue"), "OTU", "term", "pvalue", "superkingdom":"family") %>%
+    mutate(term = str_remove(term, "padj_"))
+
+combined_long <- full_join(combined_coef, combined_pval, by = c("OTU", "term")) %>%
+    mutate(phylum_grouped = case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                      superkingdom == "Bacteria" ~ "Other Bacteria",
+                                      superkingdom == "Archaea" ~ "Other Archaea")) %>%
+    mutate(term = factor(term, levels = c("lambda", "cp", "cf", "Marine", "Ruminant")),
+           phylum_grouped = factor(phylum_grouped, levels = rev(names(phylum_palette))),
+           significant = ifelse(pvalue < 0.05, "yes", "no"))
+
+# Plot
+p <- ggplot(combined_long, aes(x = coefficient, y = phylum_grouped, colour = phylum_grouped, shape = significant)) +
+    geom_point(alpha = 0.4, size = 2) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+    facet_grid(cols = vars(term), scales = "free_x") +
+    scale_colour_manual(values = phylum_palette, name = "Phylum") +
+    scale_shape_manual(values = c("yes" = 16, "no" = 4), name = "Significant (p < 0.05)") +
+    theme(legend.position = "bottom", legend.direction = "vertical") +
+    guides(colour = guide_legend(ncol = 2, byrow = TRUE),
+           shape = guide_legend(nrow = 2, byrow = TRUE))
+
+ggsave(p, filename = file.path(subdir, "combined_phylo_ecology.png"), width = 8, height = 6)
+
+#### Plot abundances ####
+
+# Get abundances per sample for the differentially abundant taxa
+abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
+              pivot_longer(cols = -Sample, names_to = "OTU", values_to = "Abundance") %>%
+              left_join(rownames_to_column(select(data.frame(phy_genus_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample")
+
+phyeco_abund <- combined_res %>% filter(padj_cp < 0.05 | padj_cf < 0.05 | padj_Marine < 0.05 | padj_Ruminant < 0.05 | padj_lambda < 0.05) %>%
+            # label association (positive and negative)
+            mutate(label = case_when(padj_cp < 0.05 & coef_cp > 0 ~ "cp+",
+                                     padj_cp < 0.05 & coef_cp < 0 ~ "cp-",
+                                     padj_cf < 0.05 & coef_cf > 0 ~ "cf+",
+                                     padj_cf < 0.05 & coef_cf < 0 ~ "cf-",
+                                     padj_Marine < 0.05 & pval_Marine > 0 ~ "Marine+",
+                                     padj_Marine < 0.05 & pval_Marine < 0 ~ "Marine-",
+                                     padj_Ruminant < 0.05 & pval_Ruminant > 0 ~ "Ruminant+",
+                                     padj_Ruminant < 0.05 & pval_Ruminant < 0 ~ "Ruminant-",
+                                     padj_lambda < 0.05 ~ "Phylogenetic")) %>%
+            group_by(OTU) %>% summarise(label = paste(label, collapse=" ")) %>%
+            # Add abundances
+            left_join(select(abundances, OTU, Abundance, Common.name, Order, diet.general), by = "OTU")
+
+# Reorder host species
+species_levels <- phy_genus_clr@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
+phyeco_abund$Common.name <- factor(phyeco_abund$Common.name, levels = species_levels$Common.name)
+
+p <- ggplot(phyeco_abund, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
+    geom_boxplot(alpha = 0.8, size = 0.5) +
+    scale_colour_manual(values = order_palette, name = "Order") +
+    scale_fill_manual(values = diet_palette, name = "Diet") +
+    facet_wrap(~ paste(as.character(OTU), label, sep = "\n"), ncol = 3, scales = "free_y") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 8),
+          legend.position = "bottom") + ylab("CLR-transformed abundances") +
+    guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+ggsave(p, filename = file.path(subdir, "phyeco_abundances.png"), width = 12, height = 20)
 
 ######################
 #### RUN MCMCglmm ####
@@ -160,10 +304,10 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
            prior = prior,
            data = data,
            verbose = TRUE, # pr = TRUE, pl = TRUE,
-           nitt = 51000,
-           burnin = 1000,
-           thin = 100)
-    }, mc.cores = 10)
+           nitt = 51000/2,
+           burnin = 1000/2,
+           thin = 100/2)
+    }, mc.cores = 100)
     end.time <- Sys.time()
     cat("Finished MCMCglmm. ")
     cat(end.time, "\n")
@@ -338,235 +482,3 @@ p <- ggplot(mcmc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill
     guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
 ggsave(p, filename = file.path(subdir, "mcmcglmm_abundances.png"), width = 12, height = 20)
-
-#####################
-#### RUN ANCOMBC ####
-#####################
-
-phy_genus@sam_data <- phy_genus_clr@sam_data
-
-# Use the same taxa as MCMCglmm
-phy_genus <- subset_taxa(phy_genus, taxa_names(phy_genus) %in% top)
-
-# Check if output is there, if not run
-if(file.exists(file.path(subdir, "ancombc_results.rds"))) {
-    cat("Output already there, so analysis will not be repeated! Loading existing ANCOMBC results...\n")
-        out <- readRDS(file.path(subdir, "ancombc_results.rds"))
-} else {
-    out <- ancombc2(data = phy_genus,
-                 fix_formula = "cp + cf + habitat.general + ruminant",
-                 rand_formula = "(1|Species)",
-                 tax_level = "genus",
-                 p_adj_method = "holm", prv_cut = 0.1, # Some parameters. prv_cut=0.10 means that taxa found in less than 10% of samples are ignored
-                 group="Order",
-                 struc_zero = FALSE,
-                 global = FALSE,
-                 lib_cut = 0,
-                 verbose = TRUE)    
-    # Save output
-    saveRDS(out, file.path(subdir, "ancombc_results.rds"))
-    write.csv(out$res, file.path(subdir, "ancombc_res.csv"), row.names = FALSE, quote = TRUE)
-    write.csv(out$ss_tab, file.path(subdir, "ancombc_ss_tab.csv"), row.names = FALSE, quote = TRUE)
-    write.csv(out$samp_frac, file.path(subdir, "ancombc_samp_frac.csv"), row.names = TRUE, quote = TRUE)
-}
-
-#### Summary plots ####
-out$res$taxon <- str_replace(out$res$taxon, "-", ".") # Replace - with .
-
-# Get ancom results in a long format
-lfc <-
-    out$res %>%
-    select(taxon, contains("lfc")) %>%
-    pivot_longer(cols = contains("lfc"), names_to = "term", values_to = "lfc") %>%
-    mutate(term = str_remove(term, "lfc_")) %>%
-    mutate(term = str_remove(term, "Order|ruminant|diet.general|habitat.general|hypsodont"))
-
-pvalues <-
-    out$res %>%
-    select(taxon, contains("p_")) %>%
-    pivot_longer(cols = contains("p_"), names_to = "term", values_to = "pval") %>%
-    mutate(term = str_remove(term, "p_")) %>%
-    mutate(term = str_remove(term, "Order|ruminant|diet.general|habitat.general|hypsodont"))
-
-qvalues <- 
-    out$res %>%
-    select(taxon, contains("q_")) %>%
-    pivot_longer(cols = contains("q_"), names_to = "term", values_to = "qval") %>%
-    mutate(term = str_remove(term, "q_")) %>%
-    mutate(term = str_remove(term, "Order|ruminant|diet.general|habitat.general|hypsodont"))
-
-sensitivity <- 
-    out$res %>%
-    select(taxon, contains("passed_ss_")) %>%
-    pivot_longer(cols = contains("passed_ss_"), names_to = "term", values_to = "sensitivity") %>%
-    mutate(term = str_remove(term, "passed_ss_")) %>%
-    mutate(term = str_remove(term, "Order|ruminant|diet.general|habitat.general|hypsodont"))
-
-ancombc_res_long <- lfc %>% full_join(pvalues) %>% full_join(qvalues) %>% full_join(sensitivity) %>% filter(term != "(Intercept)")
-
-write.csv(ancombc_res_long, file = file.path(subdir, "ancomb_long.csv"), quote = FALSE, row.names = FALSE)
-
-# Volcano plot
-p <- filter(ancombc_res_long) %>%
-    ggplot(aes(x = lfc, y = -log10(pval), shape = sensitivity, colour = (qval <= 0.05))) +
-    geom_point() +
-    geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
-    facet_wrap(~ term, ncol = 3, scale = "free_x") +
-    scale_shape_manual(values = c("cross", "circle")) +
-    scale_colour_manual(values = c("TRUE" = "#F6BD23", "FALSE" = "#0C1950"), name = "q-value <= 0.05") +
-    labs(x = "Log-fold Change", y = "-log10 p-value") +
-    theme(legend.position = "bottom")
-
-ggsave(p, filename = file.path(subdir, "ancombc_volcano.png"), width = 8, height = 5)
-
-#### Plot differentially abundant taxa ####
-# Get significant results
-ancombc_signif <- filter(ancombc_res_long) %>% filter(pval <= 0.05 & sensitivity == TRUE)
-
-ancombc_res_label <- ancombc_signif %>%
-            # label association (positive and negative)
-            mutate(assoc = case_when(lfc < 0 ~ paste0(term, "-"),
-                                     lfc > 0 ~ paste0(term, "+"))) %>%
-            # Then summarise all associations per taxon
-            group_by(taxon) %>%
-            summarise(label = paste(assoc, collapse=" "))
-
-# Get abundances per sample for the differentially abundant taxa
-abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
-              pivot_longer(cols = -Sample, names_to = "taxon", values_to = "Abundance") %>%
-              left_join(rownames_to_column(select(data.frame(phy_genus_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample")
-
-ancombc_abund <- abundances %>% right_join(ancombc_res_label) %>%
-                # Get genus
-                mutate(genus = str_remove(taxon, " .*"))
-
-# Reorder host species
-species_levels <- phy_genus_clr@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
-ancombc_abund$Common.name <- factor(ancombc_abund$Common.name, levels = species_levels$Common.name)
-
-# Reorder taxa
-taxa_levels <- ancombc_res_label %>% arrange(label) %>% pull(taxon) %>% unique
-ancombc_abund$taxon <- factor(ancombc_abund$taxon, levels = taxa_levels)
-
-# Plot
-order_palette2 <- order_palette
-order_palette2["Sirenia/Proboscidea"] <- order_palette2["Sirenia"]
-
-p <- ggplot(ancombc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
-    geom_boxplot(alpha = 0.8, size = 0.5) +
-    scale_colour_manual(values = order_palette2, name = "Order") +
-    scale_fill_manual(values = diet_palette, name = "Diet") +
-    facet_wrap(~ paste(taxon, label, sep = "\n"), ncol = 5, scales = "free_y") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
-          axis.title.x = element_blank(),
-          strip.text.x = element_text(size = 8),
-          legend.position = "bottom") + ylab("CLR-transformed abundances") +
-    guides(fill=guide_legend(nrow=2,byrow=TRUE))
-
-ggsave(p, filename = file.path(subdir, "ancombc_abundances.png"), width = 12, height = 12)
-
-##################################
-#### COMPARE ANCOMBC-MCMCglmm ####
-##################################
-
-# Combine results from MCMCglmm and ANCOMBC
-diffabund_comparison <- full_join(mcmc_res_label, ancombc_res_label, by = c("OTU"="taxon"), suffix = c("_mcmc", "_ancombc"))
-
-write.csv(diffabund_comparison, file = file.path(subdir, "ancombc_mcmcglmm_comparison.csv"), quote = FALSE, row.names = FALSE)
-
-#### Plot diff abund taxa with habitat, uses, phenotypes ####
-
-associations <- rbind(habitats_table, uses_table) %>%
-            # get genus and sum occurences
-            mutate(taxon = str_remove(taxon, " .*")) %>%
-            group_by(taxon, OBT, obt_type) %>%
-            summarise(occurences = sum(occurences, na.rm = TRUE)) %>%
-            # Group OBTs into larger habitats
-            mutate(OBT = case_when(OBT %in% c("dental plaque", "mouth") ~ "oral",
-                                       OBT %in% c("marine water", "deep sea") ~ "marine",
-                                       OBT %in% c("mammalian", "wild animal", "mammalian livestock") ~ "animal",
-                                       TRUE ~ OBT)) %>%
-            filter(OBT %in% c("oral", "animal", "soil", "marine", "rumen", "gut") | grepl("activity", OBT)) %>%
-            # Add results from MCMCglmm and ANCOMBC
-            right_join(diffabund_comparison, by = c("taxon" = "OTU")) %>%
-            # Note if the taxon was found in MCMCglmm or ANCOMBC or both
-            mutate(label = case_when(!is.na(label_mcmc) & !is.na(label_ancombc) ~ "both",
-                                     !is.na(label_mcmc) & is.na(label_ancombc) ~ "mcmcglmm",
-                                     is.na(label_mcmc) & !is.na(label_ancombc) ~ "ancombc"))
-
-write.csv(associations, file = file.path(subdir, "ancombc_mcmcglmm_comparison_associations.csv"), quote = FALSE, row.names = FALSE)
-
-p <- ggplot(associations, aes(y = taxon, x = OBT, size = occurences, colour = OBT)) +
-        geom_point() +
-        scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73",
-                                     "antimicrobial" = "gray50", "fermentative" = "#3A459C", "proteolytic activity" = "#B41F34", "lipolytic activity" = "#BD9120")) +
-        facet_grid(rows = vars(label), cols = vars(obt_type), scales = "free", space = "free") +
-        theme(strip.text.y = element_text(angle = 0, size = 8), axis.text.y = element_text(size = 8), axis.text.x = element_text(size = 8, hjust = 1),
-        legend.position = "none")
-
-ggsave(p, filename = file.path(subdir, "ancombc_diffabund_associations.png"), width = 8, height = 8)
-
-##########################
-#### MULTIPLE ANOVAS #####
-##########################
-
-manyanovas <- function(physeq, formula) {
-    phymelt <- psmelt(physeq)
-    # Initialize an empty data frame to store results
-    results <- data.frame()
-    for (taxon in taxa_names(physeq)) {
-        cat("Running ANOVA for taxon:", taxon, "\n")
-        # Extract the abundance data for the current taxon
-        df <- phymelt %>% filter(OTU == taxon)
-        # Run the ANOVA
-        model <- Anova(lm(formula, data = df), type=2)
-        res <- data.frame(taxon = taxon, terms = rownames(model), F.value = model$`F value`, p.value = model$`Pr(>F)`)
-        # Add the results to the results data frame
-        results <- rbind(results, res)
-    }
-    return(results)
-}
-
-# Keep only top taxa
-phy_genus_clr <- subset_taxa(phy_genus_clr, taxa_names(phy_genus_clr) %in% top)
-
-# Run multiple anovas
-anovas_res <- manyanovas(phy_genus_clr, formula = "Abundance ~ Order + diet.general + habitat.general + ruminant")
-
-# Plot results
-anova_res_wide <- anovas_res %>% pivot_wider(names_from = terms, values_from = c(F.value, p.value))
-
-# Add total abundance and genus information
-anova_res_wide$total_abundance <- taxa_sums(phy_sp_f)[anova_res_wide$taxon]
-# Get phylum info
-anova_res_wide$phylum <- phy_genus_clr@tax_table[anova_res_wide$taxon, "phylum"]
-
-write.csv(anova_res_wide, file = file.path(subdir, "taxon_anova_results.csv"), row.names = FALSE, quote = TRUE)
-
-# Plot F-value for order and diet
-max_axis <- max(c(anova_res_wide$F.value_Order, anova_res_wide$F.value_diet.general))
-
-p <- ggplot(aes(x = F.value_Order, y = F.value_diet.general), data = anova_res_wide) +
-    geom_hex(bins = 20) +
-    scale_fill_viridis_c("H") +
-    geom_abline(intercept = 0, slope = 1, linetype = "dotted", alpha = 0.7) +
-    facet_wrap(~ phylum, ncol = 4) +
-    theme(legend.position = "none") +
-    labs(x = "F-value Order", y = "F-value Diet") +
-    xlim(NA, max_axis) + ylim(NA, max_axis)
-
-ggsave(p, filename = file.path(subdir, "taxon_anova_order_diet.png"), width = 8, height = 8)
-
-# Plot F-value for diet and habitat
-max_axis <- max(c(anova_res_wide$F.value_habitat.general, anova_res_wide$F.value_diet.general))
-
-p <- ggplot(aes(x = F.value_habitat.general, y = F.value_diet.general), data = anova_res_wide) +
-    geom_hex(bins = 20) +
-    scale_fill_viridis_c("H") +
-    geom_abline(intercept = 0, slope = 1, linetype = "dotted", alpha = 0.7) +
-    facet_wrap(~ phylum, ncol = 4) +
-    theme(legend.position = "none") +
-    labs(x = "F-value Habitat", y = "F-value Diet") +
-    xlim(NA, max_axis) + ylim(NA, max_axis)
-
-ggsave(p, filename = file.path(subdir, "taxon_habitat_diet.png"), width = 8, height = 8)
