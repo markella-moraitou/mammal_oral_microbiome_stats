@@ -207,7 +207,7 @@ alpha_div <- left_join(alpha_div,
 alpha_div <- alpha_div %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, cp, cf, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, PlantO, habitat.general, digestion),
             by = c("Sample"))
 
 write.csv(alpha_div, file = file.path(subdir, "alpha_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -284,7 +284,7 @@ otu_table <- t(as.matrix(phy_sp_f@otu_table))
 phy_div <- pd(otu_table, bac_tree) %>% rownames_to_column(var = "Sample") %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, cp, cf, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, PlantO, habitat.general, digestion),
             by = c("Sample"))
 
 write.csv(phy_div, file = file.path(subdir, "phylogenetic_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -331,12 +331,12 @@ host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
 # to identify factors affecting alpha diversity and Faith's PD
 
 # Alpha diversity
-alpha_div <- alpha_div %>% mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+alpha_div <- alpha_div %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
                                                        TRUE ~ Species))
 
 alpha_div$ruminant <- factor(ifelse(alpha_div$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
 
-model <- pglmm(filt ~ cp + cf + habitat.general + ruminant + (1 | Species__), data = alpha_div, 
+model <- pglmm(filt ~ Animal + PlantO + habitat.general + ruminant + (1 | Species__), data = alpha_div, 
               cov_ranef = list(Species = host_consensus), family = "gaussian")
 
 res_alpha <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
@@ -349,12 +349,12 @@ res_alpha$response <- "alpha_diversity"
 
 # Phylogenetic diversity
 
-phy_div <- phy_div %>% mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+phy_div <- phy_div %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
                                                        TRUE ~ Species))
 
 phy_div$ruminant <- factor(ifelse(phy_div$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
 
-model <- pglmm(PD ~ cp + cf + habitat.general + ruminant + (1 | Species__), data = phy_div, 
+model <- pglmm(PD ~ Animal + PlantO + habitat.general + ruminant + (1 | Species__), data = phy_div, 
               cov_ranef = list(Species = host_consensus), family = "gaussian")
 
 res_phy <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
@@ -373,7 +373,7 @@ write.csv(res, file.path(subdir, "pglmm_results.csv"), row.names = FALSE, quote 
 
 # Alpha diversity
 
-model <- lm(filt ~ cp + cf + habitat.general + ruminant,
+model <- lm(filt ~ Animal + PlantO + habitat.general + ruminant,
             data = alpha_div)
 
 # Extract residuals
@@ -397,7 +397,7 @@ res_alpha <- data.frame(response = "alpha_diversity",
                       pval = pagel$P)
 
 # Phylogenetic diversity
-model <- lm(PD ~ cp + cf + habitat.general + ruminant,
+model <- lm(PD ~ Animal + PlantO + habitat.general + ruminant,
             data = phy_div)
 
 # Extract residuals
@@ -436,7 +436,7 @@ prior <- list(G = list(G1 = list(V = 1, nu = 0.002)),
 Ainv <- inverseA(host_consensus, nodes = "TIPS")$Ainv
 
 m <- mclapply(1:10, function(i) {
-      MCMCglmm(fixed = filt ~ cp + cf + habitat.general + ruminant,
+      MCMCglmm(fixed = filt ~ Animal + PlantO + habitat.general + ruminant,
          random = ~ Species,
          ginverse = list(Species=Ainv),
          prior = prior,

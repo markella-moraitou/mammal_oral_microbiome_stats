@@ -7,7 +7,7 @@ Ceratotherium simum,Ceratotherium simum,Grazer,Grazer (0.64),"110,125,145",10.12
 Cuniculus paca,Cuniculus paca,Frugivore-Browser,Frugivore (0.51) - Browser (0.28),"125,145",10.60653,3.31641,15.61663,10.2546,60.2058,Frugivore,Frugivore,
 Diceros bicornis,Diceros bicornis,Browser,Browser (0.69),"110,125,145",11.13674,2.49938,27.36192,8.20743,50.79453,Herbivore,Herbivore,
 Dugong dugon,Dugong dugon,Browser-Grazer,Browser (0.60) - Grazer (0.22),"110,127,145",15.66575,2.67402,16.13874,10.42347,55.09804,Herbivore,Frugivore,Herbivore or Frugivore
-Equus burchellii,Equus burchellii,Grazer,Grazer (0.64),"110,125,145",10.49486,2.50168,29.30311,8.30043,49.3999,Herbivore,Herbivore,
+Equus quagga,Equus quagga,Grazer,Grazer (0.64),"110,145",10.51675,2.29065,31.29024,8.35209,47.55025,Herbivore,Herbivore,
 Equus caballus,Equus caballus,Grazer,Grazer (0.64),"110,125,145",10.65744,2.38335,29.64453,8.93891,48.37576,Herbivore,Herbivore,
 Giraffa camelopardalis,Giraffa camelopardalis,Browser,Browser (0.82),"110,125,145",11.3339,3.13823,25.58103,5.57323,54.37362,Frugivore,Herbivore,Frugivore or Herbivore
 Gorilla beringei,Gorilla beringei,Browser,Browser (0.94),145,12.60358,2.84532,19.11319,12.78136,52.65655,Herbivore,Herbivore,
@@ -20,7 +20,7 @@ Meles meles,Meles meles,Vermivore-Carnivore,Vermivore (0.38) - Carnivore (0.32),
 Muntiacus muntjak,Muntiacus muntjak,Browser-Frugivore,Browser (0.46) - Frugivore (0.23),"110,127,145",13.31479,5.6142,14.59954,8.08755,58.38392,Frugivore,Frugivore,
 Okapia johnstoni,Okapia johnstoni,Browser-Grazer,Browser (0.60) - Grazer (0.22),"110,125,145",11.75961,3.80114,19.86591,8.66007,55.91328,Herbivore,Frugivore,Herbivore or Frugivore
 Orcinus orca,Orcinus orca,Carnivore,Carnivore (0.81),"110,114,145",58.10424,20.27461,1.75896,10.25319,9.6087,Animalivore,Animalivore,
-Otaria byronia,Otaria flavescens,Piscivore-Squid-Eater,Piscivore (0.54) - Squid-Eater (0.32),"110,145",70.54726,11.34738,1.50317,12.60631,3.99583,Animalivore,Animalivore,
+Otaria flavescens,Otaria flavescens,Piscivore-Squid-Eater,Piscivore (0.54) - Squid-Eater (0.32),"110,145",70.54726,11.34738,1.50317,12.60631,3.99583,Animalivore,Animalivore,
 Ovis ammon,Ovis ammon,Grazer,Grazer (0.64),"127,145",13.75303,3.0944,26.95259,9.08458,47.1154,Herbivore,Herbivore,
 Ovis aries,Ovis aries,Grazer-Browser,Grazer (0.45) - Browser (0.32),110,12.19316,2.3744,27.85431,9.73788,47.84024,Herbivore,Herbivore,
 Pan troglodytes,Pan troglodytes,Frugivore-Browser,Frugivore (0.37) - Browser (0.33),"110,125,145",13.44603,4.75134,15.19348,7.21752,59.39161,Frugivore,Frugivore,
@@ -30,7 +30,7 @@ Pongo pygmaeus,Pongo pygmaeus,Frugivore-Browser,Frugivore (0.51) - Browser (0.28
 Rangifer tarandus,Rangifer tarandus,Browser,Browser (0.69),"110,114,125,127,145",17.62067,5.00329,21.25169,9.54867,46.57568,Herbivore,Herbivore,
 Rupicapra rupicapra,Rupicapra rupicapra,Browser-Grazer,Browser (0.64) - Grazer (0.25),145,14.41832,3.12154,23.39875,11.61744,47.44395,Herbivore,Herbivore,
 Sus scrofa,Sus scrofa,Browser-Rootivore,Browser (0.57) - Rootivore (0.27),"125,127,145",12.92185,4.06591,18.41128,9.56317,55.03775,Herbivore,Frugivore,Herbivore or Frugivore
-Sus scrofa domesticus,Sus scrofa,Browser-Rootivore,Browser (0.57) - Rootivore (0.27),"125,127,145",12.92185,4.06591,18.41128,9.56317,55.03775,Herbivore,Frugivore,Herbivore or Frugivore
+Sus domesticus,Sus scrofa,Browser-Rootivore,Browser (0.57) - Rootivore (0.27),"125,127,145",12.92185,4.06591,18.41128,9.56317,55.03775,Herbivore,Frugivore,Herbivore or Frugivore
 Syncerus caffer,Syncerus caffer,Grazer,Grazer (0.64),"110,125,145",10.14996,2.59276,30.57153,7.42786,49.25788,Herbivore,Herbivore,
-Tapirus indicus,Tapirus indicus,Browser-Grazer,Browser (0.60) - Grazer (0.22),145,10.12341,3.73429,21.99719,7.64161,56.50351,Herbivore,Frugivore,Herbivore or Frugivore
+Acrocodia indica,Tapirus indicus,Browser-Grazer,Browser (0.60) - Grazer (0.22),145,10.12341,3.73429,21.99719,7.64161,56.50351,Herbivore,Frugivore,Herbivore or Frugivore
 Ursus arctos,Ursus arctos,Carnivore-Herbivore,Carnivore (0.28) - Frugivore (0.18) - Browser (0.16) - Granivore (0.08),"110,114,125,127,145,160",37.79841,10.648,12.02849,8.60331,30.92175,Omnivore,Omnivore,

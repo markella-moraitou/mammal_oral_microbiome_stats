@@ -23,7 +23,7 @@ library(RColorBrewer)
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata 
 outdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # Directory with output from the community analysis
-subdir <- normalizePath(file.path("..", "..", "output", "community_analysis", "hypothesis_testing")) # subdirectory for the output of this script
+subdir <- normalizePath(file.path("..", "..", "output", "community_analysis", "microbial_phenotypes")) # subdirectory for the output of this script
 phydir <- normalizePath(file.path("..", "..", "output", "community_analysis", "phyloseq_objects")) # Directory with phyloseq objects
 
 # Create output directory if it doesn't exist
@@ -69,7 +69,7 @@ taxa_uses_wide <- taxa_uses %>%
           filter(if_any(ends_with("activity"), ~. > 0))
 
 # Combine phyloseq info with taxa uses
-taxa_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Species, Common.name, Order, diet.general, nfe, cf, cp, ee) %>%
+taxa_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Species, Common.name, Order, diet.general, Fruit, PlantO, Animal, Seed) %>%
                       right_join(taxa_uses_wide, by=c("OTU"="taxon")) %>%
                       # Turn NA to 0 in all numeric columns
                       mutate(across(ends_with("activity"), ~ifelse(is.na(.), 0, .)))
@@ -82,7 +82,7 @@ taxa_uses_mean_abund <- taxa_uses_abund %>%
 write.csv(taxa_uses_mean_abund, file.path(subdir, "taxa_uses.csv"), row.names = FALSE, quote = FALSE)
 
 ## Does the abundance of taxa with unknown use vary by species?
-known_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Order, Order_grouped, Common.name, diet.general, nfe, cf, cp, ee) %>%
+known_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Order, Order_grouped, Common.name, diet.general, Fruit, PlantO, Animal, Seed) %>%
                     filter(OTU %in% taxa_uses_wide$taxon) %>% group_by(Sample, Order, Order_grouped, Common.name, diet.general) %>% summarise(known_abund = sum(Abundance)) %>%
                     # Shorten Order names for plotting
                     mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Rodentia" = "R.", "Carnivora" = "Carn."))
@@ -104,25 +104,25 @@ p <- ggplot(known_uses_abund, aes(x = known_abund, y = Common.name, fill = diet.
 ggsave(file.path(subdir, "known_function_abundance.png"), p, width=5, height=7)
 
 ## Does the abundance and diversity of proteolytic microorganisms correlate with the amount of crude protein in the diet?
-proteolytic_abund <- taxa_uses_abund %>% filter(proteolytic_activity > 0) %>% group_by(Sample, Species, Order, cp) %>% summarise(proteolytic_abund = sum(Abundance))
+proteolytic_abund <- taxa_uses_abund %>% filter(proteolytic_activity > 0) %>% group_by(Sample, Species, Order, Animal) %>% summarise(proteolytic_abund = sum(Abundance))
 
-p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = cp, colour = Order)) +
+p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animal, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = proteolytic_abund*100, x = cp), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = proteolytic_abund*100, x = Animal), colour = "black", linetype = "dotted") +
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
   labs(x="Crude protein in diet (%)", y="Porphyromonas\nabundance (%)") +
   theme(legend.position = "none")
 
-ggsave(file.path(subdir, "proteolytic_abundance_cp.png"), p, width=5, height=2)
+ggsave(file.path(subdir, "proteolytic_abundance_animal.png"), p, width=5, height=2)
 
 ## Does the abundance and diversity of fermentative microorganisms correlate with the amount of carbohydrates in the diet?
-fermentative_abund <- taxa_uses_abund %>% filter(fermentative_activity > 0) %>% group_by(Sample, Species, Order, nfe) %>% summarise(fermentative_abund = sum(Abundance))
+fermentative_abund <- taxa_uses_abund %>% filter(fermentative_activity > 0) %>% group_by(Sample, Species, Order, Fruit) %>% summarise(fermentative_abund = sum(Abundance))
 
-p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = nfe, colour = Order)) +
+p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Fruit, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = fermentative_abund*100, x = nfe), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = fermentative_abund*100, x = Fruit), colour = "black", linetype = "dotted") +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
   scale_color_manual(values = order_palette, name = "") +
@@ -130,21 +130,21 @@ p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = nfe, colour 
   theme(legend.position = "bottom") +
   guides(colour = guide_legend(nrow = 3))
 
-ggsave(file.path(subdir, "fermentative_abundance_nfe.png"), p, width=5, height=3)
+ggsave(file.path(subdir, "fermentative_abundance_Fruit.png"), p, width=5, height=3)
 
 ## Control: antimicrobial activity and diet
-antimicrobial_abund <- taxa_uses_abund %>% filter(antimicrobial_activity > 0) %>% group_by(Sample, Species, Order, cp, nfe, ee) %>% summarise(antimicrobial_abund = sum(Abundance))
+antimicrobial_abund <- taxa_uses_abund %>% filter(antimicrobial_activity > 0) %>% group_by(Sample, Species, Order, Animal, Fruit, Seed) %>% summarise(antimicrobial_abund = sum(Abundance))
 
-p <- ggplot(antimicrobial_abund, aes(y = antimicrobial_abund*100, x = cp, colour = Order)) +
+p <- ggplot(antimicrobial_abund, aes(y = antimicrobial_abund*100, x = Animal, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = antimicrobial_abund*100, x = cp), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = antimicrobial_abund*100, x = Animal), colour = "black", linetype = "dotted") +
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
   labs(x="Crude protein in diet (%)", y="antimicrobial\nabundance(%)") +
   theme(legend.position = "none")
 
-ggsave(file.path(subdir, "antimicrobial_abundance_cp.png"), p, width=5, height=2)
+ggsave(file.path(subdir, "antimicrobial_abundance_Animal.png"), p, width=5, height=2)
 
 # Get overall plot of activity proportions per sample
 ntaxa_uses <-

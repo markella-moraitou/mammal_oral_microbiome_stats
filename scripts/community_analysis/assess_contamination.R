@@ -257,7 +257,7 @@ p_h <- habitats %>%
 #### DAMAGE PATTERNS ####
 
 # Match lineage to species names
-name_lineage_match <- tax %>% select(lineage, species) %>% mutate(species = str_remove_all(species, "_[A-Z]+"))
+name_lineage_match <- tax %>% select(lineage, species)
 
 damage_df <- full_join(name_lineage_match, pydamage_summary, by = "lineage") %>%
           rename(OTU = species) %>%

@@ -71,7 +71,7 @@ host_dist_melt <- cophenetic(host_consensus) %>% as.data.frame() %>% rownames_to
 
 # Samples to species
 samples_to_species <- phy_sp_f@sam_data %>% data.frame %>% select(Species) %>% 
-                      mutate(Species = recode(Species, "Sus scrofa domesticus" ="Sus scrofa")) %>%
+                      mutate(Species = recode(Species, "Sus domesticus" ="Sus scrofa")) %>%
                       rownames_to_column("Sample")
 
 # Add to dist
@@ -188,7 +188,7 @@ ggsave(file.path(subdir, "host_microbiome_distance_correlation_same_diet.png"), 
 # Create a list of samples per species
 links <- data.frame(phy_sp_f@sam_data) %>% 
         select(Species) %>%
-        mutate(Species = recode(Species, "Sus scrofa domesticus" ="Sus scrofa")) %>%
+        mutate(Species = recode(Species, "Sus domesticus" ="Sus scrofa")) %>%
         rename("phy1" = "Species") %>%
         rownames_to_column("phy2") %>% select(phy1, phy2)
 
@@ -210,7 +210,7 @@ mb_dist_clr_matrix <- as.matrix(mb_dist_clr)
 
 # Get diet matrix again, but per host species
 diet_sp_scaled <- data.frame(phy_sp_f@sam_data) %>% select("Species", "cp", "cf", "nfe", "ee", "ash") %>% as_tibble %>% unique %>%
-                  filter(Species != "Sus scrofa domesticus") %>% column_to_rownames("Species") %>% scale(center = TRUE, scale = TRUE) %>% as.data.frame
+                  filter(Species != "Sus domesticus") %>% column_to_rownames("Species") %>% scale(center = TRUE, scale = TRUE) %>% as.data.frame
 diet_sp_dist <- vegdist(diet_sp_scaled, method="euclidean")
 diet_sp_dist_matrix <- as.matrix(diet_sp_dist)
 

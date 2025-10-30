@@ -69,9 +69,8 @@ bac_tree <- read.tree(file.path(phydir, "phy_tree.tree"))
 
 # Change tip labels to match metadata
 host_consensus$tip.label <- host_consensus$tip.label %>%
-                            gsub(pattern="Equus_quagga", replacement="Equus_burchellii") %>%
                             gsub(pattern="Procolobus_badius", replacement="Piliocolobus_foai") %>%
-                            gsub(pattern="Otaria_bryonia", replacement="Otaria_byronia") %>%
+                            gsub(pattern="Otaria_bryonia", replacement="Otaria_flavescens") %>%
                             gsub(pattern="_", replacement=" ", fixed=TRUE)
 
 # Species distances
@@ -82,7 +81,7 @@ host_dist_melt <- cophenetic(host_consensus) %>% as.data.frame() %>% rownames_to
 
 # Samples to species
 samples_to_species <- phy_sp_f@sam_data %>% data.frame %>% select(Species) %>% 
-                      mutate(Species = recode(Species, "Sus scrofa domesticus" ="Sus scrofa")) %>%
+                      mutate(Species = recode(Species, "Sus domesticus" ="Sus scrofa")) %>%
                       rownames_to_column("Sample")
 
 # Add to dist
@@ -97,7 +96,7 @@ phy_dist <- dcast(phy_dist_melt, Sample1 ~ Sample2, value = "host_distance") %>%
 #### Get the rest of explanatory matrices ####
 
 ## Diet distances
-diet <- sample_data %>% data.frame %>% select(cp, cf, nfe, ee, ash)
+diet <- sample_data %>% data.frame %>% select(Animal, PlantO, Fruit, Seed)
 diet_dist <- scale(vegdist(diet, method = "euclidean"))
 
 ## Habitat distances: 0 if the same, 1 if different

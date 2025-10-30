@@ -20,7 +20,7 @@ tax.id,museum.species,species,genus,subfamily,family,infraorder,suborder,order,s
 9888,Muntiacus muntjak,Muntiacus muntjak,Muntiacus,Muntiacinae,Cervidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Muntjak
 86973,Okapia johnstoni,Okapia johnstoni,Okapia,NA,Giraffidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Okapi
 9733,Orcinus orca,Orcinus orca,Orcinus,NA,Delphinidae,Cetacea,Whippomorpha,Artiodactyla,Laurasiatheria,Orca
-161932,Otaria byronia,Otaria byronia,Otaria,NA,Otariidae,NA,Caniformia,Carnivora,Laurasiatheria,South American sea lion
+161932,Otaria byronia,Otaria flavescens,Otaria,NA,Otariidae,NA,Caniformia,Carnivora,Laurasiatheria,South American sea lion
 30527,Ovis ammon,Ovis ammon,Ovis,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Argali
 9940,Ovis aries,Ovis aries,Ovis,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Sheep
 9598,Pan troglodytes,Pan troglodytes,Pan,Homininae,Hominidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Chimpanzee
@@ -30,7 +30,7 @@ tax.id,museum.species,species,genus,subfamily,family,infraorder,suborder,order,s
 9870,Rangifer tarandus,Rangifer tarandus,Rangifer,Odocoileinae,Cervidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Reindeer
 34869,Rupicapra rupicapra,Rupicapra rupicapra,Rupicapra,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Chamois
 9823,Sus scrofa,Sus scrofa,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Wild boar
-9825,Sus scrofa domesticus,Sus scrofa,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Pig
+9825,Sus scrofa domesticus,Sus domesticus,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Pig
 9970,Syncerus caffer,Syncerus caffer,Syncerus,Bovinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,African buffalo
-9802,Tapirus indicus,Tapirus indicus,Tapirus,NA,Tapiridae,NA,NA,Perissodactyla,Laurasiatheria,Malayan tapir
+9802,Tapirus indicus,Acrocodia indica,Tapirus,NA,Tapiridae,NA,NA,Perissodactyla,Laurasiatheria,Malayan tapir
 9644,Ursus arctos,Ursus arctos,Ursus,NA,Ursidae,NA,Caniformia,Carnivora,Laurasiatheria,Brown bear

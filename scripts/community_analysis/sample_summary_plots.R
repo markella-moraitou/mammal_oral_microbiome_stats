@@ -51,30 +51,31 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"))
 
 meta <- metadata %>% filter(!is.neg)
 
-#### Diet PCA ####
-diet_data <- unique(meta[,c("Common.name", "Species", "Order_grouped", "cp", "ee", "cf", "ash", "nfe", "diet.general")]) %>%
+#### Lintulaakso diet PCA ####
+lint_diet_data <- unique(meta[,c("Common.name", "Species", "Order_grouped", "cp", "ee", "cf", "ash", "nfe", "diet.general")]) %>%
               filter(!grepl("blank", Species) & !grepl("control", Species))
               
-rownames(diet_data) <- NULL
-diet_data <- diet_data %>% column_to_rownames("Common.name")
+rownames(lint_diet_data) <- NULL
+lint_diet_data <- lint_diet_data %>% column_to_rownames("Species")
 
-diet_var <- diet_data[,c("cp", "ee", "cf", "ash", "nfe")]
+diet_var <- lint_diet_data[,c("cp", "ee", "cf", "ash", "nfe")]
 ord <- prcomp(diet_var)
 
 # Get some info for plotting
 var_explained <- round(ord$sdev^2 * 100 / sum(ord$sdev^2), 1) # Variance explained
 
-loadings_matrix <- data.frame(Variables = rownames(ord$rotation[,c(1,2)]), ord$rotation[,c("PC1", "PC2")])
+loadings_matrix <- data.frame(Variables = rownames(ord$rotation[,c(1,2)]), ord$rotation[,c("PC1", "PC2")]) %>%
+    arrange(desc(PC1^2 + PC2^2)) %>% head(3)
+
+pics <- phylopics$uid[match(rownames(ord$x), phylopics$Species)]
 
 labels <- ord$x %>% as.data.frame %>% mutate(label = case_when(PC1 > 10 ~ rownames(.),
                                                                PC2 == max(PC2) | PC2 == min(PC2) ~ rownames(.))) %>%
   pull(label)
 
-#labels <- ord$x %>% as.data.frame %>% mutate(label = rownames(.)) %>% pull(label)
-
 # Plot
-pca <- ggplot(aes(x = PC1, y = PC2, colour=diet_data$diet.general), data = data.frame(ord$x)) +
-  geom_point(size=3) +
+pca <- ggplot(aes(x = PC1, y = PC2, colour=lint_diet_data$diet.general), data = data.frame(ord$x)) +
+  geom_phylopic(aes(uuid = pics), width = 5, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
   scale_colour_manual(values = diet_palette, name = "") +
   xlab(paste("PC1 -", var_explained[1], "%")) +
   ylab(paste("PC2 -", var_explained[2], "%")) +
@@ -84,19 +85,58 @@ pca <- ggplot(aes(x = PC1, y = PC2, colour=diet_data$diet.general), data = data.
   theme(legend.position = "bottom") +
   guides(colour = guide_legend(nrow = 2)) +
   annotate("text", x = (loadings_matrix$PC1*20), y = (loadings_matrix$PC2*20),
-           label = loadings_matrix$Variables) +
-  xlim(c(-35, 80)) # Adjust position of text a bit
+           label = loadings_matrix$Variables)
 
-## Add principal components to data
-meta$PC1 <- ord$x[match(meta$Common.name, rownames(ord$x)), 1]
-meta$PC2 <- ord$x[match(meta$Common.name, rownames(ord$x)), 2]
+ggsave(filename  =  file.path(subdir, "dietary_PCA_lintulaakso.png"), pca, width  =  4, height = 4)
 
-ggsave(filename  =  file.path(subdir, "dietary_PCA.png"), pca, width  =  4, height = 4)
+#### Elton traits diet PCA ####
+elton_diet_data <- 
+  unique(meta[,c("Common.name", "Species", "Order_grouped",
+              "Animal", "Fruit", "Seed", "Nect", "PlantO", "diet.general")]) %>%
+              filter(!grepl("blank", Species) & !grepl("control", Species))
+              
+rownames(elton_diet_data) <- NULL
+elton_diet_data <- elton_diet_data %>% column_to_rownames("Species")
 
-#### Diet summary ####
-diet_long <- diet_data %>% rownames_to_column("Common.name") %>% pivot_longer(c(cp, ee, cf, ash, nfe), values_to = "proportion", names_to = "nutrient") %>%
-  mutate(nutrient = factor(nutrient, levels = c("ash", "ee", "cp", "nfe", "cf"))) %>%
-  mutate(diet.general = recode(diet.general, "Omnivore" = "Om.", "Animalivore" = "Anim.")) %>%
+diet_var <- elton_diet_data[,c("Animal", "Fruit", "Nect", "Seed", "PlantO")]
+
+# Remove variables that are all zero
+diet_var <- diet_var[, colSums(diet_var) > 0]
+
+ord <- prcomp(diet_var)
+
+# Get some info for plotting
+var_explained <- round(ord$sdev^2 * 100 / sum(ord$sdev^2), 1) # Variance explained
+
+loadings_matrix <- data.frame(Variables = rownames(ord$rotation[,c(1,2)]), ord$rotation[,c("PC1", "PC2")]) %>%
+    # Keep only the 4 variables that explain most variance
+    arrange(desc(PC1^2 + PC2^2)) %>% head(4)
+
+pics <- phylopics$uid[match(rownames(ord$x), phylopics$Species)]
+
+# Plot
+pca <- ggplot(aes(x = PC1, y = PC2, colour=elton_diet_data$diet.general), data = data.frame(ord$x)) +
+  geom_phylopic(aes(uuid = pics), width = 6, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
+  scale_colour_manual(values = diet_palette, name = "") +
+  xlab(paste("PC1 -", var_explained[1], "%")) +
+  ylab(paste("PC2 -", var_explained[2], "%")) +
+  geom_segment(data = loadings_matrix, aes(x = 0, y = 0, xend = (PC1*50),
+                                       yend = (PC2*50)), arrow = arrow(length = unit(0.5, "picas")),
+               color = "black") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(nrow = 2)) +
+  annotate("text", x = (loadings_matrix$PC1*52), y = (loadings_matrix$PC2*52),
+           label = loadings_matrix$Variables, hjust = 0)
+
+ggsave(filename  =  file.path(subdir, "dietary_PCA_elton.png"), pca, width  =  4, height = 4)
+
+#### Lintulaakso diet summary ####
+
+lint_diet_long <- lint_diet_data %>% rownames_to_column("Species") %>%
+  mutate(Common.name = meta$Common.name[match(Species, meta$Species)]) %>%
+  pivot_longer(c(cp, ee, cf, ash, nfe), values_to = "proportion", names_to = "nutrient") %>%
+  mutate(nutrient = factor(nutrient, levels = c("ee", "cp", "nfe", "cf", "ash"))) %>%
+  mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Rodentia" = "Ro.", "Carnivora" = "Carn.")) %>%
   arrange(nutrient)
 
 nutrient_palette <- c(ash = "grey",
@@ -105,22 +145,63 @@ nutrient_palette <- c(ash = "grey",
                       cp = "#B41F34",
                       ee = "#BD9120")
 
-diet_barplot <- ggplot(diet_long, aes(x = Common.name, y = proportion, fill = nutrient, group = diet.general)) +
+diet_barplot <- ggplot(lint_diet_long, aes(x = Common.name, y = proportion, fill = nutrient, group = diet.general)) +
   geom_bar(stat="identity") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
        axis.title.y = element_blank(),
        axis.title.x = element_blank(),
-       legend.position = "right") +
-  facet_grid(cols = vars(diet.general), scales = "free", space = "free") +
+       legend.position = "top",
+       legend.text = element_text(size = 8)) +
+  facet_grid(cols = vars(Order_grouped), scales = "free", space = "free") +
   scale_fill_manual(values = nutrient_palette,
                     labels = c("ash" = "ash\n(inorganic)",
-                               "cf" = "CF\n(crude fiber)",
-                               "nfe" = "NFE\n(carbohydrates)",
-                               "cp" = "CP\n(crude protein)",
-                               "ee" = "EE\n(fat)"),
+                               "cf" = "cf\n(crude fiber)",
+                               "nfe" = "nfe\n(carbohydrates)",
+                               "cp" = "cp\n(crude protein)",
+                               "ee" = "ee\n(fat)"),
                     name = "")
 
-ggsave(filename  =  file.path(subdir, "diet_barplot.png"), diet_barplot, width  =  8, height = 4)
+ggsave(filename  =  file.path(subdir, "diet_barplot_lintulaakso.png"), diet_barplot, width  =  6, height = 5)
+
+#### Elton diet summary ####
+
+elt_diet_long <- elton_diet_data %>% rownames_to_column("Species") %>%
+  mutate(Common.name = meta$Common.name[match(Species, meta$Species)]) %>%
+  pivot_longer(c(Animal, Fruit, Seed, PlantO), values_to = "proportion", names_to = "dietary_element") %>%
+  mutate(dietary_element = factor(dietary_element, levels = c("Animal", "Fruit", "Seed", "PlantO"))) %>%
+  mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Rodentia" = "Ro.", "Carnivora" = "Carn.")) %>%
+  arrange(dietary_element)
+
+item_palette <- c(Seed = "#FFD457",
+                      PlantO = "#85C43C",
+                      Fruit = "#4D71A7",
+                      Animal = "#D95244")
+
+diet_barplot <- ggplot(elt_diet_long, aes(x = Common.name, y = proportion, fill = dietary_element, group = diet.general)) +
+  geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+       axis.title.y = element_blank(),
+       axis.title.x = element_blank(),
+       legend.position = "top",
+       legend.text = element_text(size = 8)) +
+  facet_grid(cols = vars(Order_grouped), scales = "free", space = "free") +
+  scale_fill_manual(values = item_palette,
+                    labels = c("Seed" = "Seed",
+                               "Fruit" = "Fruit",
+                               "PlantO" = "Other plant material",
+                               "Animal" = "Animal material"),
+                    name = "")
+
+ggsave(filename  =  file.path(subdir, "diet_barplot_elton.png"), diet_barplot, width  =  6, height = 5)
+
+#### Combine and save diet data ####
+
+diet_data <- full_join(rownames_to_column(elton_diet_data, "Species"),
+                      rownames_to_column(lint_diet_data, "Species")) %>%
+                      select(Species, Common.name, Animal, Fruit, Seed, PlantO,
+                            cp, ee, cf, ash, nfe, diet.general)
+
+write.csv(diet_data, file = file.path(subdir, "diet_data.csv"), quote  =  FALSE, row.names  =  FALSE)
 
 #### Order and diet ####
 summ_dat <- meta %>% group_by(Order, diet.general) %>% 
@@ -158,9 +239,9 @@ host_consensus <- force.ultrametric(host_consensus)
 
 # Change tip labels to match metadata
 host_consensus$tip.label <- host_consensus$tip.label %>%
-                            gsub(pattern="Equus_quagga", replacement="Equus_burchellii") %>%
+                            gsub(pattern="Tapirus_indicus", replacement="Acrocodia_indica") %>%
                             gsub(pattern="Procolobus_badius", replacement="Piliocolobus_foai") %>%
-                            gsub(pattern="Otaria_bryonia", replacement="Otaria_byronia") %>%
+                            gsub(pattern="Otaria_bryonia", replacement="Otaria_flavescens") %>%
                             gsub(pattern="_", replacement=" ", fixed=TRUE)
 
 # Drop tips not in dataset

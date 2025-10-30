@@ -117,8 +117,8 @@ sam <- phy_gene_clr@sam_data %>% data.frame %>%
 
 # Combine data
 data <- left_join(otu, sam, relationship = "many-to-one") %>%
-  # Have sus scrofa as sus scrofa domesticus
-  mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+  # Have sus scrofa as sus domesticus
+  mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
                              TRUE ~ Species))
 
 data_wide <- data %>% pivot_wider(names_from = "OTU", values_from = "Abundance") %>% data.frame
@@ -138,7 +138,7 @@ ggsave(p, filename = file.path(subdir, "diet_variables.png"), width = 8, height 
 
 # Add to phyloseq
 data_diet <- rbind(data_diet, data_diet[which(data_diet$Species == "Sus scrofa"),])
-data_diet[nrow(data_diet), "Species"] <- "Sus scrofa domesticus"
+data_diet[nrow(data_diet), "Species"] <- "Sus domesticus"
 phy_gene_clr@sam_data$animalivory <- data_diet$animalivory[match(phy_gene_clr@sam_data$Species, data_diet$Species)]
 phy_gene_clr@sam_data$frugivory <- data_diet$frugivory[match(phy_gene_clr@sam_data$Species, data_diet$Species)]
 

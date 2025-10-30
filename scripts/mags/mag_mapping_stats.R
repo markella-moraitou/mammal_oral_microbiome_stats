@@ -62,7 +62,7 @@ host_consensus$tip.label <- host_consensus$tip.label %>%
 
 host_labels <- rev(host_consensus$tip.label)
 sus <- which(host_labels == "Sus scrofa")
-host_labels <- append(host_labels[1:sus], c("Sus scrofa domesticus")) %>%
+host_labels <- append(host_labels[1:sus], c("Sus domesticus")) %>%
                 append(host_labels[(sus + 1):length(host_labels)]) %>%
                 append(c("Extraction blank", "Library blank", "Environmental control"))
 

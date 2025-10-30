@@ -40,6 +40,8 @@ metadata_path <- file.path(indir, "sample_metadata.csv")
 sample_tax_path <- file.path(indir, "host_taxonomy.csv")
 host_traits_path <- file.path(indir, "host_traits.csv")
 quant_diet_path <- file.path(indir, "Lintulaakso_diet_filtered.csv")
+eltontraits_path <- file.path(indir, "elton_traits.csv")
+
 rc_path <- file.path(indir, "read_count.csv")
 rl_path <- file.path(indir, "read_length.csv")
 decom_path <- file.path(indir, "decOM_output.csv")
@@ -52,9 +54,10 @@ tax_table <- read.table(tax_table_path, sep="\t", comment.char="", header=TRUE)
 # Load metadata
 metadata <- read.csv(metadata_path) # Sample metadata
 sample_tax <- read.csv(sample_tax_path) %>%  # Sample taxonomy
-  select(museum.species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
+  select(museum.species, species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
 host_traits <- read.csv(host_traits_path) # Species habitats
 quant_diet <- read.csv(quant_diet_path) # Diet quantification data from Lintulaakso et al. 2023 paper
+elton_traits <- read.csv(eltontraits_path) # Elton traits data
 rc <- read.csv(rc_path) %>% rename_with( ~ paste0(., "_count")) # read count per step
 rl <- read.csv(rl_path) %>% rename_with( ~ paste0(., "_avlength")) # average read length per step
 decom <- read.csv(decom_path, row.names = NULL) %>% # decOM output
@@ -68,14 +71,23 @@ decom <- read.csv(decom_path, row.names = NULL) %>% # decOM output
 # Normalise colnames
 colnames(sample_tax) <- str_to_title(colnames(sample_tax))
 
+# Combine dietary components of carnivory in Elton traits
+colnames(elton_traits) <- colnames(elton_traits) %>%
+                      gsub("Diet.", "", .)
+
+elton_traits <- elton_traits %>%
+  mutate(Animal = Inv + Vend + Vect + Vfish + Scav + Vunk) %>%
+  select(-c(Inv, Vend, Vect, Vfish, Scav, Vunk))
+
 # Combine all sample and host species metadata in one big table
 meta <- metadata
 
 meta <-
   meta %>%
-  left_join(sample_tax, relationship = "many-to-many", by=c("Species"="Museum.species")) %>%
+  left_join(sample_tax, relationship = "many-to-many", by=c("Species"="Species")) %>%
   left_join(host_traits, relationship = "many-to-many") %>%
   left_join(quant_diet, relationship="many-to-many") %>%
+  left_join(elton_traits, by="Species") %>%
   left_join(rc, by=c("Ext.ID"="sample_count")) %>%
   left_join(rl, by=c("Ext.ID"="sample_avlength")) %>% 
   left_join(decom, by=c("Ext.ID"="Sink")) %>%
@@ -90,6 +102,15 @@ meta <-
   }) %>%
   rename("diet.general"="calculated_cluster_main_diet") %>%
   as.data.frame
+
+# Adjust dietary categories (trying to reconcile Lintulaakso et al. and Elton traits)
+meta <- meta %>%
+  mutate(diet.general = case_when(
+    Species == "Giraffa camelopardalis" ~ "Herbivore",
+    Species %in% c("Sus scrofa", "Sus domesticus") ~ "Omnivore",
+    Species == "Marmota marmota" ~ "Frugivore",
+    TRUE ~ diet.general
+  ))
 
 # Turn order and species to a factor and create a separate order for blanks and controls
 meta$Order <- ifelse(meta$Species %in% c("Environmental control", "Extraction blank", "Library blank"),
@@ -173,8 +194,7 @@ SAM = sample_data(meta)
 
 taxonomy <- tax_table %>% select(c("superkingdom", "phylum", "class", "order", "family", "genus", "species", "lineage")) %>%
           filter(lineage %in% taxa_names(OTU)) %>%
-          # Remove suffixes e.g. _A from Bacillota_A
-          mutate(across(everything(), ~ str_remove_all(., "_[A-Z]+"))) %>%
+          mutate(phylum = str_remove(phylum, "_[A-Z]+")) %>% # to match palettes
           as.matrix()
 
 # Get taxa names as row names

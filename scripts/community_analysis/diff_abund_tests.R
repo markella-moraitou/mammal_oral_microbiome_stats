@@ -91,11 +91,11 @@ phy_genus_clr@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_genus_clr@sa
 
 # Melt
 data <- psmelt(phy_genus_clr) %>%
-        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, cf, cp, nfe, ee, unmapped_count, contig_reads_count)
+        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, Fruit, Animal, Fruit, Seed, unmapped_count, contig_reads_count)
 
 data <- data %>%
     # Turn S. scrofa domesticus to S. scrofa to match tree
-    mutate(Species = case_when(Species == "Sus scrofa domesticus" ~ "Sus scrofa",
+    mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
                                TRUE ~ Species))
 
 # Keep only most abundant taxa (first average by species to weight against uneven sampling, then average over species)
@@ -132,7 +132,7 @@ for (otu in otus) {
     # Subset data for the current OTU
     data_filt <- data %>% filter(OTU == otu)
     # Run PGLMM
-    model <- pglmm(Abundance ~ cp + cf + habitat.general + ruminant +
+    model <- pglmm(Abundance ~ Animal + Fruit + habitat.general + ruminant +
                    (1 | Species__), 
                    data = data_filt, 
                    cov_ranef = list(Species = host_consensus),
@@ -166,7 +166,7 @@ for (otu in otus) {
     # Subset data for the current OTU
     data_filt <- data %>% filter(OTU == otu)
     # Run PGLMM
-    model <- lm(Abundance ~ cp + cf + habitat.general + ruminant,
+    model <- lm(Abundance ~ Animal + Fruit + habitat.general + ruminant,
                    data = data_filt)
     # Extract residuals
     resids_df <- data.frame(Sample = data_filt$Sample,
@@ -198,9 +198,8 @@ combined_res <- phy_res %>% rename(coef_lambda = lambda,
 
 # Adjust p-values
 combined_res <- combined_res %>%
-    mutate(padj_cp = p.adjust(pval_cp, method = "holm"),
-           padj_cf = p.adjust(pval_cf, method = "holm"),
-           padj_Marine = p.adjust(pval_Marine, method = "holm"),
+    mutate(padj_Animal = p.adjust(pval_Animal, method = "holm"),
+           padj_Fruit = p.adjust(pval_Fruit, method = "holm"),
            padj_Ruminant = p.adjust(pval_Ruminant, method = "holm"),
            padj_lambda = p.adjust(pval_lambda, method = "holm"))
 
@@ -216,7 +215,7 @@ combined_long <- full_join(combined_coef, combined_pval, by = c("OTU", "term")) 
     mutate(phylum_grouped = case_when(phylum %in% names(phylum_palette) ~ phylum,
                                       superkingdom == "Bacteria" ~ "Other Bacteria",
                                       superkingdom == "Archaea" ~ "Other Archaea")) %>%
-    mutate(term = factor(term, levels = c("lambda", "cp", "cf", "Marine", "Ruminant")),
+    mutate(term = factor(term, levels = c("lambda", "Animal", "Fruit", "Ruminant")),
            phylum_grouped = factor(phylum_grouped, levels = rev(names(phylum_palette))),
            significant = ifelse(pvalue < 0.05, "yes", "no"))
 
@@ -240,14 +239,12 @@ abundances <- phy_genus_clr@otu_table %>% t %>% data.frame %>% rownames_to_colum
               pivot_longer(cols = -Sample, names_to = "OTU", values_to = "Abundance") %>%
               left_join(rownames_to_column(select(data.frame(phy_genus_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample")
 
-phyeco_abund <- combined_res %>% filter(padj_cp < 0.05 | padj_cf < 0.05 | padj_Marine < 0.05 | padj_Ruminant < 0.05 | padj_lambda < 0.05) %>%
+phyeco_abund <- combined_res %>% filter(padj_Animal < 0.05 | padj_Fruit < 0.05 | padj_Ruminant < 0.05 | padj_lambda < 0.05) %>%
             # label association (positive and negative)
-            mutate(label = case_when(padj_cp < 0.05 & coef_cp > 0 ~ "cp+",
-                                     padj_cp < 0.05 & coef_cp < 0 ~ "cp-",
-                                     padj_cf < 0.05 & coef_cf > 0 ~ "cf+",
-                                     padj_cf < 0.05 & coef_cf < 0 ~ "cf-",
-                                     padj_Marine < 0.05 & pval_Marine > 0 ~ "Marine+",
-                                     padj_Marine < 0.05 & pval_Marine < 0 ~ "Marine-",
+            mutate(label = case_when(padj_Animal < 0.05 & coef_Animal > 0 ~ "Animal+",
+                                     padj_Animal < 0.05 & coef_Animal < 0 ~ "Animal-",
+                                     padj_Fruit < 0.05 & coef_Fruit > 0 ~ "Fruit+",
+                                     padj_Fruit < 0.05 & coef_Fruit < 0 ~ "Fruit-",
                                      padj_Ruminant < 0.05 & pval_Ruminant > 0 ~ "Ruminant+",
                                      padj_Ruminant < 0.05 & pval_Ruminant < 0 ~ "Ruminant-",
                                      padj_lambda < 0.05 ~ "Phylogenetic")) %>%
@@ -286,7 +283,7 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
     set.seed(14)
     # Prep formula
     response <- "Abundance"
-    fixed <- c("cp:OTU", "cf:OTU", "ruminant:OTU", "habitat.general:OTU")
+    fixed <- c("Animal:OTU", "Fruit:OTU", "ruminant:OTU", "habitat.general:OTU")
     formula <- as.formula(paste(response, "~", paste(fixed, collapse = "+")))
     n_taxa <- length(unique(data$OTU))
     # Set priors
@@ -481,4 +478,4 @@ p <- ggplot(mcmc_abund, aes(x = Common.name, y = Abundance, colour = Order, fill
           legend.position = "bottom") + ylab("CLR-transformed abundances") +
     guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
-ggsave(p, filename = file.path(subdir, "mcmcglmm_abundances.png"), width = 12, height = 20)
+ggsave(p, filename = file.path(subdir, "mcmcglmm_abundances.png"), width = 12, height = 30)

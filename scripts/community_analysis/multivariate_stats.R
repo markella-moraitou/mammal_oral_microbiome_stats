@@ -204,8 +204,8 @@ host_traits <- data.frame(tip = sample_tree$tip.label,
                           Species = phy_sp_f@sam_data[sample_tree$tip.label, "Species"],
                           Common.name = phy_sp_f@sam_data[sample_tree$tip.label, "Common.name"],
                           diet.general = phy_sp_f@sam_data[sample_tree$tip.label, "diet.general"],
-                          cf = phy_sp_f@sam_data[sample_tree$tip.label, "cf"],
-                          cp = phy_sp_f@sam_data[sample_tree$tip.label, "cp"],
+                          PlantO = phy_sp_f@sam_data[sample_tree$tip.label, "PlantO"],
+                          Animal = phy_sp_f@sam_data[sample_tree$tip.label, "Animal"],
                           habitat.general = phy_sp_f@sam_data[sample_tree$tip.label, "habitat.general"])
 
 # Add order trait to nodes
@@ -250,9 +250,9 @@ p_fruit <- p_fruit %<+% tree_phylopics +
 
 ggsave(file.path(subdir, "phy_sp_f_composition_tree.png"), p_fruit, width = 10, height = 10)
 
-##########################
-#### DEFINE FUNCTIONS ####
-##########################
+##############################################
+#### ORDINATIONS & PERMANOVA FULL DATASET ####
+##############################################
 
 #### Get shape scales for plotting ####
 diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
@@ -261,108 +261,6 @@ species_shape_scale <- c(1:25, 35:35+26-length(uniq_species))
 names(species_shape_scale) <- uniq_species
 order_shape_scale <- c("Carnivora" = 4, "Primates" = 19, "Artiodactyla" = 5, "Perissodactyla" = 2, "Rodentia" = 1, "Rest" = 12, "Proboscidea_Sirenia" = 12)
 
-custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_scaling, type) {
-
-  #### Get arrows ####
-  # Get loading arrows coordinaties
-  arrows <- arrow_coord(ord@ord, axes = c(1, 2, 3))
-  # Get genus and phylum
-  arrows$genus <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "genus"])
-  arrows$phylum <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "phylum"])
-  arrows$superkingdom <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "superkingdom"])
-  arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 100))
-  # Group phyla for better plotting
-  arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
-                                                          superkingdom == "Bacteria" ~ "Other Bacteria",
-                                                          superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
-  # Keep only strongest associations
-  arrows_filt <- arrows %>% filter(to_plot) %>%
-                select(contains(c("1", "2")), phylum_grouped)
-  # Get species centroids
-  centroids <- centroids(ord@ord, phyloseq)
-  # Plot
-  p <- ord_plot(ord, colour=colour_var, shape=shape_var, alpha = 0.8) +
-    custom_theme() +
-    geom_phylopic(data = centroids, aes_string(colour = colour_var), uuid = centroids$uid, fill = "transparent", width = 0.3)
-  # Add the correct scales
-  if (colour_var == "Order_grouped") {
-    p <- p +
-        scale_color_manual(values=order_palette, name = "Host order")
-  } else if (colour_var == "diet.general") {
-    p <- p +
-        scale_color_manual(values=diet_palette, name = "Estimated diet")
-  } else if (colour_var == "habitat.general") {
-    p <- p +
-        scale_colour_manual(values=habitat_palette, name = "Habitat")
-  }
-  if (shape_var == "diet.general") {
-    p <- p +
-        scale_shape_manual(values=diet_shape_scale, name = "Estimated diet")
-  } else if (shape_var == "Order_grouped") {
-    p <- p +
-        scale_shape_manual(values=order_shape_scale, name = "Order")
-  } else if (shape_var == "Common.name") {
-    p <- p +
-        scale_shape_manual(values=species_shape_scale, name = "Species")
-  }
-  # Add more layers
-  p <- p +
-    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8))
-  # If PCA, add taxon arrows
-  if (type == "PCA") {
-    p <- p +
-      new_scale_colour() +
-      geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*arrows_scaling, yend = PC2*arrows_scaling, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
-      scale_color_manual(values = phylum_palette, name = "Microbial phylum")
-  }
-  # If RDA add marginals
-  if (type == "RDA") {
-    p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
-  }
-  return(p)
-}
-
-taxa_plot <- function(ord, phyloseq) {
-  # Get taxa scores and add taxonomic info
-  taxa_rda <- data.frame(scores(ord@ord, display="species", choices=1:3)) %>%
-              cbind(tax_table(phyloseq)[, c("superkingdom", "phylum", "genus", "species")]) %>%
-              rownames_to_column("OTU") %>%
-              # Get grouped phylum
-              mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
-                                        superkingdom == "Bacteria" ~ "Other Bacteria",
-                                        superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
-  # Add mean relative abundance log10-transformed with pseudocount
-  taxa_rda$mean_abund <- rowMeans(phyloseq@otu_table)[taxa_rda$OTU]
-  # Identify 15 genera with most abundance, group remaining genera to "Other"
-  top_genera <- taxa_rda %>% group_by(genus) %>% summarise(total = sum(mean_abund, na.rm = TRUE)) %>% top_n(15, total) %>% pull(genus)
-  taxa_rda <- taxa_rda %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Other")) %>%
-              mutate(genus = factor(genus, levels = top_genera)) %>%
-              filter(genus != "Other")
-  # Get centroids per genus
-  genus_centroids <- taxa_rda %>% select(OTU, RDA1, RDA2, genus, phylum_grouped) %>% ungroup %>%
-                group_by(genus, phylum_grouped) %>%
-                summarise(RDA1 = mean(RDA1),
-                          RDA2 = mean(RDA2)) %>%
-                filter(!grepl("Other", genus))
-  # Get colours
-  genus_palette <- expand_palette(select(genus_centroids, c(phylum_grouped, genus)), phylum_palette)
-  
-  set.seed(245)
-  p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = genus)) +
-    geom_segment(linewidth = 0.2, alpha = 0.8) +
-    scale_color_manual(values = genus_palette, name = "Microbial genus") +
-    geom_label(data = genus_centroids, aes(label = genus, x = RDA1, y = RDA2),
-              size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
-    scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
-    custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "none")
-  return(p)
-}
-
-##############################################
-#### ORDINATIONS & PERMANOVA FULL DATASET ####
-##############################################
- 
 #### PCA ####
 
 ord <- ord_calc(phy_sp_f_clr, method = "PCA")
@@ -398,7 +296,7 @@ phy_sp_f_clr <- phy_sp_f_clr %>%
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates", "Rodentia",
-                    "ruminant", "marine", "nfe", "cp")
+                    "ruminant", "marine", "Fruit", "Animal")
 
 # Ordinate using all data
 ord <- ord_calc(phy_sp_f_clr, constraints = species_traits, method = "RDA")
@@ -492,7 +390,7 @@ phy_deep_clr <- phy_deep_clr %>%
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
-                    "ruminant", "marine", "nfe", "cp")
+                    "ruminant", "marine", "Fruit", "Animal")
 
 # Ordinate using all data
 ord <- ord_calc(phy_deep_clr, constraints = species_traits, method = "RDA")
@@ -523,11 +421,10 @@ ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p, width=6, height=6)
 p <- taxa_plot(ord, phy_deep_clr)
 ggsave(file.path(subdir, "RDA_deep_clr_taxa_1_2.png"), p, width=5, height=5)
 
-
 ## RDA axis violin plots
 
 rda_res <- data.frame(phy_deep_clr@sam_data) %>% select(new_name, Species, Order, Order_grouped, diet.general) %>%
-           left_join(rownames_to_column(data.frame(scores(ord@ord, display="sites", choices=1:3))), by=c("new_name"="rowname")) %>%
+           left_join(rownames_to_column(data.frame(vegan::scores(ord@ord, display="sites", choices=1:3))), by=c("new_name"="rowname")) %>%
            pivot_longer(cols = c(RDA1, RDA2, RDA3), names_to = "Axis", values_to = "Value")
 
 p <- ggplot(rda_res, aes(y = Order, x = Value, fill = diet.general, colour = diet.general)) +
@@ -541,8 +438,8 @@ ggsave(file.path(subdir, "RDA_deep_clr_axis_comparison.png"), p, width=8, height
 
 ## Test
 
-anova(ord@ord, by = "margin", perm = 500)
-anova(ord@ord, by = "axis", perm = 500)
+#anova(ord@ord, by = "margin", perm = 500)
+#anova(ord@ord, by = "axis", perm = 500)
 
 #### PERMANOVA ####
 
@@ -597,7 +494,7 @@ phy_artio_clr <- phy_artio_clr %>%
                   marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
-species_traits <- c("ruminant", "marine", "nfe")
+species_traits <- c("ruminant", "marine", "Fruit")
 
 # Ordinate using all data
 ord <- ord_calc(phy_artio_clr, constraints = species_traits, method = "RDA")
@@ -673,7 +570,7 @@ phy_carni_clr <- phy_carni_clr %>%
         ps_mutate(marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
-species_traits <- c("marine", "cp")
+species_traits <- c("marine", "Animal")
 
 # Ordinate using all data
 ord <- ord_calc(phy_carni_clr, constraints = species_traits, method = "RDA")
@@ -743,7 +640,7 @@ ggsave(file.path(subdir, "PCA_prim_clr_1_2.png"), p, width=6, height=6)
 #### RDA ####
 
 # Species traits to use as constraints
-species_traits <- c("cf", "cp")
+species_traits <- c("PlantO", "Animal")
 
 # Ordinate using all data
 ord <- ord_calc(phy_prim_clr, constraints = species_traits, method = "RDA")
@@ -819,7 +716,7 @@ phy_habitat_clr <- phy_habitat_clr %>%
                                         TRUE ~ Order_grouped))
 
 # Species traits to use as constraints
-species_traits <- c("marine", "cf")
+species_traits <- c("marine", "Artiodactyla", "Carnivora")
 
 # Ordinate using all data
 ord <- ord_calc(phy_habitat_clr, constraints = species_traits, method = "RDA")

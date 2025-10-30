@@ -44,9 +44,10 @@ annot_str <- read_tsv(file.path(indir, "gene_abundance_stratified.tsv.gz"))
 dram_summary <- read_tsv(file.path(indir, "DRAM_genome_summary_form.tsv"))
 
 # Contaminant taxa list
-contam <- read.csv(file.path(taxdir, "assess_contamination", "assess_taxa.csv")) %>%
-  filter(!passed_ratio) %>%
-  pull(OTU)
+abund_negs <- read.csv(file.path(taxdir, "assess_contamination", "abundant_in_negs_taxa.csv"))
+low_prev <- read.csv(file.path(taxdir, "assess_contamination", "low_prevalence_taxa.csv"))
+
+contam <- unique(c(abund_negs$x, low_prev$x))
 
 # DRAM genome summary form
 summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
@@ -56,7 +57,7 @@ summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
 metadata <- read.csv(file.path(indir, "sample_metadata.csv")) # Sample metadata
 sample_tax <- read.csv(file.path(indir, "host_taxonomy.csv")) %>%  # Sample taxonomy
   select(museum.species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
-species_traits <- read.csv(file.path(indir, "species_traits.csv")) # Species habitats
+species_traits <- read.csv(file.path(indir, "host_traits.csv")) # Species habitats
 quant_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv")) # Diet quantification data from Lintulaakso et al. 2023 paper
 contig_info <- read.csv(file.path(indir, "contig_info_per_sample.txt"), sep ="\t") # Info on contigs per sample
 
@@ -174,9 +175,9 @@ write.table(annot_mod, file.path(subdir, "gene_abundance_stratified_modified.tsv
             sep = "\t", quote = FALSE, row.names = FALSE)
 
 # Sum gene abundances per sample and make wider
-annot <- annot_mod %>% group_by(sample, gene_id) %>%
-        summarise(abundance = sum(totalAvgDepth)) %>%
-        pivot_wider(names_from = sample, values_from = abundance, values_fill = 0) %>%
+annot <- annot_mod %>% group_by(Sample, gene_id) %>%
+        summarise(abundance = sum(mapped_reads)) %>%
+        pivot_wider(names_from = Sample, values_from = abundance, values_fill = 0) %>%
         column_to_rownames("gene_id")
 
 write.table(annot, file.path(subdir, "gene_abundance.tsv"),
@@ -224,6 +225,8 @@ tax <- tax_table(as.matrix(column_to_rownames(annot_info, "gene_id")))
 
 phy_gene <- phyloseq(otu, sam, tax)
 
+phy_gene@sam_data$is.neg <- grepl("control|blank", phy_gene@sam_data$Species, ignore.case = TRUE)
+
 # Keep only genes with at least 100 reads in total
 phy_gene <- prune_taxa(taxa_sums(phy_gene) > 100, phy_gene)
 
@@ -235,19 +238,21 @@ phy_gene@sam_data$Gene_richness <- estimate_richness(phy_gene, measure="Observed
 
 #### Identify low content samples
 # Identify when number of genes plateaus
-contigs_to_genes <- data.frame(phy_gene@sam_data) %>% select(contig_count, len_median, Total_abundance, Gene_richness)
+contigs_to_genes <- data.frame(phy_gene@sam_data) %>% select(contig_count, len_median, Total_abundance, Gene_richness, is.neg)
 
-p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour = contig_count)) +
+thres <- 10^6
+
+p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour = is.neg)) +
     geom_point() +
     scale_x_log10() +
-    geom_vline(xintercept = 10^4) +
+    geom_vline(xintercept = thres) +
     scale_y_log10() +
-    scale_color_viridis_c()
+    scale_color_manual(values = c('TRUE' = 'red', 'FALSE' = 'black'))
 
 ggsave(p, filename = file.path(subdir, "contigs_to_genes.png"))
 
 # low content samples
-low_content_samples <- names(which(colSums(phy_gene@otu_table) < 10^4))
+low_content_samples <- names(which(colSums(phy_gene@otu_table) < thres))
 
 write.csv(low_content_samples, file.path(subdir, "low_content_samples.txt"), quote = FALSE, row.names = FALSE)
 
@@ -257,114 +262,9 @@ phy_gene_clr <- transform(phy_gene, "clr")
 saveRDS(phy_gene, file.path(subdir, "phy_gene.RDS"))
 saveRDS(phy_gene_clr, file.path(subdir, "phy_gene_clr.RDS"))
 
-##################################
-#### CHECK FOR CONTAMINATION  ####
-##################################
-
-# Sample to blanks relative abundance ratio to be used for decontamination
-s_b_ratio <- 1.5
-
-# Set minimum relative abundance threshold
-min_ab <- 10^-5
-
-#### RELATIVE ABUNDANCE IN SAMPLES VS CONTROLS ####
-# Get relative abundances
-phy_gene_r <- transform(phy_gene, "compositional")
-phy_gene_m <- phy_gene_r %>% psmelt 
-
-# Is a taxons abundance higher in samples or environmental controls on average
-abundance_ratios <- 
-            phy_gene_m %>%
-            # Add pseudocount to avoid division by zero
-            mutate(Abundance = Abundance + 10^-7) %>%
-            # Get mean and max abundance per OTU in samples, controls and blanks
-            group_by(OTU) %>%
-            mutate(sample_type = case_when(grepl("control", Species) ~ "control",
-                                           grepl("blank", Species) ~ "blank",
-                                           TRUE ~ "sample")) %>%
-            group_by(OTU) %>%
-            rename(gene = OTU) %>%
-            summarise(mean_abundance_samples = mean(Abundance[sample_type == "sample"]),
-                      mean_abundance_controls = mean(Abundance[sample_type == "control"]),
-                      ) %>%
-            ungroup %>%
-            # Get ratios of mean and max abundances
-            mutate(mean_ratio = mean_abundance_samples/mean_abundance_controls) %>% select(gene, mean_ratio)
-
-gene_order <- abundance_ratios %>% arrange(mean_ratio) %>% pull(gene)
-
-abundance_ratios$gene <- factor(abundance_ratios$gene, levels = gene_order)
-
-abundance_ratios <- abundance_ratios %>% arrange(gene)
-
-# Draw threshold of OTUs double as abundant in samples
-ythresh <- abundance_ratios %>% filter(mean_ratio > s_b_ratio) %>% slice_min(mean_ratio, n = 1) %>% pull(gene)
-
-# Plot
-p_a <- ggplot(abundance_ratios, aes(x = mean_ratio, y = gene)) +
-  geom_bar(stat = "identity") +
-  theme(legend.position="top") +
-  ylab("OTU") +
-  scale_x_continuous(name = "\nmean rel. abund. ratio in\nsamples/negatives",
-                    trans = "log10", breaks = c(1, 100)) +
-  geom_vline(xintercept = 1, linetype = "dashed") +
-  geom_hline(yintercept = ythresh, linetype = "dashed") +
-  theme(axis.text.y = element_blank(), axis.ticks.x = element_blank())
-
-##### PREVALENCE AND AVERAGE RELATIVE ABUNDANCE ####
-# Get prevalence of OTU in samples, controls and blanks
-prevalence_df <-
-  rownames_to_column(data.frame(prevalence = prevalence(subset_samples(phy_gene_r, !grepl("control", Species) & !grepl("blank", Species)), detection = min_ab)), "gene") %>% 
-  mutate(OTU = factor(gene, levels = gene_order))
-
-p_p <- ggplot(prevalence_df, aes(x = prevalence, fill = prevalence, y = gene)) +
-  geom_point(shape = 21) +
-  scale_colour_viridis_c(option = "magma") + xlab("prevalence\nin samples") +
-  geom_hline(yintercept = ythresh, linetype = "dashed") +
-  theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(), , axis.title.x.top = element_text())
-
-abundance_df <-
-  phy_gene_m %>% filter(!grepl("control", Species) & !grepl("blank", Species)) %>%
-  rename(gene = OTU) %>% group_by(gene) %>% summarise(mean_abundance = mean(Abundance)) %>% ungroup %>%
-  mutate(gene = factor(gene, levels = gene_order), 
-        # Add pseudocount to avoid division by zero
-        mean_abundance = mean_abundance)
-
-# Plot
-p_ma <- ggplot(abundance_df, aes(x = mean_abundance, fill = mean_abundance, y = gene)) +
-  geom_point(shape = 21) +
-  scale_colour_viridis_c() +
-  scale_x_log10() + xlab("mean abundance\nin samples") +
-  # Add threshold line
-  geom_vline(xintercept = min_ab, linetype = "dashed") +
-  geom_hline(yintercept = ythresh, linetype = "dashed") +
-  theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(), axis.title.x.top = element_text())
-
-
-# Combine sample/negative abundance ratio, prevalence, mean abundance and habitat info
-assess_genes <- abundance_ratios %>%
-               left_join(prevalence_df) %>%
-               left_join(abundance_df) %>%
-               # Identify OTUs that don't pass the filters
-               mutate(passed_ratio = mean_ratio > s_b_ratio)
-
-# Save table
-write.table(assess_genes, file=file.path(subdir, "gene_decontamination.csv"), sep=",", row.names=FALSE, quote=FALSE)
-
-p <- plot_grid(p_a + theme(legend.position="bottom"),
-               p_p + theme(legend.position="none"),
-               p_ma + theme(legend.position="none"), nrow = 1, align = "h", axis = "tb", rel_widths = c(1, 0.75, 0.75, 1))
-
-ggsave(file=file.path(subdir, "gene_decontamination.png"), p, width=8, height=16)
-
 # Remove low content samples and genes that do not pass the filters
 phy_gene_f <- prune_samples(!(sample_names(phy_gene) %in% low_content_samples), phy_gene)
-phy_gene_f <- prune_taxa(assess_genes$gene[assess_genes$passed_ratio], phy_gene_f)
-
-# Remove blanks and controls
-phy_gene_f <- subset_samples(phy_gene_f, !grepl("control", Species) & !grepl("blank", Species))
+phy_gene_f <- subset_samples(phy_gene_f, !is.neg)
 phy_gene_f <- prune_taxa(taxa_sums(phy_gene_f) > 0, phy_gene_f)
 
 ##############################
@@ -377,7 +277,7 @@ prevalence <- data.frame(row.names = species)
 
 for (spe in species) {
   subset <- phy_gene_f %>% subset_samples(Species == spe)
-  temp <- prevalence(subset, detection = 2/100, include.lowest = TRUE, sort = TRUE) %>% data.frame() %>% t
+  temp <- prevalence(subset, detection = 10^-5, include.lowest = TRUE, sort = TRUE) %>% data.frame() %>% t
   rownames(temp) <- spe
   prevalence <- rbind(prevalence, temp)
 }
@@ -388,13 +288,13 @@ prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
 write.csv(prevalence, file.path(subdir, "gene_prevalence_per_species.csv"), quote = FALSE)
 
 # Identify taxa that have at least 10% prevalence in a single species
-high_prevalence_taxa <- prevalence %>%
+low_prevalence_taxa <- prevalence %>%
   rowwise() %>%
-  mutate(high_prevalence = any(c_across(where(is.numeric)) > 0.2)) %>%
-  ungroup()
+  filter(all(c_across(where(is.numeric)) < 0.2)) %>%
+  pull(taxon)
 
-# Remove taxa that do not have high prevalence in any species
-phy_gene_f <- prune_taxa(high_prevalence_taxa$taxon[high_prevalence_taxa$high_prevalence], phy_gene_f)
+# Remove low prevalence taxa
+phy_gene_f <- prune_taxa(setdiff(taxa_names(phy_gene_f), low_prevalence_taxa), phy_gene_f)
 
 # Make sure there are no empty samples
 phy_gene_f <- prune_samples(sample_sums(phy_gene_f) > 0, phy_gene_f)

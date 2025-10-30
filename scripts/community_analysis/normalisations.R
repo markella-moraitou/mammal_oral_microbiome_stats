@@ -59,22 +59,24 @@ bac_meta_f <- bac_meta %>% filter(X1 %in% bac_tree$tip.label)
 
 # Split taxonomy column
 bac_meta_f <- bac_meta_f %>% separate(X2, into = c("d", "p", "c", "o", "f", "g", "s"), sep = ";") %>%
-  mutate(s = str_remove(s, "s__")) %>% mutate(s = str_remove(s, "_[A-Z]+"))
+  mutate(s = str_remove(s, "s__"))
 
 # Filter metadata to only include taxa in phyloseq object
-bac_taxa <- unique(str_remove(taxa_names(subset_taxa(phy_sp_f, superkingdom != "Archaea")), "\\*"))
+bac_taxa <- data.frame(taxa_names = taxa_names(subset_taxa(phy_sp_f, superkingdom != "Archaea")))
+bac_taxa$fix_names <- str_remove(bac_taxa$taxa_names, "\\*")
 
-table(!bac_taxa %in% bac_meta_f$s)
-bac_taxa[!bac_taxa %in% bac_meta_f$s]
+cat('Taxa that are not found in the bac120_taxonomy_r220 table:\n')
+bac_taxa[!bac_taxa$fix_names %in% bac_meta_f$s]
 
 # Extract tip labels from the species in the dataset
-bac_meta_f <- filter(bac_meta_f, s %in% bac_taxa) %>% select(X1, p, s) %>%
-  # pick one representative if there are multiple (they should be monophyletic, so it shouldn't matter)
-  group_by(s) %>% slice(1) %>% ungroup()
+bac_meta_f <- filter(bac_meta_f, s %in% bac_taxa$fix_names) %>% select(X1, p, s) %>% ungroup()
+
+# Add phyname
+bac_meta_f$phyname <- bac_taxa$taxa_names[match(bac_meta_f$s, bac_taxa$fix_names)]
 
 # Subset tree
 tree <- drop.tip(bac_tree, setdiff(bac_tree$tip.label, bac_meta_f$X1))
-tree$tip.label <- bac_meta_f$s[match(tree$tip.label, bac_meta_f$X1)]
+tree$tip.label <- bac_meta_f$phyname[match(tree$tip.label, bac_meta_f$X1)]
 tree$node.label <- paste0("N", 1:tree$Nnode) # Not very informative for now
 
 write.tree(tree, file = file.path(phydir, "phy_tree.tree"))
@@ -115,7 +117,7 @@ mirror_subset <- function(phy_subset, phy_norm, taxa = FALSE) {
 
 ## Marine terrestrial comparisons
 phy_habitat <- phy_sp_f %>%
-  subset_samples(Species %in% c("Otaria byronia", "Meles meles", "Ursus arctos", "Orcinus orca", "Hippopotamus amphibius", "Sus scrofa", "Dugong dugon", "Loxodonta africana"))
+  subset_samples(Species %in% c("Otaria flavescens", "Meles meles", "Ursus arctos", "Orcinus orca", "Hippopotamus amphibius", "Sus scrofa", "Dugong dugon", "Loxodonta africana"))
 phy_habitat <- phy_habitat %>% subset_taxa(taxa_sums(phy_habitat) > 0)
 
 phy_habitat_clr <- mirror_subset(phy_subset=phy_habitat, phy_norm=phy_sp_f_clr, TRUE)
@@ -166,7 +168,7 @@ for (obj in c("phy_habitat", "phy_artio", "phy_carni", "phy_prim", "phy_deep",
 
 # Plot microbial tree and colour tips by phylum
 tree_meta <- bac_meta_f %>% filter(s %in% tree$tip.label) %>% rename(tip.label = s) %>%
-  mutate(p = str_remove(p, "p__") %>% str_remove("_[A-Z]+")) %>% select(tip.label, p)
+  mutate(p = str_remove(p, "p__")) %>% select(tip.label, p)
 
 p <- ggtree(tree)  %<+% tree_meta +
   geom_tiplab(size = 1, aes(colour = p), name = "Phylum") +
