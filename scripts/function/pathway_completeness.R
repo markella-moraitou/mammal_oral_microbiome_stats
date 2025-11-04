@@ -58,103 +58,113 @@ ko_list <- phy_gene_f %>% subset_taxa(database == "KEGG") %>% taxa_names
 
 #### Map KOs to pathways ####
 
+add_paths <- FALSE # Change this to append more taxa
 # Check if file exists
 if (file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
   cat("Loading ko_to_pathways.csv\n")
   pathway_hits_df <- read.csv(file.path(subdir, "ko_to_pathways.csv"), stringsAsFactors = FALSE)
   colnames(pathway_hits_df) <- c("path", "ko")
-} else {
-  pathway_hits_df <- NULL
+} 
+if (add_paths == TRUE | !file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
+  if(!file.exists(file.path(subdir, "ko_to_pathways.csv"))) { pathway_hits_df <- NULL }
+    else {pathway_hits_df <- read.csv(file.path(subdir, "ko_to_pathways.csv"), stringsAsFactors = FALSE)}
+  # Go through each KO and get pathways, skipping those already in the file
+  # and appending any new ones
+  lapply(ko_list, function(ko) {
+    ko_in_file = FALSE
+    # Check if the KO exists in the pathways list file and get info
+    if (exists("pathway_hits_df")) {
+      if (ko %in% str_remove(pathway_hits_df$ko, "ko:")) {
+        cat("KO", which(ko_list == ko), "of", length(ko_list), "already in file...\n")
+        ko_in_file = TRUE
+      }
+    }
+    if (ko_in_file == FALSE) {
+      # if not, query KEGG
+      cat("Mapping KO", which(ko_list == ko), "of", length(ko_list), "to pathways...\n")
+      path_hits <- tryCatch({
+        Sys.sleep(1)
+        keggLink("pathway", ko)
+      }, error = function(e) {
+      cat("Error for KO:", ko, "\n")})
+      # Flatten and clean
+      path_df <- data.frame(path = unlist(path_hits),
+                            ko = names(path_hits),
+                            stringsAsFactors = FALSE) %>%
+                filter(grepl("ko", path))
+      write.table(path_df, sep = ",", file.path(subdir, "ko_to_pathways.csv"), row.names = FALSE, quote = FALSE,
+              append = TRUE, col.names = FALSE)
+      }
+    })
   write.table(data.frame(path = character(), ko = character()), sep = ",", file.path(subdir, "ko_to_pathways.csv"), row.names = FALSE, quote = FALSE, col.names = TRUE)
 }
 
-# Go through each KO and get pathways, skipping those already in the file
-# and appending any new ones
-
-lapply(ko_list, function(ko) {
-  ko_in_file = FALSE
-  # Check if the KO exists in the pathways list file and get info
-  if (exists("pathway_hits_df")) {
-    if (ko %in% str_remove(pathway_hits_df$ko, "ko:")) {
-      cat("KO", which(ko_list == ko), "of", length(ko_list), "already in file...\n")
-      ko_in_file = TRUE
-    }
-  }
-  if (ko_in_file == FALSE) {
-    # if not, query KEGG
-    cat("Mapping KO", which(ko_list == ko), "of", length(ko_list), "to pathways...\n")
-    path_hits <- tryCatch({
-      Sys.sleep(1)
-      keggLink("pathway", ko)
-    }, error = function(e) {
-    cat("Error for KO:", ko, "\n")})
-    # Flatten and clean
-    path_df <- data.frame(path = unlist(path_hits),
-                          ko = names(path_hits),
-                          stringsAsFactors = FALSE) %>%
-              filter(grepl("ko", path))
-    write.table(path_df, sep = ",", file.path(subdir, "ko_to_pathways.csv"), row.names = FALSE, quote = FALSE,
-            append = TRUE, col.names = FALSE)
-  }
-})
-
-pathway_hits_df <- read.csv(file.path(subdir, "ko_to_pathways.csv"), stringsAsFactors = FALSE) %>% unique
-
-#### Get info on pathways ####
+#### Get components of all identified pathways ####
 unique_pathways <- unique(pathway_hits_df$path)
 
-path_info <- sapply(unique_pathways, function(pw) {
-  cat("Getting info for pathway", pw, "...\n")
-  tryCatch({
-    Sys.sleep(0.4)
-    keggGet(pw)
-    }, error= function(e) pw)})
-
-# Extract pathways class and name
-path_info_df <- data.frame(path = unique_pathways)
-
-for (i in 1:length(path_info)) {
-    # Path name
-    name <- paste(path_info[[i]]$NAME, collapse = "; ")
-    path_info_df$path_name[i] <- name
-    # Path class
-    class <- paste(path_info[[i]]$CLASS, collapse = "; ")
-    path_info_df$path_class[i] <- ifelse(is.null(class), NA, class)
+if (file.exists(file.path(subdir, "pathways_to_kos.csv"))) {
+  cat("Loading pathways_to_kos.csv\n")
+  pathway_kos_df <- read.csv(file.path(subdir, "pathways_to_kos.csv"), stringsAsFactors = FALSE)
+  pathway_kos <- split(pathway_kos_df$kos, pathway_kos_df$pathway)
+} else {
+  pathway_kos <- lapply(unique_pathways, function(pw) {
+    cat("Getting KOs for pathway", pw, which(unique_pathways == pw), "of", length(unique_pathways), "...\n")
+    tryCatch({
+      keggLink("ko", pw)
+    }, error = function(e) NULL)
+  })
+  pathway_kos_df <- data.frame(pathway = names(unlist(pathway_kos)),
+                               kos = unlist(pathway_kos))
+  write.csv(pathway_kos_df, file.path(subdir, "pathways_to_kos.csv"), row.names = FALSE, quote = FALSE)
 }
 
-# Add to main table
-pathway_hits_df <- pathway_hits_df %>%
-                    left_join(path_info_df, by = "path")
+#### Get info on pathways ####
 
-#### Get components of all identified pathways ####
-pathway_kos <- lapply(unique_pathways, function(pw) {
-  cat("Getting KOs for pathway", pw, which(unique_pathways == pw), "of", length(unique_pathways), "...\n")
-  tryCatch({
-    keggLink("ko", pw)
-  }, error = function(e) NULL)
-})
-
-pathway_kos_df <- data.frame(pathway = names(unlist(pathway_kos)),
-                             kos = unlist(pathway_kos))
-
-write.csv(pathway_kos_df, file.path(subdir, "pathways_to_kos.csv"), row.names = FALSE, quote = FALSE)
-
-#### Calculate pathway completeness in the entire dataset ####
-completeness <- sapply(pathway_kos, function(kos) {
-  if (is.null(kos)) return(NA)
-  total_kos <- length(kos)
-  matched_kos <- sum(str_remove(kos, "ko:") %in% ko_list)
-  matched_kos / total_kos
-})
-
-compl_df <- data.frame(path = unique_pathways,
-                      completeness_in_dataset = completeness)
-
-# Add to pathway info
-path_info_df <- path_info_df %>%
-                  left_join(compl_df, by = "path")
-
-write.csv(path_info_df, file.path(subdir, "pathway_info.csv"), row.names = FALSE, quote = TRUE)
+if (file.exists(file.path(subdir, "pathway_info.csv"))) {
+  cat("Loading pathway_info.csv\n")
+  path_info_df <- read.csv(file.path(subdir, "pathway_info.csv"), stringsAsFactors = FALSE)
+  colnames(path_info_df) <- c("path", "path_name", "path_class", "completeness_in_dataset", "mean_reads")
+} else {
+  path_info <- sapply(unique_pathways, function(pw) {
+    cat("Getting info for pathway", pw, which(unique_pathways == pw), "of", length(unique_pathways), "...\n")
+    tryCatch({
+      Sys.sleep(0.4)
+      keggGet(pw)
+      }, error= function(e) pw)})
+  # Extract pathways class and name
+  path_info_df <- data.frame(path = unique_pathways)
+  for (i in 1:length(path_info)) {
+      # Path name
+      name <- paste(path_info[[i]]$NAME, collapse = "; ")
+      path_info_df$path_name[i] <- name
+      # Path class
+      class <- paste(path_info[[i]]$CLASS, collapse = "; ")
+      path_info_df$path_class[i] <- ifelse(is.null(class), NA, class)
+  }
+  # Add to main table
+  pathway_hits_df <- pathway_hits_df %>%
+                      left_join(path_info_df, by = "path")
+  #### Calculate pathway completeness and abundance in the entire dataset ####
+  completeness <- sapply(pathway_kos, function(kos) {
+    if (is.null(kos)) return(NA)
+    total_kos <- length(kos)
+    matched_kos <- sum(str_remove(kos, "ko:") %in% ko_list)
+    matched_kos / total_kos
+  })
+  abundance <- sapply(pathway_kos, function(kos) {
+    if (is.null(kos)) return(NA)
+    kos_clean <- str_remove(kos, "ko:")
+    ko_abundances <- phy_gene_f@otu_table %>% data.frame[matched_kos, sample] %>% rowMeans
+    sum(mean(ko_abundances))
+  })
+  compl_df <- data.frame(path = unique_pathways,
+                          completeness_in_dataset = completeness,
+                          mean_reads = abundance)
+  # Add to pathway info
+  path_info_df <- path_info_df %>%
+                    left_join(compl_df, by = "path")
+  write.csv(path_info_df, file.path(subdir, "pathway_info.csv"), row.names = FALSE, quote = TRUE)
+}
 
 # Keep only relevant pathways
 path_info_filt <- path_info_df %>% filter(!grepl("Human Diseases;", path_class)) %>% filter(!grepl("Organismal Systems;", path_class))
@@ -162,7 +172,15 @@ path_info_filt <- path_info_df %>% filter(!grepl("Human Diseases;", path_class))
 # Same in pathway_kos_df
 pathway_kos_filt <- pathway_kos_df %>% filter(pathway %in% path_info_filt$path)
 
-#### Calculate pathways completeness per sample ####
+## Plot
+p <- ggplot(aes(y = completeness_in_dataset, x = mean_reads), data = path_info_filt) +
+      geom_point() +
+      #geom_text(aes(label = ifelse(completeness_in_dataset >= 0.8 & mean_reads >= 50, path_name, "")), hjust = 0, vjust = 0) +
+      labs(y = "Pathway completeness in dataset", x = "Mean pathway abundance (mean mapped reads)")
+
+ggsave(p, filename = file.path(subdir, "pathway_completeness_vs_abundance.png"), width = 8, height = 6)
+
+#### Calculate pathways completeness and abundance per sample ####
 
 ko_list_samples <- list()
 
@@ -175,100 +193,138 @@ for (sample in sample_names(phy_gene_f)) {
   ko_list_samples[[sample]] <- ko_present
 }
 
-unique_pathways <- unique(pathway_kos_filt$pathway)
+# Collect info only on the filtered pathways
+filt_pathways <- path_info_filt$path
 
-pathway_compl_sample <- matrix(nrow = length(unique_pathways), ncol = length(sample_names(phy_gene_f)))
-rownames(pathway_compl_sample) <- unique_pathways
-colnames(pathway_compl_sample) <- sample_names(phy_gene_f)
+if (file.exists(file.path(subdir, "pathway_completeness_per_sample.csv")) &
+    file.exists(file.path(subdir, "pathway_abundance_per_sample.csv")) &
+    file.exists(file.path(subdir, "pathway_abundance_per_sample_clr.csv"))) {
+  cat("Loading pathway completeness and abundance per sample...\n")
+  pathway_compl_sample <- read.csv(file.path(subdir, "pathway_completeness_per_sample.csv"), row.names = 1, check.names = FALSE)
+  pathway_abund_sample <- read.csv(file.path(subdir, "pathway_abundance_per_sample.csv"), row.names = 1, check.names = FALSE)
+  pathway_abund_sample_clr <- read.csv(file.path(subdir, "pathway_abundance_per_sample_clr.csv"), row.names = 1, check.names = FALSE)
+} else {
+  pathway_compl_sample <- matrix(nrow = length(filt_pathways), ncol = length(sample_names(phy_gene_f)))
+  rownames(pathway_compl_sample) <- filt_pathways
+  colnames(pathway_compl_sample) <- sample_names(phy_gene_f)
 
-for (i in 1:length(unique_pathways)) {
-  pw <- unique_pathways[i]
-  kos <- pathway_kos[[i]] %>% str_remove("ko:")
-  if (is.null(kos)) {
-    cat("No KOs found for pathway", pw, "\n")
-    pathway_compl_sample[pw, ] <- NA
-    next
+  pathway_abund_sample <- matrix(nrow = length(filt_pathways), ncol = length(sample_names(phy_gene_f)))
+  rownames(pathway_abund_sample) <- filt_pathways
+  colnames(pathway_abund_sample) <- sample_names(phy_gene_f)
+
+  for (i in 1:length(filt_pathways)) {
+    cat("Calculating completeness for pathway", i, "of", length(filt_pathways), "...\n")
+    pw <- filt_pathways[i]
+    kos <- pathway_kos[[i]] %>% str_remove("ko:")
+    if (is.null(kos)) {
+      cat("No KOs found for pathway", pw, "\n")
+      pathway_compl_sample[pw, ] <- NA
+      next
+    }
+    for (j in 1:length(sample_names(phy_gene_f))) {
+      sample <- sample_names(phy_gene_f)[j]
+      kos_in_sample <- ko_list_samples[[sample]]
+      matched_kos <- intersect(kos, kos_in_sample)
+      pathway_compl_sample[pw, sample] <- length(matched_kos) / length(kos)
+      if (length(matched_kos) == 0) {
+        abund <- 0
+      } else { 
+        abund <- prune_samples(sample, phy_gene_f) %>% prune_taxa(matched_kos,.) %>% otu_table %>% mean
+      }
+    pathway_abund_sample[pw, sample] <- abund
+    }
   }
-  for (j in 1:length(sample_names(phy_gene_f))) {
-    sample <- sample_names(phy_gene_f)[j]
-    kos_in_sample <- ko_list_samples[[sample]]
-    matched_kos <- sum(kos %in% kos_in_sample)
-    pathway_compl_sample[pw, sample] <- matched_kos / length(kos)
-  }
+
+  # CLR-normalise
+  pathway_abund_sample_clr <- microbiome::transform(phyloseq(otu_table(pathway_abund_sample, taxa_are_rows = TRUE)), "clr") %>%
+                          otu_table %>% data.frame
+
+  write.csv(pathway_compl_sample, file.path(subdir, "pathway_completeness_per_sample.csv"), row.names = TRUE, quote = FALSE)
+  write.csv(pathway_abund_sample, file.path(subdir, "pathway_abundance_per_sample.csv"), row.names = TRUE, quote = FALSE)
+  write.csv(pathway_abund_sample_clr, file.path(subdir, "pathway_abundance_per_sample_clr.csv"), row.names = TRUE, quote = FALSE)
 }
 
-write.csv(pathway_compl_sample, file.path(subdir, "pathway_completeness_per_sample.csv"), row.names = TRUE, quote = FALSE)
-
-## Plot pathways completeness
+## Plot pathways completeness and abundance
 pathway_compl_l <- as.data.frame(pathway_compl_sample) %>%
                     rownames_to_column("path") %>%
-                    pivot_longer(-path, names_to = "Sample", values_to = "completeness") %>%
-                    left_join(path_info_filt %>% select(path, path_name, path_class), by = "path") %>%
-                    # Keep only average completeness above 0.2
-                    group_by(path) %>%
-                    filter(mean(completeness) > 0.1)
+                    pivot_longer(-path, names_to = "Sample", values_to = "completeness")
 
-pathway_compl_l$Common.name <- phy_gene_f@sam_data$Common.name[match(pathway_compl_l$Sample, sample_names(phy_gene_f))]
-pathway_compl_l$class <- str_remove(pathway_compl_l$path_class, ".*; ")
+pathway_abund_l <- as.data.frame(pathway_abund_sample_clr) %>%
+                    rownames_to_column("path") %>%
+                    pivot_longer(-path, names_to = "Sample", values_to = "abundance")
 
-p <- ggplot(aes(x = Sample, y = path, fill = completeness), data = pathway_compl_l) +
+pathway_l <- full_join(pathway_compl_l, pathway_abund_l,
+                        by = c("path", "Sample")) %>%
+                        left_join(path_info_filt %>% select(path, path_name, path_class), by = "path")
+
+pathway_l$Common.name <- phy_gene_f@sam_data$Common.name[match(pathway_l$Sample, sample_names(phy_gene_f))]
+pathway_l$class <- str_remove(pathway_l$path_class, ".*; ")
+pathway_l$path_name_short <- str_trunc(pathway_l$path_name, 30, "right")
+
+p <- ggplot(aes(x = Sample, y = path_name_short, fill = abundance, alpha = completeness), data = pathway_l) +
       geom_tile() +
       scale_fill_viridis_c(option = "magma", na.value = "grey90") +
-      labs(x = "Sample", y = "KEGG Pathway", fill = "Completeness") +
+      scale_alpha_continuous(range = c(0, 1), name = "Completeness") +
+      labs(x = "Sample", y = "KEGG Pathway", fill = "Abundance") +
       facet_grid(cols = vars(Common.name), rows = vars(class), scales = "free", space = "free") +
       theme(axis.text.x = element_blank(),
-            strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0))
+            strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0),
+            panel.background = element_rect(fill = "black", color = "black"))
 
-ggsave(p, filename = file.path(subdir, "pathway_completeness_per_sample_heatmap.png"), width = 20, height = 20)
+ggsave(p, filename = file.path(subdir, "pathway_completeness_abundance_per_sample_heatmap.png"), width = 20, height = 30)
 
 #### Calculate pathways completeness per microbial genus per sample ####
 ko_per_taxon_df <- gene_str %>% filter(database == "KEGG") %>%
                     # At least an average coverage of 1
-                    filter(totalAvgDepth >= 1) %>% filter(genus != "no support") %>%
-                    select(sample, genus, gene_id) %>%
+                    filter(mapped_reads >= 1) %>% filter(genus != "no support") %>%
+                    select(Sample, genus, gene_id) %>%
                     # Keep genera with at least 1000 genes
-                    group_by(genus, sample) %>%
+                    group_by(genus, Sample) %>%
                     filter(n_distinct(gene_id) >= 1000)
 
 # Get a list of KOs per genus per sample
-ko_list_s_g <- list()
+if (file.exists(file.path(subdir, "pathway_completeness_per_sample_per_micrgenus.csv"))) {
+  cat("Loading pathway_completeness_per_sample_per_micrgenus.csv\n")
+  pathway_compl_s_g <- read.csv(file.path(subdir, "pathway_completeness_per_sample_per_micrgenus.csv"), stringsAsFactors = FALSE)
+} else {
+    ko_list_s_g <- list()
 
-for (s_g in unique(paste(ko_per_taxon_df$sample, ko_per_taxon_df$genus, sep = "&"))) {
-  cat("Extracting KOs present in", s_g, "...\n")
-  ko_present <- ko_per_taxon_df %>% filter(sample == str_split(s_g, "&")[[1]][1] & genus == str_split(s_g, "&")[[1]][2]) %>%
-                pull(gene_id) %>% unique
-  ko_list_s_g[[s_g]] <- ko_present
-}
-
-pathway_compl_s_g <- matrix(nrow = length(unique_pathways), ncol = length(names(ko_list_s_g)))
-rownames(pathway_compl_s_g) <- unique_pathways
-colnames(pathway_compl_s_g) <- names(ko_list_s_g)
-
-for (i in 1:length(unique_pathways)) {
-  pw <- unique_pathways[i]
-  kos <- pathway_kos[[i]] %>% str_remove("ko:")
-  if (is.null(kos)) {
-    cat("No KOs found for pathway", pw, "\n")
-    pathway_compl_s_g[pw, ] <- NA
-    next
+  for (s_g in unique(paste(ko_per_taxon_df$Sample, ko_per_taxon_df$genus, sep = "&"))) {
+    cat("Extracting KOs present in", s_g, "...\n")
+    ko_present <- ko_per_taxon_df %>% filter(Sample == str_split(s_g, "&")[[1]][1] & genus == str_split(s_g, "&")[[1]][2]) %>%
+                  pull(gene_id) %>% unique
+    ko_list_s_g[[s_g]] <- ko_present
   }
-  for (j in 1:length(names(ko_list_s_g))) {
-    s_g <- names(ko_list_s_g)[j]
-    kos_in_s_g <- ko_list_s_g[[s_g]]
-    matched_kos <- sum(kos %in% kos_in_s_g)
-    pathway_compl_s_g[pw, s_g] <- matched_kos / length(kos)
+
+  pathway_compl_s_g <- matrix(nrow = length(filt_pathways), ncol = length(names(ko_list_s_g)))
+  rownames(pathway_compl_s_g) <- filt_pathways
+  colnames(pathway_compl_s_g) <- names(ko_list_s_g)
+
+  for (i in 1:length(filt_pathways)) {
+    pw <- filt_pathways[i]
+    kos <- pathway_kos[[i]] %>% str_remove("ko:")
+    if (is.null(kos)) {
+      cat("No KOs found for pathway", pw, "\n")
+      pathway_compl_s_g[pw, ] <- NA
+      next
+    }
+    for (j in 1:length(names(ko_list_s_g))) {
+      s_g <- names(ko_list_s_g)[j]
+      kos_in_s_g <- ko_list_s_g[[s_g]]
+      matched_kos <- sum(kos %in% kos_in_s_g)
+      pathway_compl_s_g[pw, s_g] <- matched_kos / length(kos)
+    }
   }
+
+  pathway_compl_s_g <- pathway_compl_s_g %>% t %>% data.frame %>% rownames_to_column("sample_genus") %>%
+                        separate(sample_genus, into = c("Sample", "genus"), sep = "&", remove = TRUE)
+
+  write.csv(pathway_compl_s_g, file.path(subdir, "pathway_completeness_per_sample_per_micrgenus.csv"), row.names = FALSE, quote = FALSE)
 }
-
-pathway_compl_s_g <- pathway_compl_s_g %>% t %>% data.frame %>% rownames_to_column("sample_genus") %>%
-                      separate(sample_genus, into = c("Sample", "genus"), sep = "&", remove = TRUE)
-
-write.csv(pathway_compl_s_g, file.path(subdir, "pathway_completeness_per_sample_per_micrgenus.csv"), row.names = FALSE, quote = FALSE)
 
 # How different are the same taxa between species and across species
 
-# Calculate pairwise euclidean distances
-#dist_matrix <- dist(pathway_compl_s_g %>% select(-Sample, -genus), method = "manhattan") %>% as.matrix
+# Calculate correlation between pathways completeness
 cor_matrix <- cor(pathway_compl_s_g %>% select(-Sample, -genus) %>% t, method = "pearson") %>% as.matrix
 s_g <- paste(pathway_compl_s_g$Sample, pathway_compl_s_g$genus, sep = "&")
 
@@ -309,12 +365,12 @@ p2 <- ggplot(aes(y = genus1, x = correlation), data = filter(cor_df, genus1 == g
 
 p <- plot_grid(p1, p2, ncol = 2, align = "h")
 
-ggsave(p, filename = file.path(subdir, "pathway_completeness_dist.png"), width = 10, height = 10)
+ggsave(p, filename = file.path(subdir, "pathway_completeness_cor.png"), width = 10, height = 10)
 
 #### Calculate pathways completeness per microbial genus across dataset ####
 ## Genera seem to have more or less stable pathway profiles across host species,
 ## so we can consider them across the dataset
-ko_per_taxon_df <- ko_per_taxon_df %>% ungroup %>% select(-sample) %>% unique
+ko_per_taxon_df <- ko_per_taxon_df %>% ungroup %>% select(-Sample) %>% unique
 
 # Get a list of KOs per genus per sample
 ko_list_genus <- list()
@@ -326,12 +382,12 @@ for (g in unique(ko_per_taxon_df$genus)) {
   ko_list_genus[[g]] <- ko_present
 }
 
-pathway_compl_genus <- matrix(nrow = length(unique_pathways), ncol = length(names(ko_list_genus)))
-rownames(pathway_compl_genus) <- unique_pathways
+pathway_compl_genus <- matrix(nrow = length(filt_pathways), ncol = length(names(ko_list_genus)))
+rownames(pathway_compl_genus) <- filt_pathways
 colnames(pathway_compl_genus) <- names(ko_list_genus)
 
-for (i in 1:length(unique_pathways)) {
-  pw <- unique_pathways[i]
+for (i in 1:length(filt_pathways)) {
+  pw <- filt_pathways[i]
   kos <- pathway_kos[[i]] %>% str_remove("ko:")
   if (is.null(kos)) {
     cat("No KOs found for pathway", pw, "\n")
@@ -352,10 +408,7 @@ write.csv(pathway_compl_genus, file.path(subdir, "pathway_completeness_per_micrg
 pathway_compl_l <- as.data.frame(pathway_compl_genus) %>%
                     rownames_to_column("path") %>%
                     pivot_longer(-path, names_to = "genus", values_to = "completeness") %>%
-                    left_join(path_info_filt %>% select(path, path_name, path_class), by = "path") %>%
-                    # Keep only average completeness above 0.1
-                    group_by(path) %>%
-                    filter(mean(completeness) > 0.1)
+                    left_join(path_info_filt %>% select(path, path_name, path_class), by = "path")
 
 tax_info <- gene_str %>% select(genus, family, order, class, phylum) %>% unique
 
@@ -369,10 +422,57 @@ p <- ggplot(aes(x = genus, y = path, fill = completeness), data = pathway_compl_
       scale_fill_viridis_c(option = "magma", na.value = "grey90") +
       labs(x = "Microbial genus", y = "KEGG Pathway", fill = "Completeness") +
       facet_grid(cols = vars(order), rows = vars(path_class), scales = "free", space = "free") +
-      theme(axis.text.x = element_blank(),
-            strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0))
+      theme(strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0))
 
 ggsave(p, filename = file.path(subdir, "pathway_completeness_per_taxon_heatmap.png"), width = 20, height = 20)
+
+#### For specific genera ####
+
+genera <- c("Propionibacterium", "Aggregatibacter", "Brooklawnia", "Haemophilus", "Rodentibacter",
+            "Capnocytophaga", "Corynebacterium", "Desulfomicrobium", "Filifactor", "Johnsonella",
+            "Porphyromonas", "Tannerella", "CAJPSE01", "F0058", "JAUMXB01")
+
+pathway_compl_filt <- pathway_compl_l %>%
+        filter(genus %in% genera) %>% mutate(genus = factor(genus, levels = genera))
+
+p <- ggplot(aes(x = genus, y = path, fill = completeness), data = pathway_compl_filt) +
+      geom_tile() +
+      scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+      facet_grid(rows = vars(path_class), scales = "free", space = "free") +
+      labs(x = "Microbial genus", y = "KEGG Pathway", fill = "Completeness") +
+      theme(strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0))
+
+ggsave(p, filename = file.path(subdir, "pathway_completeness_selected_taxa.png"), width = 8, height = 10)
+
+#######################
+#### PLOT PATHWAYS ####
+#######################
+
+# Create a pathway phyloseq
+
+otu <- otu_table(pathway_abund_sample, taxa_are_rows = TRUE)
+tax <- tax_table(as.matrix(column_to_rownames(select(path_info_filt, c(path, path_name, path_class)), "path")))
+sam <- sample_data(data.frame(phy_gene_f@sam_data))
+
+phy_pathway <- phyloseq(otu, tax, sam)
+
+# Keep pathways at least 50% complete in the dataset
+compl_pathways <- path_info_filt$path[which(path_info_filt$completeness_in_dataset > 0.5)]
+
+phy_pathway <- prune_taxa(taxa_names(phy_pathway) %in% compl_pathways, phy_pathway)
+phy_pathway_clr <- microbiome::transform(phy_pathway, "clr")
+
+# Save
+saveRDS(phy_pathway, file.path(subdir, "phy_pathway.RDS"))
+saveRDS(phy_pathway_clr, file.path(subdir, "phy_pathway_clr.RDS"))
+
+# Keep only metabolism pathways
+phy_metabolism <- subset_taxa(phy_pathway, grepl("Metabolism;", path_class))
+phy_metabolism_clr <- microbiome::transform(phy_metabolism, "clr")
+
+# Save
+saveRDS(phy_metabolism, file.path(subdir, "phy_metabolism.RDS"))
+saveRDS(phy_metabolism_clr, file.path(subdir, "phy_metabolism_clr.RDS"))
 
 #######################
 #### PLOT PATHWAYS ####
