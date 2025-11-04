@@ -39,6 +39,9 @@ theme_set(custom_theme())
 phy_gene_f <- readRDS(file.path(outdir, "data", "phy_gene_f.RDS"))
 phy_gene_f_clr <- readRDS(file.path(outdir, "data", "phy_gene_f_clr.RDS"))
 
+phy_pathway <- readRDS(file.path(outdir, "pathway_completeness", "phy_pathway.RDS"))
+phy_pathway_clr <- readRDS(file.path(outdir, "pathway_completeness", "phy_pathway_clr.RDS"))
+
 phy_sp_f <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f.RDS"))
 phy_sp_f_clr <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f_clr.RDS"))
 
@@ -87,17 +90,29 @@ func_tax_procrustes <- function(phy_func, phy_tax, dist, out_suffix) {
 # Keep samples that are in both datasets
 shared_samples <- intersect(sample_names(phy_gene_f_clr), sample_names(phy_sp_f_clr))
 
-# Species level (Jaccard distances)
+# Species level - Genes (Jaccard distances)
 func_tax_procrustes(
             phy_tax = prune_samples(shared_samples, phy_sp_f),
             phy_func = prune_samples(shared_samples, phy_gene_f),
-            dist = "jaccard", out_suffix = "jaccard_species")
+            dist = "jaccard", out_suffix = "jaccard_species_genes")
 
-# Species level (Aitchison distances)
+# Species level - Genes (Aitchison distances)
 func_tax_procrustes(
             phy_tax = prune_samples(shared_samples, phy_sp_f_clr),
             phy_func = prune_samples(shared_samples, phy_gene_f_clr),
-            dist = "euclidean", out_suffix = "aitchison_species")
+            dist = "euclidean", out_suffix = "aitchison_species_genes")
+
+# Species level - Pathways (Jaccard distances)
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_sp_f),
+            phy_func = prune_samples(shared_samples, phy_pathway),
+            dist = "jaccard", out_suffix = "jaccard_species_pathways")
+
+# Species level - Pathways (Aitchison distances)
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_sp_f_clr),
+            phy_func = prune_samples(shared_samples, phy_pathway_clr),
+            dist = "euclidean", out_suffix = "aitchison_species_pathways")
 
 #### Get genus level data
 phy_gen_f <- tax_glom(phy_sp_f, taxrank = "genus", NArm = FALSE)
@@ -108,10 +123,22 @@ phy_gen_f_clr <- microbiome::transform(phy_gen_f, "clr")
 func_tax_procrustes(
             phy_tax = prune_samples(shared_samples, phy_gen_f),
             phy_func = prune_samples(shared_samples, phy_gene_f),
-            dist = "jaccard", out_suffix = "jaccard_genus")
+            dist = "jaccard", out_suffix = "jaccard_genus_genes")
 
 # Genus level (Aitchison distances)
 func_tax_procrustes(
             phy_tax = prune_samples(shared_samples, phy_gen_f_clr),
             phy_func = prune_samples(shared_samples, phy_gene_f_clr),
-            dist = "euclidean", out_suffix = "aitchison_genus")
+            dist = "euclidean", out_suffix = "aitchison_genus_genes")
+
+# Genus level - Pathways (Jaccard distances)
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_gen_f),
+            phy_func = prune_samples(shared_samples, phy_pathway),
+            dist = "jaccard", out_suffix = "jaccard_genus_pathways")
+
+# Genus level - Pathways (Aitchison distances)
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_gen_f_clr),
+            phy_func = prune_samples(shared_samples, phy_pathway_clr),
+            dist = "euclidean", out_suffix = "aitchison_genus_pathways")
