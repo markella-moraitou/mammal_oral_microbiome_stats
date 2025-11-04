@@ -10,6 +10,7 @@
 library(dplyr)
 library(tidyr)
 library(tibble)
+library(stringr)
 library(phyloseq)
 library(microViz)
 library(microbiome)
@@ -24,6 +25,7 @@ library(scales)
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata 
 datadir <- normalizePath(file.path("..", "..", "output", "function", "data"))
+pathdir <- normalizePath(file.path("..", "..", "output", "function", "pathway_completeness")) # Directory with pathway analysis output
 subdir <- normalizePath(file.path("..", "..", "output", "function", "exploratory_plots")) # subdirectory for the output of this script
 
 dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
@@ -44,6 +46,9 @@ source(file.path("..","ordination_functions.R"))
 phy_gene_f <- readRDS(file.path(datadir, "phy_gene_f.RDS"))
 phy_gene_f_clr <- readRDS(file.path(datadir, "phy_gene_f_clr.RDS"))
 
+phy_pathway <- readRDS(file.path(pathdir, "phy_pathway.RDS"))
+phy_pathway_clr <- readRDS(file.path(pathdir, "phy_pathway_clr.RDS"))
+
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
 ###################
@@ -53,7 +58,6 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 #### GENE ABUNDANCE (CLR) ####
 
 # Recode order and habitat as TRUE and FALSE
-# Also scale protein, fiber and carbohydrate content
 phy_gene_f_clr <- phy_gene_f_clr %>%
         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
@@ -91,7 +95,23 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, si
   theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
   guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
 
-ggsave(p, filename = file.path(subdir, "gene_ordination.png"), width=8, height=10)
+ggsave(p, filename = file.path(subdir, "gene_ordination_order.png"), width=8, height=10)
+
+# Color by diet
+
+#### Get shape scales for plotting ####
+order_shape_scale <- c("Carnivora" = 4, "Primates" = 19, "Artiodactyla" = 5, "Perissodactyla" = 2, "Rodentia" = 1, "Rest" = 12, "Proboscidea_Sirenia" = 12)
+
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = "Total_abundance") +
+  custom_theme() +
+  scale_shape_manual(values=order_shape_scale, name = "Order") +
+  scale_color_manual(values=diet_palette, name = "Estimated diet") +
+  scale_size(name = "# Features") +
+  geom_phylopic(data = centroids(ord@ord, phy_gene_f), aes(colour = diet.general), uuid = centroids(ord@ord, phy_gene_f)$uid, width = 0.3, fill = "transparent") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
+
+ggsave(p, filename = file.path(subdir, "gene_ordination_diet.png"), width=8, height=10)
 
 # Plot arrows
 # Get loading arrows coordinaties
@@ -128,6 +148,96 @@ p <- ggplot(data = arrows_filt) +
 
 ggsave(p, filename = file.path(subdir, "gene_ordination_arrows.png"), width=8, height=6)
 
+#### PATH ABUNDANCE (CLR) ####
+
+phy_pathway_clr <- phy_pathway_clr %>% subset_samples(Order %in% c("Artiodactyla", "Carnivora", "Perissodactyla", "Primates"))
+
+phy_pathway_clr <- phy_pathway_clr %>% 
+        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+                  #Carnivora = (Order == "Carnivora"),
+                  Perissodactyla = (Order == "Perissodactyla"),
+                  Primates = (Order == "Primates"),
+                  #Rodentia = (Order == "Rodentia"),
+                  ruminant = (digestion == "Ruminant"),
+                  marine = (habitat.general == "Marine"),
+                  animalivore = (diet.general == "Animalivore"))
+
+species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
+                    "ruminant", "marine", "cf", "cp")
+
+# Ordinate using all data
+ord <- ord_calc(phy_pathway_clr, constraints = species_traits, method = "RDA")
+
+# Scree plot
+p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
+            xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
+
+ggsave(file.path(subdir, "screeplot_pathways.png"), p, width=8, height=6)
+
+# Color by order
+p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5, size = "Total_abundance") +
+  custom_theme() +
+  scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
+  scale_color_manual(values=order_palette, name = "Order") +
+  scale_size(name = "# Features") +
+  geom_phylopic(data = centroids(ord@ord, phy_pathway_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_pathway_clr)$uid, width = 0.3, fill = "transparent") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
+
+ggsave(p, filename = file.path(subdir, "pathway_ordination_order.png"), width=8, height=10)
+
+# Color by diet
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5, size = "Total_abundance") +
+  custom_theme() +
+  scale_shape_manual(values=order_shape_scale, name = "Order") +
+  scale_color_manual(values=diet_palette, name = "Estimated diet") +
+  scale_size(name = "# Features") +
+  geom_phylopic(data = centroids(ord@ord, phy_pathway_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_pathway_clr)$uid, width = 0.3, fill = "transparent") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(ncol = 1, size = 1, byrow = TRUE))
+
+ggsave(p, filename = file.path(subdir, "pathway_ordination_diet.png"), width=8, height=10)
+
+# Plot arrows
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
+
+# Get gene category
+arrows$name <- as.character(phy_pathway_clr@tax_table[match(rownames(arrows), rownames(phy_pathway_clr@tax_table)), "path_name"])
+arrows$category <- as.character(phy_pathway_clr@tax_table[match(rownames(arrows), rownames(phy_pathway_clr@tax_table)), "path_class"])
+arrows$category <- str_remove(arrows$category, ".*; ")
+
+arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 25))
+
+# Save
+write.csv(rownames_to_column(arrows, "gene"), file.path(subdir, "gene_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
+
+# Keep only strongest associations
+arrows_filt <- arrows %>% filter(to_plot) %>%
+              select(contains(c("1", "2")), name, category)
+
+# Group uncommon categories
+common_categories <- table(arrows_filt$category) %>% sort(decreasing = TRUE) %>% head(6) %>% names
+
+arrows_filt <- arrows_filt %>%
+    mutate(category_grouped = factor(case_when(category %in% common_categories ~ category,
+                                            TRUE ~ "Other"), levels = c(common_categories, "Other")))
+
+# Set colours for categories using colour brewer
+arrow_colours <- brewer.pal(n = length(unique(arrows_filt$category_grouped))-1, name = "Dark2")
+names(arrow_colours) <- unique(arrows_filt$category_grouped)[-length(unique(arrows_filt$category_grouped))] # Remove "Other" from names
+arrow_colours["Other"] <- "grey90" # Set "Other" to grey
+
+p <- ggplot(data = arrows_filt) +
+  geom_segment(aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = category_grouped), linewidth = 0.5, alpha = 0.5) +
+  geom_text(aes(x = RDA1, y = RDA2, label = name, hjust = ifelse(RDA1 < 0, 1, 0)), size = 1.5, vjust = 1) +
+  scale_color_manual(values = arrow_colours, name = "Pathway class") +
+  xlim(c(min(arrows_filt$RDA1)*2, max(arrows_filt$RDA1)*2)) +
+  xlab("RDA1") + ylab("RDA2") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8))
+
+ggsave(p, filename = file.path(subdir, "pathway_ordination_arrows.png"), width=8, height=8)
+
 #############################
 #### NON KEGG ANNOTATIOS ####
 #############################
@@ -139,7 +249,7 @@ phy_merops <- phy_gene_f %>% subset_taxa(database == "MEROPS")
 phy_merops_comp <- phy_gene_f %>% transform("compositional") %>% subset_taxa(database == "MEROPS")
 
 merops_richness <- 
-    estimate_richness(rarefy_even_depth(phy_merops, 3000), measures = "Observed") %>%
+    estimate_richness(phy_merops, measures = "Observed") %>%
     rownames_to_column("Sample") %>%
     left_join(select(data.frame(sample_data(phy_merops)), Common.name, cp, diet.general, Order_grouped) %>%
                 as.data.frame() %>% rownames_to_column("Sample"))
@@ -187,7 +297,7 @@ phy_cazy <- phy_gene_f %>% subset_taxa(database == "CAZY")
 phy_cazy_comp <- phy_gene_f %>% transform("compositional") %>% subset_taxa(database == "CAZY")
 
 cazy_richness <- 
-    estimate_richness(rarefy_even_depth(phy_cazy, 1000), measures = "Observed") %>%
+    estimate_richness(phy_cazy, 1000, measures = "Observed") %>%
     rownames_to_column("Sample") %>%
     left_join(select(data.frame(sample_data(phy_cazy)), Common.name, cp, diet.general, Order_grouped) %>%
                 as.data.frame() %>% rownames_to_column("Sample"))
