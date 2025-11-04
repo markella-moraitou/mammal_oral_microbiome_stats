@@ -5,6 +5,7 @@
 ################
 #### SET UP ####
 ################
+
 library(dplyr)
 library(tidyr)
 library(reshape2)
@@ -14,6 +15,8 @@ library(philr)
 library(TreeTools)
 library(ape)
 library(picante)
+library(phytools)
+library(phangorn)
 library(microbiome)
 library(stringr)
 library(vegan)
@@ -417,3 +420,119 @@ p <- ggplot(mrm_results_species_df,
           panel.grid = element_blank())
 
 ggsave(p, filename = file.path(subdir, "mrm_results_with_species_barplot.png"), width = 8, height = 10)
+
+#########################
+#### Tree congruence ####
+#########################
+
+## Prep input
+
+# Create a list of samples per species
+links <- samples_to_species %>%
+        rename("phy1" = "Species", "phy2" = "Sample") %>%
+        select(phy1, phy2)
+
+links$colour <- species_palette[as.character(links$phy1)]
+
+# Microbiome tree from CLR distances
+#dist_list <- readRDS(file.path(subdir, "mb_distances_all_levels.RDS"))
+mb_tree_clr <- nj(as.dist(dist_list[["genus"]][["aitchison"]]))
+
+mb_dist_clr_matrix <- as.matrix(as.dist(dist_list[["genus"]][["aitchison"]]))
+
+# Microbiome tree from philr distances
+mb_tree_philr <- nj(as.dist(dist_list[["genus"]][["philr"]]))
+
+mb_dist_philr_matrix <- as.matrix(as.dist(dist_list[["genus"]][["philr"]]))
+
+# Get host distances per host species
+host_dist <- dcast(host_dist_melt, Item1 ~ Item2, value = "host_distance") %>% column_to_rownames("Item1") %>% as.dist
+
+# Get diet matrix again, but per host species
+diet <- sample_data %>% data.frame %>% select(Species, Animal, PlantO, Fruit, Seed) %>%
+        as_tibble %>% unique %>%
+        column_to_rownames("Species")
+
+diet_sp_dist <- scale(vegdist(diet, method = "euclidean"))
+
+## Compare host phylogeny and microbiome diversification
+# Create association matrix (binary matrix: rows = hosts, columns = microbes)
+assoc <- links %>% select(phy1, phy2) %>% mutate(assoc = 1) %>% pivot_wider(names_from = phy2, values_from = assoc, values_fill = 0) %>%
+          column_to_rownames("phy1") %>% as.matrix()
+
+parafit_result_ph <- parafit(host.D = host_dist, para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+parafit_result_ph$ParaFitGlobal
+parafit_result_ph$p.global
+
+## Compare host diet and microbiome diversification
+# Create association matrix (binary matrix: rows = hosts, columns = microbes)
+
+parafit_result_d <- parafit(host.D = diet_sp_dist_matrix, para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+parafit_result_d$ParaFitGlobal
+parafit_result_d$p.global
+
+## Plot cophyloplots
+# Cophyloplot
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
+
+png(file.path(subdir, "cophyloplot_clr.png"), width = 1800, height = 1400)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_clr, assoc=links)
+
+png(file.path(subdir, "cophyloplot_clr_diet.png"), width = 1800, height = 1400)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+# Cophyloplot
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_philr, assoc=links, rotate = TRUE)
+
+png(file.path(subdir, "cophyloplot_philr.png"), width = 1800, height = 1400)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+### Rerun tests with one microbiome per species
+
+n_iter <- 100
+tree_res <- data.frame(ParaFitGlobal = numeric(n_iter), pval = numeric(n_iter), rf_dist = numeric(n_iter))
+
+set.seed(123)
+
+# Also plot the sampled trees
+pdf(file.path(subdir, "cophyloplot_clr_subsets.pdf"))
+par(mar=c(5, 4, 4, 2) + 0.1)
+
+for (i in 1:n_iter) {
+  cat(i, "... ")
+  # Sample one microbiome per species
+  sampled_mbs <- links %>% group_by(phy1) %>% slice_sample(n = 1) %>% ungroup() %>% pull(phy2)
+  # Create new association matrix
+  links_sampled <- links %>% dplyr::filter(phy2 %in% sampled_mbs)
+  assoc_sampled <- links_sampled %>%
+                   select(phy1, phy2) %>% mutate(assoc = 1) %>%
+                   pivot_wider(names_from = phy2, values_from = assoc, values_fill = 0) %>%
+                   column_to_rownames("phy1") %>% as.matrix()
+  # Subset microbiome dist
+  mb_dist_clr_matrix_sampled <- mb_dist_clr_matrix[sampled_mbs, sampled_mbs]
+  # Run parafit
+  res <- parafit(host.D = host_dist, para.D = mb_dist_clr_matrix_sampled, HP = assoc_sampled, nperm = 1000, correction="cailliez")
+  # Also get Robinson-Foulds distance
+  mb_tree_clr_sampled <- drop.tip(mb_tree_clr, tip = setdiff(mb_tree_clr$tip.label, sampled_mbs))
+  copy <- mb_tree_clr_sampled
+  copy$tip.label <- links$phy1[match(copy$tip.label, links$phy2)]
+  rf_dist <- RF.dist(host_consensus, copy, normalize = TRUE)
+  tree_res[i, "ParaFitGlobal"] <- res$ParaFitGlobal
+  tree_res[i, "pval"] <- res$p.global
+  tree_res[i, "rf_dist"] <- rf_dist
+  # Cophyloplot
+  coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr_sampled, assoc=links_sampled, rotate = TRUE)
+  plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links_sampled$colour)
+  title(main = paste("Iteration", i, "- p =", round(res$p.global, 3), "- RF dist =", round(rf_dist, 3)), 
+        cex.main = 0.5, col.main = "black")
+}
+dev.off()
+cat("done\n")
