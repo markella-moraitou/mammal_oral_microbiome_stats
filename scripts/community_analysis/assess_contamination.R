@@ -135,9 +135,9 @@ p_a <- ggplot(abundance_ratios, aes(x = mean_ratio, y = OTU, fill = common.conta
   theme(legend.position="top") +
   ylab("OTU") +
   scale_fill_manual(values = c("TRUE" = "#FF5733", "FALSE" = "grey")) +
-  scale_x_continuous(name = "\nmean rel. abund. ratio in\nsamples/negatives",
+  scale_x_continuous(name = "average ratio in\nsamples/negatives",
                     trans = "log10", breaks = c(0.01, 1, 100)) +
-  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = s_b_ratio, linetype = "dashed") +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   theme(axis.text.y = element_blank(), axis.ticks.x = element_blank(), legend.position = "none")
 
@@ -175,6 +175,8 @@ write.csv(prevalence, file.path(subdir, "taxon_prevalence_per_species.csv"), quo
 
 prevalence_summ <- prevalence %>%
   pivot_longer(cols = -OTU, names_to = "Species", values_to = "prevalence") %>%
+  # Keep only DC samples
+  filter(!grepl("control", Species) & !grepl("blank", Species)) %>%
   filter(OTU %in% otu_order) %>%
   mutate(OTU = factor(OTU, levels = otu_order)) %>%
   group_by(OTU) %>% summarise(mean = mean(prevalence, na.rm = TRUE),
@@ -187,7 +189,7 @@ p_p <- ggplot(prevalence_summ, aes(x = mean, fill = mean, y = OTU)) +
   geom_errorbar(aes(xmin = q1, xmax = q3), linewidth = 0.5, colour = "grey") +
   geom_point(aes(colour = mean, alpha = 0.5)) +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
-  scale_colour_viridis_c(option = "magma") + xlab("prevalence\nin samples") +
+  scale_colour_viridis_c(option = "magma") + xlab("\nprevalence per\nhost species") +
   geom_vline(xintercept = prev_thresh, linetype = "dashed") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), , axis.title.x.top = element_text())
@@ -231,13 +233,14 @@ habitats <- data.frame(taxon = otu_order) %>%
             summarise(occurences = sum(occurences)) %>%
             mutate(habitat = gsub(" ", "_", habitat)) %>%
             # Only select some of the most informative terms
-            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut"))
+            mutate(habitat = case_when(habitat == "laboratory_equipment" ~ "lab", TRUE ~ habitat)) %>%
+            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut", "lab"))
 
 # Get occurences as a percentage of the total
 habitats <- habitats %>% group_by(taxon) %>% mutate(perc_occurences = occurences/sum(occurences)) %>% ungroup
 
 # Set habitat as a factor
-habitats$habitat <- factor(habitats$habitat, levels = c("oral", "animal", "rumen", "gut", "marine", "soil", "laboratory_equipment"))
+habitats$habitat <- factor(habitats$habitat, levels = c("oral", "animal", "rumen", "gut", "marine", "soil", "lab"))
 
 habitats$taxon <- factor(habitats$taxon, levels = otu_order)
 
@@ -247,12 +250,14 @@ p_h <- habitats %>%
       mutate(perc_occurences = replace(perc_occurences, perc_occurences == 0, NA)) %>%
       ggplot(aes(x = habitat, colour = habitat, fill = habitat, y = taxon, size = perc_occurences)) +
       geom_point(shape = 21, alpha = 0.2) +
-      scale_size_continuous(range = c(0.5, 5)) +
+      scale_size_continuous(range = c(0.5, 5), breaks = c(0.25, 0.75)) +
       geom_hline(yintercept = ythresh, linetype = "dashed") +
-      scale_fill_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73")) +
-      scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73")) +
-      theme(, axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(), axis.title.x.top = element_text())
+      scale_fill_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "lab" = "black")) +
+      scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "lab" = "black")) +
+      theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_text(hjust = 1),
+        axis.title.y = element_blank(), axis.title.x = element_blank(), legend.title = element_text(hjust = 0.5),
+        legend.key.width = unit(1, "cm")) +
+      guides(size = guide_legend(title = "proportion of reports", title.position = "top", direction = "horizontal"), fill = "none", colour = "none")
 
 #### DAMAGE PATTERNS ####
 
@@ -264,18 +269,20 @@ damage_df <- full_join(name_lineage_match, pydamage_summary, by = "lineage") %>%
           filter(OTU %in% otu_order) %>%
           mutate(OTU = factor(OTU, levels = otu_order)) %>%
           filter(!is.na(OTU)) %>% 
-          # Where more than one lineage is represented as one species, average
-          group_by(OTU) %>% summarise(across(where(is.numeric), mean), .groups = "drop")
+          # Where more than one lineage is represented as one species, get median, min and max across lineages
+          group_by(OTU) %>% summarise(median = median(median, na.rm = TRUE),
+                                      min = min(min),
+                                      max = max(max), .groups = "drop")
 
 # Plot
-p_d <- ggplot(damage_df, aes(x = median, y = OTU)) +
-  geom_errorbar(aes(xmin = q1, xmax = q3), alpha = 0.5, linewidth = 0.2, colour = "grey") +
-  geom_point(aes(colour = median), alpha = 0.5, size = 0.5) +
+p_d <- ggplot(damage_df, aes(x = median + 0.01, y = OTU)) +
+  geom_point(aes(colour = median + 0.01), alpha = 0.8, size = 0.5,
+            position = position_jitter(width = 0.05)) +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
-  scale_colour_viridis_c(option = "plasma") + xlab("Damage patterns\n('p_damage_max')") +
+  scale_x_continuous(trans = "log10") +
+  scale_colour_viridis_c(option = "turbo", trans = "log10") + xlab("\ndamage patterns\n(damage_model_pmax)") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
-        axis.title.y = element_blank(), , axis.title.x.top = element_text()) +
-  xlim(0,1)
+        axis.title.y = element_blank(), axis.title.x.top = element_text())
 
 #### Combine all tables ####
 # Get a wider version of the habitats table
@@ -296,9 +303,9 @@ write.table(assess_taxa, file=file.path(subdir, "assess_taxa.csv"), sep=",", row
 
 #### Plot ####
 p <- plot_grid(p_a + theme(legend.position="none"),
-               p_p + theme(legend.position="none"),
                p_ma + theme(legend.position="none"),
-               p_h + theme(legend.position="none"),
+               p_p + theme(legend.position="none"),
+               p_h + theme(legend.position="bottom"),
                p_d + theme(legend.position="none"),
                nrow = 1, align = "h", axis = "tb", rel_widths = c(1, 0.75, 0.75, 1, 1))
 
@@ -455,9 +462,8 @@ content <- data.frame(total_abundance = sample_sums(phy_sp),
                       new_name = sample_names(phy_sp_clr),
                       Order_grouped = phy_sp@sam_data$Order_grouped)
 
-p_c <- ggplot(content, aes(x = total_abundance, y = new_name, fill = total_abundance)) +
+p_c <- ggplot(content, aes(x = total_abundance, y = new_name)) +
   geom_bar(stat = "identity") +
-  scale_fill_viridis_c() +
   facet_grid(Order_grouped~., space = "free_y", scales = "free_y", switch = "y") +
   theme(legend.position="none",
         axis.text.y = element_blank(), axis.ticks.y = element_blank(),
@@ -466,7 +472,7 @@ p_c <- ggplot(content, aes(x = total_abundance, y = new_name, fill = total_abund
         strip.background = element_blank()) +
   # Add line at threshold
   geom_vline(xintercept = min_samp, linetype = "dashed") +
-  xlab("classified/nreads") +
+  xlab("classified\nreads") +
   scale_x_log10(breaks = c(10^2, 10^4, 10^6))
 
 # Show species as a bar
@@ -532,9 +538,9 @@ cpdc_label <- data.frame(new_name = sample_levels,
 p_r_cpdc <- p_r + geom_text(data = cpdc_label, aes(label = label), size = 3, colour = "#AB0A1D")
 
 # Combine plots
-p <- plot_grid(p_d, p_r_cpdc, p_c, p_bar, ncol = 4, align = "h", axis = "tb", rel_widths = c(1, 0.3, 0.3, 0.8))
+p <- plot_grid(p_d, p_r_cpdc, p_c, p_bar, ncol = 4, align = "h", axis = "tb", rel_widths = c(1, 0.3, 0.3, 0.5))
 
-ggsave(file=file.path(subdir, "assess_samples.png"), p, width=8, height=18)
+ggsave(file=file.path(subdir, "assess_samples.png"), p, width=10, height=15)
 
 ### Combine tables
 assess_samples <- decom_tbl %>% left_join(select(content, c(new_name, total_abundance)), by = "new_name")

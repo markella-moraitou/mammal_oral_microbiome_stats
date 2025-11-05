@@ -59,6 +59,7 @@ sample_tax <- read.csv(file.path(indir, "host_taxonomy.csv")) %>%  # Sample taxo
   select(museum.species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
 species_traits <- read.csv(file.path(indir, "host_traits.csv")) # Species habitats
 quant_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv")) # Diet quantification data from Lintulaakso et al. 2023 paper
+elton_traits <- read.csv(file.path(indir, "elton_traits.csv")) # Elton traits data
 contig_info <- read.csv(file.path(indir, "contig_info_per_sample.txt"), sep ="\t") # Info on contigs per sample
 
 ###########################
@@ -69,6 +70,14 @@ contig_info <- read.csv(file.path(indir, "contig_info_per_sample.txt"), sep ="\t
 # Normalise colnames
 colnames(sample_tax) <- str_to_title(colnames(sample_tax))
 
+# Combine dietary components of carnivory in Elton traits
+colnames(elton_traits) <- colnames(elton_traits) %>%
+                      gsub("Diet.", "", .)
+
+elton_traits <- elton_traits %>%
+  mutate(Animal = Inv + Vend + Vect + Vfish + Scav + Vunk) %>%
+  select(-c(Inv, Vend, Vect, Vfish, Scav, Vunk))
+
 # Combine all sample and host species metadata in one big table
 meta <- metadata
 
@@ -77,6 +86,7 @@ meta <-
   left_join(sample_tax, relationship = "many-to-many", by=c("Species"="Museum.species")) %>%
   left_join(species_traits, relationship = "many-to-many") %>%
   left_join(quant_diet, relationship="many-to-many") %>%
+  left_join(elton_traits, by="Species") %>%
   left_join(contig_info, by = c("Ext.ID" = "sample")) %>%
   # Combine different rows for pooled samples
   group_by(Ext.ID) %>%
@@ -90,6 +100,15 @@ meta <-
   rename("diet.general"="calculated_cluster_main_diet") %>%
   as.data.frame
 
+# Adjust dietary categories (trying to reconcile Lintulaakso et al. and Elton traits)
+meta <- meta %>%
+  mutate(diet.general = case_when(
+    Species == "Giraffa camelopardalis" ~ "Herbivore",
+    Species %in% c("Sus scrofa", "Sus domesticus") ~ "Omnivore",
+    Species == "Marmota marmota" ~ "Frugivore",
+    TRUE ~ diet.general
+  ))
+
 # Turn order and species to a factor and create a separate order for blanks and controls
 meta$Order <- ifelse(meta$Species %in% c("Environmental control", "Extraction blank", "Library blank"),
                     "Control/blank", meta$Order)
@@ -100,9 +119,6 @@ meta$Order <- factor(meta$Order, levels=ord_levels)
 
 spe_levels <- meta %>% arrange(Order, Species) %>% pull(Species) %>% unique
 meta$Species <- factor(meta$Species, levels=spe_levels)
-
-comname_levels <- meta %>% arrange(Order, Common.name) %>% pull(Common.name) %>% unique
-meta$Common.name <- factor(meta$Common.name, levels=comname_levels)
 
 # Create a new Order column with rare orders grouped together for easier plotting
 meta <- meta %>% group_by(Order) %>%

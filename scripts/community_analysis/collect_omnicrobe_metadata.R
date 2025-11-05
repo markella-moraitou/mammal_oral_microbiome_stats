@@ -37,7 +37,7 @@ taxnames <- taxa_names(phy_sp)
 
 if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
   # Modify taxnames to match NCBI database (e.g. remove spxxxx type epithets)
-  taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*")
+  taxsimple <- taxnames %>% str_remove(" sp[0-9]+") %>% str_remove("\\*") %>% str_remove("_[A-Z]+")
   # Search database to get NCBI codes
   taxids <- sapply(unique(taxsimple), function(x) {
     tryCatch({
@@ -58,7 +58,7 @@ if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
   # Identify those not found and search only with genus name
   missing = taxids_df %>% filter(is.na(ids) & grepl(" ", searchnames)) %>% pull(searchnames)
   taxids_df = taxids_df %>% filter(!searchnames %in% missing)
-  replacement = str_remove(missing, " .*")
+  replacement = str_remove(missing, " .*") %>% str_remove("_[A-Z]+")
   # Search again
   taxids_miss = sapply(unique(replacement), function(x) {
     tryCatch({

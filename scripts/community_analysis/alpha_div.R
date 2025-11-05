@@ -18,6 +18,8 @@ library(phyr)
 library(phytools)
 library(MCMCglmm)
 library(parallel)
+library(ggtree)
+library(ggtreeExtra)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -34,6 +36,8 @@ if (!dir.exists(subdir)) dir.create(subdir, recursive = TRUE)
 source(file.path("..", "plot_setup.R"))
 plot_setup(file.path("..", "..", "input", "palettes"))
 theme_set(custom_theme())
+
+source(file.path("..", "phylo_functions.R"))
 
 #######################
 #####  LOAD INPUT #####
@@ -66,7 +70,7 @@ rare_results <- data.frame(Sample = character(),
                            subsample = numeric(),
                            stringsAsFactors = FALSE)
 
-max <- 10^floor(log10(mean(sample_sums(phy_sp_f))))
+max <- 25000
 step <- max / 20
 
 for (s in seq(0, max, by=step)) {
@@ -105,9 +109,9 @@ species_medians <-
 p <- ggplot(rare_results_filt) +
   geom_line(aes(x = subsample, y = S, group = Sample, colour = Species)) +
   geom_phylopic(data = species_medians,
-                 aes(x = max-step*2, y = median_S + 5, uuid = uid,
-                     height = max(rare_results_filt$S)/2, color = Species),
-                 alpha = 0.8, vjust = 0, hjust = 0) +
+                 aes(x = max-step*3, y = median_S + 5, uuid = uid,
+                     height = max(rare_results_filt$S)*1.5, color = Species),
+                 alpha = 0.8, vjust = 0, hjust = 0, remove_background = FALSE) +
   scale_color_manual(values=species_palette, name = "Order") +
   facet_grid(~ Order_grouped) +
   theme(legend.position = "none") +
@@ -118,6 +122,8 @@ p <- ggplot(rare_results_filt) +
 ggsave(file.path(subdir, "rarefaction_curves_filt.png"), p, width=8, height=8)
 
 #### Raw dataset ####
+
+set.seed(1)
 
 rare_results <- data.frame(Sample = character(),
                            S = numeric(),
@@ -165,7 +171,7 @@ p <- ggplot(rare_results_filt) +
   geom_line(aes(x = subsample, y = S, group = Sample, colour = Species)) +
   geom_phylopic(data = species_medians,
                  aes(x = max-step*2, y = median_S + 5, uuid = uid,
-                     width = max(rare_results_filt$S)/2, color = Species),
+                     width = max(rare_results_filt$S), color = Species),
                  alpha = 0.8, vjust = 0, hjust = 0) +
   scale_color_manual(values=species_palette, name = "Order") +
   facet_grid(~ Order_grouped) +
@@ -183,7 +189,7 @@ ggsave(file.path(subdir, "rarefaction_curves_raw.png"), p, width=8, height=8)
 set.seed(1)
 
 # Rarefy to the depth suggested by rarefaction curves
-rar_level <- 200000
+rar_level <- 20000
 phy_sp_rarefied <- rarefy_even_depth(subset_samples(phy_sp_f, sample_sums(phy_sp_f) > rar_level), sample.size = rar_level, rngseed = 1)
 
 alpha_div <- data.frame(estimate_richness(phy_sp_f, measures = c("Observed"))) %>%
@@ -207,7 +213,7 @@ alpha_div <- left_join(alpha_div,
 alpha_div <- alpha_div %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, PlantO, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion),
             by = c("Sample"))
 
 write.csv(alpha_div, file = file.path(subdir, "alpha_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -278,13 +284,13 @@ ggsave(file.path(subdir, "alpha_diversity_raw_rarefied.png"), p, width=8, height
 bac_tree$tip.label <- gsub("_", " ", bac_tree$tip.label)
 
 # Calculate Faith's Phylogenetic Diversity
-otu_table <- t(as.matrix(phy_sp_f@otu_table))
+otu_table <- t(as.matrix(subset_taxa(phy_sp_rarefied, superkingdom == "Bacteria")@otu_table))
 
 # Get phylogenetic diversity
 phy_div <- pd(otu_table, bac_tree) %>% rownames_to_column(var = "Sample") %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, PlantO, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion),
             by = c("Sample"))
 
 write.csv(phy_div, file = file.path(subdir, "phylogenetic_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -303,25 +309,34 @@ p <- ggplot(phy_div, aes(x=Species, y=PD)) +
 
 ggsave(file.path(subdir, "phylogenetic_diversity.png"), p, width=8, height=10)
 
-# Calculate ratio between PD and species richness
-phy_div <- phy_div %>% mutate(ratio = PD/SR)
-
-p <- ggplot(phy_div, aes(x=Species, y=ratio)) +
-  geom_boxplot(aes(fill=diet.general)) +
+# Plot relationship between PD and species richness
+p <- ggplot(phy_div, aes(x=SR, y=PD)) +
+  geom_point(aes(colour = diet.general)) +
+  #geom_boxplot(aes(fill=diet.general)) +
   theme(legend.position = "none") +
-  scale_fill_manual(values=diet_palette, name = "Species") +
-  scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
-  facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
+  scale_colour_manual(values=diet_palette, name = "Species") +
+  #scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
+  facet_grid(Order_grouped ~ ., scales = "fixed", space = "fixed",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
-  theme(legend.position = "none", axis.title.y = element_blank()) +
-  ylab("Faith's PD/Species richness ratio") +
-  coord_flip()
+  theme(legend.position = "bottom", axis.text = element_text(size = 8),
+        strip.text.y = element_text(size = 10)) +
+  xlab("Observed species richness (after rarefaction)") + ylab("Faith's PD (after rarefaction)")
 
-ggsave(file.path(subdir, "alpha_vs_pd.png"))
+ggsave(file.path(subdir, "alpha_vs_pd.png"), width=8, height=10)
 
 ###################
 #### RUN TESTS ####
 ###################
+
+# Combine with alpha diversity
+div <- full_join(select(alpha_div, c(Sample, filt, filt_rarefied, raw_rarefied)),
+                  select(phy_div, c(-SR)), by = "Sample")
+
+write.csv(div, file = file.path(subdir, "diversity.csv"), quote = FALSE, row.names = FALSE)
+
+div_filt <- div %>% filter(!is.na(filt_rarefied) & !is.na(PD))
+
+cor.test(div_filt$filt_rarefied, div_filt$PD, method = "pearson")
 
 # Fix tree labels
 host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
@@ -330,15 +345,15 @@ host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
 #### Run PGLMM ####
 # to identify factors affecting alpha diversity and Faith's PD
 
-# Alpha diversity
-alpha_div <- alpha_div %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
+div_filt <- div_filt %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
                                                        TRUE ~ Species))
 
-alpha_div$ruminant <- factor(ifelse(alpha_div$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
+div_filt$ruminant <- factor(ifelse(div_filt$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
 
-model <- pglmm(filt ~ Animal + PlantO + habitat.general + ruminant + (1 | Species__), data = alpha_div, 
+model <- pglmm(filt_rarefied ~ Animal + Fruit + habitat.general + ruminant + (1 | Species__), data = div_filt, 
               cov_ranef = list(Species = host_consensus), family = "gaussian")
 
+# Alpha diversity
 res_alpha <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
             rownames_to_column %>% filter(rowname != "(Intercept)") %>%
             mutate(rowname = str_remove(str_remove(rowname, "habitat.general"), "ruminant"))
@@ -348,13 +363,7 @@ colnames(res_alpha) <- c("term", "coef", "pval")
 res_alpha$response <- "alpha_diversity"
 
 # Phylogenetic diversity
-
-phy_div <- phy_div %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
-                                                       TRUE ~ Species))
-
-phy_div$ruminant <- factor(ifelse(phy_div$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
-
-model <- pglmm(PD ~ Animal + PlantO + habitat.general + ruminant + (1 | Species__), data = phy_div, 
+model <- pglmm(PD ~ Animal + Fruit + habitat.general + ruminant + (1 | Species__), data = div_filt, 
               cov_ranef = list(Species = host_consensus), family = "gaussian")
 
 res_phy <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
@@ -373,12 +382,12 @@ write.csv(res, file.path(subdir, "pglmm_results.csv"), row.names = FALSE, quote 
 
 # Alpha diversity
 
-model <- lm(filt ~ Animal + PlantO + habitat.general + ruminant,
-            data = alpha_div)
+model <- lm(filt_rarefied ~ Animal + Fruit + habitat.general + ruminant,
+            data = div_filt)
 
 # Extract residuals
-resids_df <- data.frame(Sample = alpha_div$Sample,
-                        Species = alpha_div$Species,
+resids_df <- data.frame(Sample = div_filt$Sample,
+                        Species = div_filt$Species,
                         residuals = residuals(model))
 
 resids_by_species <- resids_df %>%
@@ -397,12 +406,12 @@ res_alpha <- data.frame(response = "alpha_diversity",
                       pval = pagel$P)
 
 # Phylogenetic diversity
-model <- lm(PD ~ Animal + PlantO + habitat.general + ruminant,
-            data = phy_div)
+model <- lm(PD ~ Animal + Fruit + habitat.general + ruminant,
+            data = div_filt)
 
 # Extract residuals
-resids_df <- data.frame(Sample = phy_div$Sample,
-                        Species = phy_div$Species,
+resids_df <- data.frame(Sample = div_filt$Sample,
+                        Species = div_filt$Species,
                         residuals = residuals(model))
 
 resids_by_species <- resids_df %>%
@@ -436,14 +445,14 @@ prior <- list(G = list(G1 = list(V = 1, nu = 0.002)),
 Ainv <- inverseA(host_consensus, nodes = "TIPS")$Ainv
 
 m <- mclapply(1:10, function(i) {
-      MCMCglmm(fixed = filt ~ Animal + PlantO + habitat.general + ruminant,
+      MCMCglmm(fixed = filt_rarefied ~ Animal + Fruit + habitat.general + ruminant,
          random = ~ Species,
          ginverse = list(Species=Ainv),
          prior = prior,
-         data = alpha_div,
+         data = div_filt,
          verbose = TRUE, # pr = TRUE, pl = TRUE,
-         nitt = 51000,
-         burnin = 1000,
+         nitt = 40000,
+         burnin = 20000,
          thin = 100)
   }, mc.cores = 1)
 
@@ -463,7 +472,7 @@ m1 = m[[1]]
 
 pdf(file=file.path(subdir, "mcmcglmm_plots.pdf"))
 par(mfrow = c(2,2))
-plot(m1)
+plot(m1, ask = FALSE)
 dev.off()
 
 # 95% Credible interval

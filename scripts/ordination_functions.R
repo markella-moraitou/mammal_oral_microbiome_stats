@@ -190,7 +190,8 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   }
   # Add more layers
   p <- p +
-    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8))
+    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+    guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
   # If PCA, add taxon arrows
   if (type == "PCA") {
     p <- p +
@@ -213,31 +214,25 @@ taxa_plot <- function(ord, phyloseq) {
               # Get grouped phylum
               mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
                                         superkingdom == "Bacteria" ~ "Other Bacteria",
-                                        superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
-  # Add mean relative abundance log10-transformed with pseudocount
-  taxa_rda$mean_abund <- rowMeans(phyloseq@otu_table)[taxa_rda$OTU]
-  # Identify 15 genera with most abundance, group remaining genera to "Other"
-  top_genera <- taxa_rda %>% group_by(genus) %>% summarise(total = sum(mean_abund, na.rm = TRUE)) %>% top_n(15, total) %>% pull(genus)
-  taxa_rda <- taxa_rda %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Other")) %>%
-              mutate(genus = factor(genus, levels = top_genera)) %>%
-              filter(genus != "Other")
-  # Get centroids per genus
-  genus_centroids <- taxa_rda %>% select(OTU, RDA1, RDA2, genus, phylum_grouped) %>% ungroup %>%
-                group_by(genus, phylum_grouped) %>%
-                summarise(RDA1 = mean(RDA1),
-                          RDA2 = mean(RDA2)) %>%
-                filter(!grepl("Other", genus))
-  # Get colours
-  genus_palette <- expand_palette(select(genus_centroids, c(phylum_grouped, genus)), phylum_palette)
-  
+                                        superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
+              # Get mean score per genus
+              group_by(genus, phylum_grouped) %>%
+              summarise(across(is.numeric, mean)) %>% ungroup
+  # Identify 20 genera with the highest correlation
+  top_genera <- taxa_rda %>% arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>%
+                slice_head(n = 20) %>% pull(genus)
+  taxa_rda <- taxa_rda %>% mutate(label = ifelse(genus %in% top_genera, genus, NA)) %>%
+              mutate(label = factor(genus, levels = top_genera)) %>%
+              mutate(linetype = ifelse(genus %in% top_genera, "solid", "dashed"))  
   set.seed(245)
-  p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = genus)) +
-    geom_segment(linewidth = 0.2, alpha = 0.8) +
-    scale_color_manual(values = genus_palette, name = "Microbial genus") +
-    geom_label(data = genus_centroids, aes(label = genus, x = RDA1, y = RDA2),
+  p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = phylum_grouped)) +
+    geom_segment(linewidth = 0.5, alpha = 0.8, aes(linetype = linetype)) +
+    scale_linetype_identity() +
+    scale_color_manual(values = phylum_palette, name = "Phylum") +
+    geom_label(aes(label = label, x = RDA1, y = RDA2),
               size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
     scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "none")
+    theme(legend.position = "bottom", legend.title = element_blank()) + guides(colour = guide_legend(nrow = 3))
   return(p)
 }
