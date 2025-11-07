@@ -324,8 +324,10 @@ p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.gene
 ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p, width=6, height=6)
 
 ## TAXA PLOT
-p <- taxa_plot(ord, phy_sp_f_clr)
+p <- taxa_plot(ord, phy_sp_f_clr)[["plot"]]
 ggsave(file.path(subdir, "RDA_all_clr_taxa_1_2.png"), p, width=6, height=6)
+
+write.csv(taxa_plot(ord, phy_sp_f_clr)[["data"]], file = file.path(subdir, "RDA_all_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
 
@@ -418,8 +420,9 @@ p <- custom_ord_plot(phy_deep_clr, ord, colour="Order_grouped", shape="diet.gene
 ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p, width=6, height=6)
 
 ## TAXA PLOT
-p <- taxa_plot(ord, phy_deep_clr)
+p <- taxa_plot(ord, phy_deep_clr)[["plot"]]
 ggsave(file.path(subdir, "RDA_deep_clr_taxa_1_2.png"), p, width=6, height=6)
+write.csv(taxa_plot(ord, phy_deep_clr)[["data"]], file = file.path(subdir, "RDA_deep_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 ## RDA axis violin plots
 
@@ -518,8 +521,9 @@ p <- custom_ord_plot(phy_artio_clr, ord, colour="diet.general", shape="digestion
 ggsave(file.path(subdir, "RDA_artio_clr_1_2.png"), p, width=6, height=6)
 
 ## TAXA PLOT 
-p <- taxa_plot(ord, phy_artio_clr)
+p <- taxa_plot(ord, phy_artio_clr)[["plot"]]
 ggsave(file.path(subdir, "RDA_artio_clr_taxa_1_2.png"), p, width=6, height=6)
+write.csv(taxa_plot(ord, phy_artio_clr)[["data"]], file = file.path(subdir, "RDA_artio_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
 
@@ -594,8 +598,9 @@ p <- custom_ord_plot(phy_carni_clr, ord, colour="habitat.general", shape="Common
 ggsave(file.path(subdir, "RDA_carni_clr_1_2.png"), p, width=6, height=6)
 
 ## TAXA PLOT 
-p <- taxa_plot(ord, phy_carni_clr)
-ggsave(file.path(subdir, "RDA_carni_clr_taxa_1_2.png"), p, width=5, height=5)
+p <- taxa_plot(ord, phy_carni_clr)[["plot"]]
+ggsave(file.path(subdir, "RDA_carni_clr_taxa_1_2.png"), p, width=6, height=6)
+write.csv(taxa_plot(ord, phy_carni_clr)[["data"]], file = file.path(subdir, "RDA_carni_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
 
@@ -663,9 +668,19 @@ p <- custom_ord_plot(phy_prim_clr, ord, colour="diet.general", shape="Common.nam
 
 ggsave(file.path(subdir, "RDA_prim_clr_1_2.png"), p, width=6, height=6)
 
+p <- ord_plot(ord, colour="project_name", shape="Common.name") +
+    scale_shape_manual(values = species_shape_scale, name = "Diet category") +
+    theme(plot.background = element_rect(fill = "white", color = NA),
+          legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 8)) +
+    guides(colour = guide_legend(nrow = 2, byrow = TRUE),
+           shape = guide_legend(nrow = 4, byrow = TRUE))
+
+ggsave(file.path(subdir, "RDA_prim_clr_1_2_study.png"), p, width=6, height=6)
+
 ## TAXA PLOT 
-p <- taxa_plot(ord, phy_prim_clr)
-ggsave(file.path(subdir, "RDA_prim_clr_taxa_1_2.png"), p, width=5, height=5)
+p <- taxa_plot(ord, phy_prim_clr)[["plot"]]
+ggsave(file.path(subdir, "RDA_prim_clr_taxa_1_2.png"), p, width=6, height=6)
+write.csv(taxa_plot(ord, phy_prim_clr)[["data"]], file = file.path(subdir, "RDA_prim_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
 
@@ -740,8 +755,9 @@ p <- custom_ord_plot(phy_habitat_clr, ord, colour="habitat.general", shape="Orde
 ggsave(file.path(subdir, "RDA_habitat_clr_1_2.png"), p, width=6, height=6)
 
 ## TAXA PLOT 
-p <- taxa_plot(ord, phy_habitat_clr)
-ggsave(file.path(subdir, "RDA_habitat_clr_taxa_1_2.png"), p, width=5, height=5)
+p <- taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["plot"]]
+ggsave(file.path(subdir, "RDA_habitat_clr_taxa_1_2.png"), p, width=6, height=6)
+write.csv(taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["data"]], file = file.path(subdir, "RDA_habitat_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
 

@@ -206,7 +206,7 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   return(p)
 }
 
-taxa_plot <- function(ord, phyloseq) {
+taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
   # Get taxa scores and add taxonomic info
   taxa_rda <- data.frame(vegan::scores(ord@ord, display="species", choices=1:3)) %>%
               cbind(tax_table(phyloseq)[, c("superkingdom", "phylum", "genus", "species")]) %>%
@@ -214,25 +214,23 @@ taxa_plot <- function(ord, phyloseq) {
               # Get grouped phylum
               mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
                                         superkingdom == "Bacteria" ~ "Other Bacteria",
-                                        superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette))) %>%
-              # Get mean score per genus
-              group_by(genus, phylum_grouped) %>%
-              summarise(across(is.numeric, mean)) %>% ungroup
-  # Identify 20 genera with the highest correlation
-  top_genera <- taxa_rda %>% arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>%
-                slice_head(n = 20) %>% pull(genus)
-  taxa_rda <- taxa_rda %>% mutate(label = ifelse(genus %in% top_genera, genus, NA)) %>%
-              mutate(label = factor(genus, levels = top_genera)) %>%
-              mutate(linetype = ifelse(genus %in% top_genera, "solid", "dashed"))  
+                                        superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
+  # Identify 20 (or other defined number) genera with the highest correlation
+  top_taxa <- taxa_rda %>% arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>%
+                slice_head(n = ntaxa) %>% pull(species)
+  taxa_rda <- taxa_rda %>% mutate(label = ifelse(species %in% top_taxa, genus, NA)) %>%
+              mutate(label = factor(species, levels = top_taxa)) %>%
+              mutate(linetype = ifelse(species %in% top_taxa, "solid", "dashed"))  
   set.seed(245)
   p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = phylum_grouped)) +
     geom_segment(linewidth = 0.5, alpha = 0.8, aes(linetype = linetype)) +
     scale_linetype_identity() +
     scale_color_manual(values = phylum_palette, name = "Phylum") +
     geom_label(aes(label = label, x = RDA1, y = RDA2),
-              size = 2, alpha = 0.8, position = position_jitter(height = 0.02)) +
+              size = 1.7, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
     scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "bottom", legend.title = element_blank()) + guides(colour = guide_legend(nrow = 3))
-  return(p)
+    theme(legend.position = "bottom", legend.title = element_blank()) + guides(colour = guide_legend(nrow = 3)) +
+    xlim(min(taxa_rda$RDA1)*1.1, max(taxa_rda$RDA1)*1.2)
+  return(list(plot = p, data = taxa_rda))
 }
