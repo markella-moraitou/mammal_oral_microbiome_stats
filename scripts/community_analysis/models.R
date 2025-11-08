@@ -210,13 +210,13 @@ get_mb_dist <- function(phy, tax, method = c("jaccard", "aitchison", "philr"), t
 }
 
 # Write function to run MRM with random subsampling of samples per species
-sampling_mrm <- function(mb_dist, predictor_dists = list(), niter = 20, sample_map) {
+sampling_mrm <- function(mb_dist, predictor_dists = list(), niter = 100, sample_size = 5, sample_map) {
     mrm_res <- list()
     for (iter in 1:niter) {
         # Randomly subsamples 5 samples per species
         sampled_samples <- sample_map %>%
                             group_by(Species) %>%
-                            slice_sample(n = 5) %>%
+                            slice_sample(n = sample_size) %>%
                             pull(Sample)
         # Subset microbiome distances to include only selected samples
         mb_dist_filt <- as.dist(as.matrix(mb_dist)[sampled_samples, sampled_samples])
@@ -305,13 +305,13 @@ for(i in 1:length(dist_list)) {
         for (method in names(distances)) {
             cat("Running MRM for", method, "in", tax, "level in", dataset, "without species distance matrix\n")
             mb_dist <- distances[[method]]
-            df <- sampling_mrm(mb_dist, predictor_dists = distances_wo_species, niter = 20, sample_map = sample_species_map)
+            df <- sampling_mrm(mb_dist, predictor_dists = distances_wo_species, niter = 100, sample_map = sample_species_map)
             df$Taxonomic_level <- tax
             df$Distance <- method
             df$Dataset <- dataset
             mrm_results_nospecies[[paste(dataset, tax, method, sep="-")]] <- df
             cat("Running MRM for", method, "on", tax, "level in", dataset, "with species distance matrix\n")
-            df <- sampling_mrm(mb_dist, predictor_dists = distances_with_species, niter = 20, sample_map = sample_species_map)
+            df <- sampling_mrm(mb_dist, predictor_dists = distances_with_species, niter = 100, sample_map = sample_species_map)
             df$Taxonomic_level <- tax
             df$Distance <- method
             df$Dataset <- dataset
@@ -348,7 +348,7 @@ colnames(mrm_results_nospecies_df) <- gsub('mb_dist', 'coef', colnames(mrm_resul
 
 write.csv(mrm_results_nospecies_df, file = file.path(subdir, "mrm_results_without_species.csv"), row.names = FALSE, quote = TRUE)
 
-mrm_results_nospecies_df <- mrm_results_nospecies_df %>% dplyr::filter(Taxonomic_level %in% c("genus", "order", "phylum"))
+mrm_results_nospecies_df <- mrm_results_nospecies_df %>% dplyr::filter(Taxonomic_level %in% c("species", "order", "phylum"))
 
 var_cols <- c("Species identity" = "#A41B1B",
               "Host phylogeny" = "#E35D5D",
@@ -365,11 +365,12 @@ p <- ggplot(mrm_results_nospecies_df,
     scale_alpha_discrete(range = c(0.4, 1), name = "Microbial taxonomic level") +
     geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset) +
+    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
-          panel.grid = element_blank())
+          panel.grid = element_blank()) +
+    guides(fill = "none")
 
 ggsave(p, filename = file.path(subdir, "mrm_results_without_species_barplot.png"), width = 8, height = 10)
 
@@ -402,7 +403,7 @@ colnames(mrm_results_species_df) <- gsub('mb_dist', 'coef', colnames(mrm_results
 
 write.csv(mrm_results_species_df, file = file.path(subdir, "mrm_results_with_species.csv"), row.names = FALSE, quote = TRUE)
 
-mrm_results_species_df <- mrm_results_species_df %>% dplyr::filter(Taxonomic_level %in% c("genus", "order", "phylum"))
+mrm_results_species_df <- mrm_results_species_df %>% dplyr::filter(Taxonomic_level %in% c("species", "order", "phylum"))
 
 # Plot result summary as barplot
 p <- ggplot(mrm_results_species_df,
@@ -413,11 +414,12 @@ p <- ggplot(mrm_results_species_df,
     scale_alpha_discrete(range = c(0.4, 1), name = "Microbial taxonomic level") +
     geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset) +
+    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
-          panel.grid = element_blank())
+          panel.grid = element_blank()) +
+    guides(fill = "none")
 
 ggsave(p, filename = file.path(subdir, "mrm_results_with_species_barplot.png"), width = 8, height = 10)
 
@@ -426,73 +428,162 @@ ggsave(p, filename = file.path(subdir, "mrm_results_with_species_barplot.png"), 
 #########################
 
 ## Prep input
+samples_to_species$Common.name <- sample_data$Common.name[match(samples_to_species$Species, sample_data$Species)]
 
 # Create a list of samples per species
 links <- samples_to_species %>%
-        rename("phy1" = "Species", "phy2" = "Sample") %>%
-        select(phy1, phy2)
+        mutate(colour = species_palette[as.character(Species)]) %>%
+        rename("phy1" = "Common.name", "phy2" = "Sample") %>%
+        select(phy1, phy2, colour)
 
-links$colour <- species_palette[as.character(links$phy1)]
+# Microbiome tree from Jaccard distances
+mb_dist_jaccard <- vegdist(t(phy_sp_f@otu_table), method="jaccard")
+mb_tree_jaccard <- nj(mb_dist_jaccard)
+mb_dist_jaccard_matrix <- as.matrix(mb_dist_jaccard)
 
 # Microbiome tree from CLR distances
-#dist_list <- readRDS(file.path(subdir, "mb_distances_all_levels.RDS"))
-mb_tree_clr <- nj(as.dist(dist_list[["genus"]][["aitchison"]]))
-
-mb_dist_clr_matrix <- as.matrix(as.dist(dist_list[["genus"]][["aitchison"]]))
+mb_dist_clr <- vegdist(t(phy_sp_f_clr@otu_table), method="euclidean")
+mb_tree_clr <- nj(mb_dist_clr)
+mb_dist_clr_matrix <- as.matrix(mb_dist_clr)
 
 # Microbiome tree from philr distances
-mb_tree_philr <- nj(as.dist(dist_list[["genus"]][["philr"]]))
-
-mb_dist_philr_matrix <- as.matrix(as.dist(dist_list[["genus"]][["philr"]]))
+mb_dist_philr <- vegdist(t(phy_sp_philr@otu_table), method="euclidean")
+mb_tree_philr <- nj(mb_dist_philr)
+mb_dist_philr_matrix <- as.matrix(mb_dist_philr)
 
 # Get host distances per host species
-host_dist <- dcast(host_dist_melt, Item1 ~ Item2, value = "host_distance") %>% column_to_rownames("Item1") %>% as.dist
+host_dist <- dcast(host_dist_melt, Item1 ~ Item2, value = "host_distance") %>% column_to_rownames("Item1")
+
+colnames(host_dist) <- sample_data$Common.name[match(colnames(host_dist), sample_data$Species)]
+rownames(host_dist) <- sample_data$Common.name[match(rownames(host_dist), sample_data$Species)]
+
+host_dist <- as.dist(host_dist)
 
 # Get diet matrix again, but per host species
-diet <- sample_data %>% data.frame %>% select(Species, Animal, PlantO, Fruit, Seed) %>%
+diet <- sample_data %>% data.frame %>% select(Common.name, Animal, PlantO, Fruit, Seed) %>%
+        dplyr::filter(Common.name %in% links$phy1) %>%
         as_tibble %>% unique %>%
-        column_to_rownames("Species")
+        column_to_rownames("Common.name")
 
-diet_sp_dist <- scale(vegdist(diet, method = "euclidean"))
+diet_sp_dist <- vegdist(diet, method = "euclidean")
 
+#### PARAFIT ####
 ## Compare host phylogeny and microbiome diversification
 # Create association matrix (binary matrix: rows = hosts, columns = microbes)
+
+parafit_results <- data.frame(mb_distance = character(),
+                              host_distance = character(),
+                              ParaFitGlobal = numeric(),
+                              p.global = numeric())
+
 assoc <- links %>% select(phy1, phy2) %>% mutate(assoc = 1) %>% pivot_wider(names_from = phy2, values_from = assoc, values_fill = 0) %>%
           column_to_rownames("phy1") %>% as.matrix()
 
-parafit_result_ph <- parafit(host.D = host_dist, para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
-parafit_result_ph$ParaFitGlobal
-parafit_result_ph$p.global
+# Jaccard
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_jaccard_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "Jaccard",
+                                    host_distance = "Phylogeny",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+# CLR
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "CLR",
+                                    host_distance = "Phylogeny",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+# PhILR
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_philr_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "PhILR",
+                                    host_distance = "Phylogeny",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
 
 ## Compare host diet and microbiome diversification
-# Create association matrix (binary matrix: rows = hosts, columns = microbes)
 
-parafit_result_d <- parafit(host.D = diet_sp_dist_matrix, para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
-parafit_result_d$ParaFitGlobal
-parafit_result_d$p.global
+# Jaccard
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_jaccard_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
 
-## Plot cophyloplots
-# Cophyloplot
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "Jaccard",
+                                    host_distance = "Diet",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+# CLR
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "CLR",
+                                    host_distance = "Diet",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+# PhILR
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_philr_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "PhILR",
+                                    host_distance = "Diet",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+write.csv(parafit_results, file = file.path(subdir, "parafit_results.csv"), row.names = FALSE, quote = TRUE)
+
+#### Plot cophyloplots ####
+# Cophyloplot Jaccard
+
+host_consensus$tip.label <- sample_data$Common.name[match(host_consensus$tip.label, sample_data$Species)]
+
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_jaccard, assoc=links)
+
+png(file.path(subdir, "cophyloplot_jaccard.png"), width = 800, height = 500)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_jaccard, assoc=links)
+
+png(file.path(subdir, "cophyloplot_jaccard_diet.png"), width = 800, height = 500)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+# Cophyloplot CLR
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
 
-png(file.path(subdir, "cophyloplot_clr.png"), width = 1800, height = 1400)
+png(file.path(subdir, "cophyloplot_clr.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
 coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_clr, assoc=links)
 
-png(file.path(subdir, "cophyloplot_clr_diet.png"), width = 1800, height = 1400)
+png(file.path(subdir, "cophyloplot_clr_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
-# Cophyloplot
+# Cophyloplot PhILR
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_philr, assoc=links, rotate = TRUE)
 
-png(file.path(subdir, "cophyloplot_philr.png"), width = 1800, height = 1400)
+png(file.path(subdir, "cophyloplot_philr.png"),width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_philr, assoc=links)
+
+png(file.path(subdir, "cophyloplot_philr_diet.png"), width = 800, height = 500)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
 ### Rerun tests with one microbiome per species
