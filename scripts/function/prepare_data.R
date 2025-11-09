@@ -56,7 +56,7 @@ summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
 # Sample metadata
 metadata <- read.csv(file.path(indir, "sample_metadata.csv")) # Sample metadata
 sample_tax <- read.csv(file.path(indir, "host_taxonomy.csv")) %>%  # Sample taxonomy
-  select(museum.species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
+  select(species, genus, subfamily, infraorder, suborder, order, superorder, Common.name)
 species_traits <- read.csv(file.path(indir, "host_traits.csv")) # Species habitats
 quant_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv")) # Diet quantification data from Lintulaakso et al. 2023 paper
 elton_traits <- read.csv(file.path(indir, "elton_traits.csv")) # Elton traits data
@@ -83,7 +83,7 @@ meta <- metadata
 
 meta <-
   meta %>%
-  left_join(sample_tax, relationship = "many-to-many", by=c("Species"="Museum.species")) %>%
+  left_join(sample_tax, relationship = "many-to-many", by=c("Species"="Species")) %>%
   left_join(species_traits, relationship = "many-to-many") %>%
   left_join(quant_diet, relationship="many-to-many") %>%
   left_join(elton_traits, by="Species") %>%
@@ -168,8 +168,7 @@ annot_mod <- annot_str %>%
 
 annot_mod <- annot_mod %>%
         # Remove _[A-Z] from taxon names
-        mutate(across(c(superkingdom, phylum, class, order, family, genus, species), 
-                      ~ str_remove_all(., "_[A-Z]+"))) %>%
+        mutate(phylum = str_remove_all(phylum, "_[A-Z]+")) %>%
         # For CAZY annotations, remove the subcategories and keep only the two top level categories
         # If this leads to two different descriptions in the same category, revert to long name
         mutate(gene_id_temp = case_when(grepl(";.*;", gene_id) ~ str_extract(gene_id, "^([^;]+; [^;]+)"),
@@ -263,7 +262,8 @@ p <- ggplot(contigs_to_genes, aes(x = Total_abundance, y = Gene_richness, colour
     scale_x_log10() +
     geom_vline(xintercept = thres) +
     scale_y_log10() +
-    scale_color_manual(values = c('TRUE' = 'red', 'FALSE' = 'black'))
+    scale_color_manual(values = c('TRUE' = 'red', 'FALSE' = 'black'), name = "Negative control?") +
+    ylab("Gene richness (number of unique genes)") + xlab("Total gene abundance (number of classified reads)")
 
 ggsave(p, filename = file.path(subdir, "contigs_to_genes.png"))
 
@@ -304,13 +304,15 @@ prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
 write.csv(prevalence, file.path(subdir, "gene_prevalence_per_species.csv"), quote = FALSE)
 
 # Identify taxa that have at least 10% prevalence in a single species
-low_prevalence_taxa <- prevalence %>%
+low_prevalence_genes <- prevalence %>%
   rowwise() %>%
   filter(all(c_across(where(is.numeric)) < 0.2)) %>%
   pull(taxon)
 
+write.csv(low_prevalence_genes, file.path(subdir, "low_prevalence_genes.txt"), quote = FALSE, row.names = FALSE)
+
 # Remove low prevalence taxa
-phy_gene_f <- prune_taxa(setdiff(taxa_names(phy_gene_f), low_prevalence_taxa), phy_gene_f)
+phy_gene_f <- prune_taxa(setdiff(taxa_names(phy_gene_f), low_prevalence_genes), phy_gene_f)
 
 # Make sure there are no empty samples
 phy_gene_f <- prune_samples(sample_sums(phy_gene_f) > 0, phy_gene_f)
@@ -320,3 +322,14 @@ phy_gene_f_clr <- transform(phy_gene_f, "clr")
 
 saveRDS(phy_gene_f, file.path(subdir, "phy_gene_f.RDS"))
 saveRDS(phy_gene_f_clr, file.path(subdir, "phy_gene_f_clr.RDS"))
+
+dbinfo <-
+    data.frame(database = phy_gene_f@tax_table[, "database"],
+              gene_abundance = taxa_sums(phy_gene_f)) %>% 
+    group_by(database) %>%
+    summarise(n_genes = n(),
+              p_genes = n()/nrow(phy_gene_f@tax_table),
+              total_abundance = sum(gene_abundance),
+              p_abundance = total_abundance/sum(taxa_sums(phy_gene_f)))
+
+write.csv(dbinfo, file.path(subdir, "database_info.csv"), row.names = FALSE)
