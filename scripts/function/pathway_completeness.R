@@ -141,6 +141,8 @@ if (file.exists(file.path(subdir, "pathway_info.csv"))) {
       class <- paste(path_info[[i]]$CLASS, collapse = "; ")
       path_info_df$path_class[i] <- ifelse(is.null(class), NA, class)
   }
+  path_info_df <- path_info_df %>%
+                    mutate(path_class = ifelse(path_class == "", "Overview Pathway", path_class))
   # Add to main table
   pathway_hits_df <- pathway_hits_df %>%
                       left_join(path_info_df, by = "path")
@@ -154,12 +156,13 @@ if (file.exists(file.path(subdir, "pathway_info.csv"))) {
   abundance <- sapply(pathway_kos, function(kos) {
     if (is.null(kos)) return(NA)
     kos_clean <- str_remove(kos, "ko:")
-    ko_abundances <- phy_gene_f@otu_table %>% data.frame[matched_kos, sample] %>% rowMeans
-    sum(mean(ko_abundances))
+    ko_abundances <- data.frame(phy_gene_f@otu_table) %>% filter(rownames(.) %in% kos_clean) %>%
+                        rowSums
+    mean(ko_abundances)
   })
   compl_df <- data.frame(path = unique_pathways,
                           completeness_in_dataset = completeness,
-                          mean_reads = abundance)
+                          abundance = abundance)
   # Add to pathway info
   path_info_df <- path_info_df %>%
                     left_join(compl_df, by = "path")
@@ -167,18 +170,21 @@ if (file.exists(file.path(subdir, "pathway_info.csv"))) {
 }
 
 # Keep only relevant pathways
-path_info_filt <- path_info_df %>% filter(!grepl("Human Diseases;", path_class)) %>% filter(!grepl("Organismal Systems;", path_class))
+path_info_filt <- path_info_df %>% filter(!grepl("Human Diseases;", path_class)) %>%
+    filter(!grepl("Organismal Systems;", path_class)) %>%
+    filter(!grepl("viruses", path_class)) %>%
+    filter(completeness_in_dataset > 0)
 
 # Same in pathway_kos_df
 pathway_kos_filt <- pathway_kos_df %>% filter(pathway %in% path_info_filt$path)
 
 ## Plot
-p <- ggplot(aes(y = completeness_in_dataset, x = mean_reads), data = path_info_filt) +
+p <- ggplot(aes(y = completeness_in_dataset, x = abundance), data = path_info_filt) +
       geom_point() +
       #geom_text(aes(label = ifelse(completeness_in_dataset >= 0.8 & mean_reads >= 50, path_name, "")), hjust = 0, vjust = 0) +
-      labs(y = "Pathway completeness in dataset", x = "Mean pathway abundance (mean mapped reads)")
+      labs(y = "Pathway completeness in dataset", x = "Mean pathway abundance\n(mean mapped reads)")
 
-ggsave(p, filename = file.path(subdir, "pathway_completeness_vs_abundance.png"), width = 8, height = 6)
+ggsave(p, filename = file.path(subdir, "pathway_completeness_vs_abundance.png"), width = 5, height = 5)
 
 #### Calculate pathways completeness and abundance per sample ####
 
@@ -255,23 +261,24 @@ pathway_abund_l <- as.data.frame(pathway_abund_sample_clr) %>%
 
 pathway_l <- full_join(pathway_compl_l, pathway_abund_l,
                         by = c("path", "Sample")) %>%
-                        left_join(path_info_filt %>% select(path, path_name, path_class), by = "path")
+                        left_join(path_info_filt %>% select(path, path_name, path_class), by = "path") %>%
+                        filter(!is.na(path_name))
 
 pathway_l$Common.name <- phy_gene_f@sam_data$Common.name[match(pathway_l$Sample, sample_names(phy_gene_f))]
 pathway_l$class <- str_remove(pathway_l$path_class, ".*; ")
+pathway_l$class <- factor(pathway_l$class, levels = c("Overview Pathway", unique(pathway_l$class[-which(pathway_l$class == "Overview Pathway")])))
 pathway_l$path_name_short <- str_trunc(pathway_l$path_name, 30, "right")
 
-p <- ggplot(aes(x = Sample, y = path_name_short, fill = abundance, alpha = completeness), data = pathway_l) +
+p <- ggplot(aes(x = Sample, y = path_name_short, fill = abundance), data = pathway_l) +
       geom_tile() +
       scale_fill_viridis_c(option = "magma", na.value = "grey90") +
-      scale_alpha_continuous(range = c(0, 1), name = "Completeness") +
       labs(x = "Sample", y = "KEGG Pathway", fill = "Abundance") +
       facet_grid(cols = vars(Common.name), rows = vars(class), scales = "free", space = "free") +
       theme(axis.text.x = element_blank(),
             strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0),
             panel.background = element_rect(fill = "black", color = "black"))
 
-ggsave(p, filename = file.path(subdir, "pathway_completeness_abundance_per_sample_heatmap.png"), width = 20, height = 30)
+ggsave(p, filename = file.path(subdir, "pathway_abundance_per_sample_heatmap.png"), width = 20, height = 30)
 
 #### Calculate pathways completeness per microbial genus per sample ####
 ko_per_taxon_df <- gene_str %>% filter(database == "KEGG") %>%
@@ -445,7 +452,7 @@ p <- ggplot(aes(x = genus, y = path, fill = completeness), data = pathway_compl_
 ggsave(p, filename = file.path(subdir, "pathway_completeness_selected_taxa.png"), width = 8, height = 10)
 
 #######################
-#### PLOT PATHWAYS ####
+####  GET PHYLOSEQ ####
 #######################
 
 # Create a pathway phyloseq
@@ -456,8 +463,8 @@ sam <- sample_data(data.frame(phy_gene_f@sam_data))
 
 phy_pathway <- phyloseq(otu, tax, sam)
 
-# Keep pathways at least 50% complete in the dataset
-compl_pathways <- path_info_filt$path[which(path_info_filt$completeness_in_dataset > 0.5)]
+# Keep pathways at least 10% complete in the dataset
+compl_pathways <- path_info_filt$path[which(path_info_filt$completeness_in_dataset > 0.1)]
 
 phy_pathway <- prune_taxa(taxa_names(phy_pathway) %in% compl_pathways, phy_pathway)
 phy_pathway_clr <- microbiome::transform(phy_pathway, "clr")
@@ -483,7 +490,7 @@ setwd(subdir)
 dir.create("pathway_plots", showWarnings = FALSE)
 setwd("pathway_plots")
 
-path_info_filt <- path_info_filt %>% filter(completeness_in_dataset >= 0.2 & path_class != "")
+path_info_filt <- path_info_filt %>% filter(completeness_in_dataset > 0.1 & path_class != "")
 
 for (i in 1:nrow(path_info_filt)) {
   pathname <- path_info_filt$path_name[i]
@@ -493,7 +500,7 @@ for (i in 1:nrow(path_info_filt)) {
   # Plot pathway
   tryCatch({
     path <- pathview(
-      gene.data = ko_list,
+      gene.data = str_remove(pathway_kos_filt$kos, "ko:"),
       pathway.id = str_remove(pathid, "path:"),
       species = "ko",
       out.suffix = make.names(pathname))
