@@ -9,21 +9,21 @@ flowchart TD;
     D-->G[core_microbiomes];
     D-->G[alpha_div];
     E-->H[multivariate_stats];
-    E-->J[phylosymbiosis_test];
-    E-->K[microbial_phenotypes];
-    E-->L[models];
-    E-->L[machine_learning];
+    E-->I[microbial_phenotypes];
+    E-->J[models];
+    E-->K[machine_learning];
+    E-->L[diff_abund];
 ```
 
 Analysis workflow for functional community-level analysis:
 ```mermaid
 flowchart TD;
-    A[Prepare data]-->B[Plot ordinations];
-    A-->C[Exploratory plots];
-    A-->D[Pathway analysis];
-    A-->E[DistillR];
+    A[prepare_data]-->B[pathway_completeness];
+    A-->D[distillR];
+    B-->C[func_tax_procrustes];
+    B-->E[exploratory_plots];
     D-->F[Functional core microbiome];
-    A-->G[tax_func_procrustes]
+    E-->G[diff_abund_func_enrich]
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
