@@ -55,9 +55,9 @@ host_consensus <- consensus(host_trees)
 
 # Change tip labels to match metadata
 host_consensus$tip.label <- host_consensus$tip.label %>%
-                            gsub(pattern="Equus_quagga", replacement="Equus_burchellii") %>%
+                            gsub(pattern="Tapirus_indicus", replacement="Acrocodia_indica") %>%
                             gsub(pattern="Procolobus_badius", replacement="Piliocolobus_foai") %>%
-                            gsub(pattern="Otaria_bryonia", replacement="Otaria_byronia") %>%
+                            gsub(pattern="Otaria_bryonia", replacement="Otaria flavescens") %>%
                             gsub(pattern="_", replacement=" ", fixed=TRUE)
 
 host_labels <- rev(host_consensus$tip.label)
@@ -74,21 +74,24 @@ host_labels <- append(host_labels[1:sus], c("Sus domesticus")) %>%
 
 # Combine bin metadata and keep only dereplicated bins
 bin_meta <- rbind(bac_meta %>% mutate(domain="Bacteria"), ar_meta %>% mutate(domain="Archaea")) %>%
-  filter(bin %in% drep_bins)
+  filter(bin %in% drep_bins) %>%
+  filter(Completeness >= 90 & Contamination <= 5)
+
+write.csv(bin_meta, file = file.path(subdir, "hq_mag_metadata.csv"), row.names = FALSE)
 
 # Add metadata to mapping stats
 map_stats_meta <- map_stats %>%
     # Get host species info
-    left_join(sample_meta[,c("Ext.ID", "Species", "Order")],
+    left_join(sample_meta[,c("Ext.ID", "Species", "Genus", "Order")],
               by = c("sample" = "Ext.ID"), relationship = "many-to-one") %>%
     # Order host species by order
     mutate(Species = factor(Species, levels = host_labels)) %>%
     # Get bin label and completeness
-    left_join(bin_meta[,c("bin", "label", "Completeness", "Contamination")]) %>%
+    inner_join(bin_meta[,c("bin", "label", "Completeness", "Contamination")]) %>%
     # Label the sample where a bin was assembled from
     mutate(assembly_sample = case_when(sample == str_remove(str_remove(bin, "^.*-"), "\\..*$") ~ TRUE,
                                        TRUE ~ FALSE)) %>%
-    rename(host_species = Species, host_order = Order)
+    rename(host_species = Species, host_genus = Genus, host_order = Order)
 
 # Order bins by appearance in the tree
 bin_order <- append(bac_tree$tip.label, ar_tree$tip.label)
@@ -98,7 +101,7 @@ map_stats_meta$label <- factor(map_stats_meta$label, levels = bin_order)
 
 # Keep only HQ MAGs as well as identities above 90%
 map_stats_hq <- map_stats_meta %>% 
-    filter(Completeness >= 90 & Contamination <= 5 & identity >= 90) 
+    filter(identity >= 90) 
 
 #### Plot coverage - identity - number of reads ####
 p1 <- ggplot(data = map_stats_hq, aes(x = mapped_reads, y = coverage, colour = identity)) +
@@ -205,7 +208,7 @@ min_cov <- 75
 mag_pres_per_sp <- 
             # Keep only mappings passing the thresholds
             map_stats_hq %>% filter((identity >= min_id & coverage >= min_cov) | assembly_sample) %>%
-            group_by(host_species, host_order, label, bin) %>%
+            group_by(host_species, host_genus, host_order, label, bin) %>%
             # Get maximum identity, coverage and mapped reads per species. Also indicate if the MAG was assembled from that species
             summarise(max_identity = max(identity),
                       max_coverage = max(coverage),
@@ -213,6 +216,13 @@ mag_pres_per_sp <-
                       assembly_species = any(assembly_sample))
 
 write.csv(mag_pres_per_sp, file = file.path(subdir, "hq_mag_presence_per_host.csv"), row.names = FALSE)
+
+mag_pres_summ <- mag_pres_per_sp %>% group_by(label) %>%
+  summarise(species = n_distinct(host_species),
+            genera = n_distinct(host_genus),
+            orders = n_distinct(host_order)) %>% arrange(desc(species))
+
+write.csv(mag_pres_summ, file = file.path(subdir, "hq_mag_presence_summary.csv"), row.names = FALSE)
 
 # Plot
 p <- ggplot(data = mag_pres_per_sp, aes(x = host_species, y = label)) +

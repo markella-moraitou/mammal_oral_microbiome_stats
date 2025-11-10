@@ -23,6 +23,7 @@ library(ggnewscale)
 # Directory and file paths paths
 indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq output and sample metadata 
 outdir <- normalizePath(file.path("..", "..", "output", "mags")) 
+taxdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # Directory with taxonomic composition analysis
 subdir <- normalizePath(file.path(outdir, "codiversification")) # subdirectory for the output of this script
 
 # Create output directory
@@ -46,7 +47,7 @@ bac_tree <- read.tree(file = file.path(outdir, "bac_tree_drep.tree"))
 ar_tree <- read.tree(file = file.path(outdir, "ar_tree_drep.tree"))
 
 # Host phylogeny
-host_trees <- read.nexus(file.path(indir, "mammal_vertlife.nex"))
+host_consensus <- read.tree(file.path(taxdir, "host_consensus.tre"))
 
 # Habitat info
 bac_habitats <- read.table(file.path(outdir, "bac_habitats.csv"), sep=",", header=TRUE)
@@ -61,14 +62,7 @@ mag_host <- read.table(file.path(outdir, "mag_mapping_stats", "hq_mag_presence_p
 
 #### TREES ####
 # Get consensus tree and fix tip labels
-host_consensus <- consensus.edges(host_trees, method="least.squares")
-
-# Change tip labels to match metadata
-host_consensus$tip.label <- host_consensus$tip.label %>%
-                            gsub(pattern="Equus_quagga", replacement="Equus_burchellii") %>%
-                            gsub(pattern="Procolobus_badius", replacement="Piliocolobus_foai") %>%
-                            gsub(pattern="Otaria_bryonia", replacement="Otaria_byronia") %>%
-                            gsub(pattern="_", replacement=" ", fixed=TRUE)
+host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
 
 #### MAG - HOST LINKS ####
 mag_host <- mag_host %>% select(host_species, label)
@@ -81,8 +75,8 @@ p <- ggplot(data=hosts_per_mag) + geom_histogram(aes(x=n_hosts), bins=50)
 ggsave(plot=p, filename=file.path(subdir, "hosts_per_mag_histogram.png"), width=6, height=4)
 
 links_all <- mag_host %>%
-    # Change Sus s. domesticus to Sus scrofa to match tree
-    mutate(host_species = case_when(host_species == "Sus scrofa domesticus" ~ "Sus scrofa",
+    # Change Sus domesticus to Sus scrofa to match tree
+    mutate(host_species = case_when(host_species == "Sus domesticus" ~ "Sus scrofa",
                                     TRUE ~ host_species)) %>%
     filter(!host_species %in% c("Extraction blank", "Library blank", "Environmental control"))
 
@@ -93,7 +87,7 @@ write.csv(links_all, file=file.path(subdir, "mag_host_links.csv"), row.names=FAL
 ##########################
 
 # Select MAG clades to test
-# Outputs lists, startimg with the most recent clade with at least 5 tips
+# Outputs lists, startimg with the most recent clade with at least min_tips number of tips
 # Then go back until the maximum depth is reached
 select_mag_clades <- function(tree, min_tips, max_depth) {
   cat(paste("Finding clades with at least", min_tips, "tips and a maximum depth of", max_depth, "\n"))
@@ -103,7 +97,7 @@ select_mag_clades <- function(tree, min_tips, max_depth) {
   cat("Finding initial nodes\n")
   for (node in Ntip(tree) + (tree$Nnode:1)) {
     descendants <- getDescendants(tree, node)
-    if (length(descendants) >= 5 & length(intersect(descendants, initial_nodes)) == 0) {
+    if (length(descendants) >= min_tips & length(intersect(descendants, initial_nodes)) == 0) {
       initial_nodes <- append(node, initial_nodes)
     }
   }
@@ -148,7 +142,7 @@ dist_correlation <- function(mag_tree_sub, host_tree_sub, links, plot=FALSE) {
   host_dist <- cophenetic(host_tree_sub)[links$host_species, links$host_species] %>% as.dist
   mag_dist <- cophenetic(mag_tree_sub)[links$label, links$label] %>% as.dist
   # Run Mantel test
-  r <- cor.test(host_dist, mag_dist, method="pearson")
+  r <- cor.test(host_dist, mag_dist, method="pearson", alternative = "greater")
   if (plot) {
     plot <- ggplot(data.frame(x=host_dist, y=mag_dist), aes(x=x, y=y)) +
             geom_point() + scale_x_continuous() + scale_y_continuous() +
@@ -199,7 +193,7 @@ best_per_lineage <- function(nodes_to_test, first_results) {
     lineage_nodes <- nodes_to_test[[lineage_name]]
     # Scan lineage and get the node with the highest correlation
     lineage_res <- filter(first_results, node %in% lineage_nodes)
-    best_node <- lineage_res[which.min(lineage_res$p.value), "node"]
+    best_node <- lineage_res[which.max(lineage_res$r), "node"]
     best_nodes <- append(best_nodes, best_node)
     if (is.null(best_node)) {
       next
@@ -276,6 +270,7 @@ analysis <- function(mag_tree, host_mag_links, host_tree, nodes_to_test, interme
 }
 
 ### For Bacteria ####
+set.seed(123)
 nodes_to_test <- select_mag_clades(bac_tree, min_tips=3, max_depth=50)
 
 bac_cod_results <- analysis(bac_tree, links_all, host_consensus, nodes_to_test, "bac_cod_intermediate")
@@ -283,11 +278,19 @@ bac_cod_results <- analysis(bac_tree, links_all, host_consensus, nodes_to_test, 
 write.csv(bac_cod_results, file=file.path(subdir, "bac_cod_results.csv"), row.names=FALSE, quote=FALSE)
 
 ### For Archaea ####
+set.seed(123)
 nodes_to_test <- select_mag_clades(ar_tree, min_tips=3, max_depth=10)
 
 ar_cod_results <- analysis(ar_tree, links_all, host_consensus, nodes_to_test, "ar_cod_intermediate")
 
 write.csv(ar_cod_results, file=file.path(subdir, "ar_cod_results.csv"), row.names=FALSE, quote=FALSE)
+
+cod_results_combined <- rbind(
+  bac_cod_results %>% mutate(domain="Bacteria"),
+  ar_cod_results %>% mutate(domain="Archaea")
+)
+
+write.csv(cod_results_combined, file=file.path(subdir, "cod_results_combined.csv"), row.names=FALSE, quote=FALSE)
 
 ######################
 #### PLOT RESULTS ####
@@ -318,7 +321,7 @@ create_plots <- function(mag_tree, host_mag_links, host_tree, cod_results, outdi
     # Plot cophyloplo
     coph <- cophyloplot(host_tree=host_tree_sub, mag_tree=mag_tree_sub, links=links, host_colours=species_palette)
     # Save plot
-    png(file.path(subdir, outdir, paste(node, "cophyloplot.png", sep="_")), width = 1200, height = 600)
+    png(file.path(subdir, outdir, paste(node, "cophyloplot.png", sep="_")), width = 600, height = 400)
     par(mar=c(5, 4, 4, 2) + 0.1)
     plot(coph, link.type="curved",link.lwd=4, link.lty="solid", link.col=coph$assoc[,"colour"])
     # Add title
@@ -349,12 +352,15 @@ bac_meta_plot <- bac_meta %>% left_join(bac_cod_results, by=c("label"="node")) %
   mutate(r = case_when(p.adjust <= 0.05 ~ r, TRUE ~ NA)) %>%
   # Get -log10(p.value) for colouring
   mutate(neg_log10_p = case_when(!is.na(p.value) ~ -log10(p.value+10^-5), TRUE ~ NA)) %>%
-  select(label, r, neg_log10_p, host_order, habitat.general)
+  select(label, r, neg_log10_p, host_order, habitat.general, phylum)
 
 # Colour by order and habitat
-bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5) %<+% bac_meta_plot +
+bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5, aes(colour = phylum)) %<+% bac_meta_plot +
+  scale_colour_manual(values = phylum_palette, name = "Phylum", na.value = "black") +
+  new_scale_colour() +
   geom_nodepoint(aes(fill=r, size=neg_log10_p), shape = 21, colour = "black") +
   scale_fill_gradient2(low = "yellow", mid = "orange", high = "red", midpoint = median(bac_meta_plot$r, na.rm = TRUE), na.value = "white") +
+  scale_size_continuous(name = "-log10(p adjusted)", range = c(1,5)) +
   new_scale_fill() +
   geom_tiplab(size=3, aes(colour=host_order)) +
   scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
@@ -435,4 +441,4 @@ p <- ggplot(data = unique(select(codiv_tips_df, c(label, phylum, codiversifying)
   geom_bar(fill = "lightblue") +
   facet_wrap(~ phylum, scales = "free_y")
 
-ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=6, height=4)
+ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=5, height=4)

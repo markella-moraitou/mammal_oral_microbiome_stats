@@ -43,7 +43,8 @@ colnames(mag_meta) <- gsub("..", ".", colnames(mag_meta), fixed=TRUE) %>% gsub("
 # Host metadata
 host_taxonomy <- read.csv(file.path(indir, "host_taxonomy.csv"), header=TRUE)
 host_traits <- read.csv(file.path(indir, "host_traits.csv"), header=TRUE)
-host_diet <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv"), header=TRUE)
+diet_lintu <- read.csv(file.path(indir, "Lintulaakso_diet_filtered.csv"), header=TRUE)
+diet_elton <- read.csv(file.path(indir, "elton_traits.csv"), header=TRUE)
 
 # contig info
 contig_info <- read.table(file.path(indir, "contig_info_per_sample.txt"), header=TRUE)
@@ -55,10 +56,20 @@ contig_info <- read.table(file.path(indir, "contig_info_per_sample.txt"), header
 ### Combine host metadata ###
 colnames(host_taxonomy) <- paste0("host_", tolower(colnames(host_taxonomy)))
 
-host_meta <- host_taxonomy[, colnames(host_taxonomy)!="host_species"] %>%
-    left_join(host_traits, by=c("host_museum.species"="Species")) %>%
-    left_join(select(host_diet, c("Species", "calculated_cluster_main_diet")), by=c("host_museum.species"="Species")) %>%
+host_meta <- host_taxonomy[, colnames(host_taxonomy)!="host_museum.species"] %>%
+    left_join(host_traits, by=c("host_species"="Species")) %>%
+    left_join(select(diet_lintu, c("Species", "calculated_cluster_main_diet")), by=c("host_species"="Species")) %>%
+    left_join(diet_elton, c("Scientific_name", "Diet"), by=c("host_species"="Species")) %>%
     rename("diet.general"="calculated_cluster_main_diet")
+
+# Adjust dietary categories (trying to reconcile Lintulaakso et al. and Elton traits)
+host_meta <- host_meta %>%
+  mutate(diet.general = case_when(
+    host_species == "Giraffa camelopardalis" ~ "Herbivore",
+    host_species %in% c("Sus scrofa", "Sus domesticus") ~ "Omnivore",
+    host_species == "Marmota marmota" ~ "Frugivore",
+    TRUE ~ diet.general
+  ))
 
 # Get taxon label: the most specific taxonomic level that is not empty and is not a made up GTDB name
 get_taxon_label <- function(row) {
@@ -74,7 +85,7 @@ get_taxon_label <- function(row) {
 meta <-
     # Add host metadata
     mag_meta %>% rename("host_species"="Species") %>%
-    left_join(host_meta, by=c("host_species"="host_museum.species"), relationship = "many-to-one") %>%
+    left_join(host_meta, by=c("host_species"), relationship = "many-to-one") %>%
     left_join(contig_info, by=c("Sample" = "sample"), relationship = "many-to-one") %>%
     separate(classification, sep=";", into=c("domain", "phylum", "class", "order", "family", "genus", "species")) %>%
     mutate(across(domain:species, ~ case_when(str_detect(.x, "^[dpcofgs]__$") ~ NA, TRUE ~ .x))) %>%
