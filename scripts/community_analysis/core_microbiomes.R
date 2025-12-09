@@ -58,26 +58,18 @@ phy_gen <- phy_sp_f %>%
 
 taxa_names(phy_gen) <- make.unique(phy_gen@tax_table[,"genus"])
 
-## Calculate prevalence of each genus in each species
+# Keep host species with at least 4 samples
+sample_counts <- data.frame(phy_gen@sam_data) %>%
+        group_by(Species) %>%
+        summarise(n_samples = n())
 
-# Prevalence per species
-species <- phy_gen@sam_data$Species %>% levels
-prevalence <- data.frame()
-
-for (spe in species) {
-  subset <- phy_gen %>% subset_samples(Species == spe)
-  temp <- prevalence(subset, detection = 1e-3, sort = TRUE) %>% data.frame() %>% t
-  rownames(temp) <- spe
-  prevalence <- rbind(prevalence, temp)
-}
-
-prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
-                rownames_to_column("taxon")
-
-write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = FALSE, row.names = FALSE)
+phy_gen <- phy_gen %>% subset_samples(Species %in% sample_counts$Species[sample_counts$n_samples >= 4])
 
 #### Get core taxa per species ####
 ## 75% prevalence
+
+## Try difference prevalence thresholds
+species <- phy_gen@sam_data$Species %>% levels
 
 core_genera <- data.frame(core_taxa = character(), host_species = character())
 core_plots <- list()
@@ -110,6 +102,22 @@ for (sp in species) {
 p <- plot_grid(plotlist = core_plots, ncol = 4, align = "hv", axis = "tb")
 ggsave(p, file = file.path(subdir, "core_thresholds.png"), width = 20, height = 20)
 
+## Calculate prevalence of each genus in each species
+
+prevalence <- data.frame()
+
+for (spe in species) {
+  subset <- phy_gen %>% subset_samples(Species == spe)
+  temp <- prevalence(subset, detection = 1e-3, sort = TRUE) %>% data.frame() %>% t
+  rownames(temp) <- spe
+  prevalence <- rbind(prevalence, temp)
+}
+
+prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
+                rownames_to_column("taxon")
+
+write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = FALSE, row.names = FALSE)
+
 # Add extra information
 # on the taxa
 core_genera$core_phylum <- as.vector(phy_gen@tax_table[match(core_genera$core_taxa, taxa_names(phy_gen)), "phylum"])
@@ -136,6 +144,8 @@ core_genera_summary <- core_genera_summary %>%
 # Save tables
 write.csv(core_genera, file = file.path(subdir, "core_mb_per_host_species.csv"), quote = FALSE, row.names = FALSE)
 write.csv(core_genera_summary, file = file.path(subdir, "core_mb_per_host_species_summary.csv"), quote = FALSE, row.names = FALSE)
+
+cor.test(core_genera_summary$n_core_taxa, core_genera_summary$n_samples, method = "spearman")
 
 # For orders with more than two species, get core taxa per order
 # defined as taxa that are considered core in at least half of species in that order

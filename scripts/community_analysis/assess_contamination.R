@@ -70,14 +70,6 @@ s_b_ratio <- 5
 # Set minimum prevalence threshold (in at least one host species must pass it)
 prev_thresh <- 0.2 
 
-###################################
-#### REMOVE LOW ABUNDANCE TAXA ####
-###################################
-
-# Remove empty sample and taxa
-phy_sp <- prune_taxa(taxa_sums(phy_sp) > 0, phy_sp)
-phy_sp <- prune_samples(sample_sums(phy_sp) > 0, phy_sp)
-
 ##############################
 #### COLLECT INFO ON TAXA ####
 ##############################
