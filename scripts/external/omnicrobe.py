@@ -42,7 +42,7 @@ def fetch_json(fun_url, base_url=None, params=None):
     if base_url is None:
         base_url = BASE_URL
     url = base_url + fun_url
-    resp = requests.get(url, params=params)
+    resp = requests.get(url, params=params, verify=False)
     if resp.status_code == 200:
         return resp.json()
     raise OmnicrobeError(f'{resp.status_code} : {url}')

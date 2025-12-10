@@ -84,7 +84,7 @@ if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
   # Save names and ids
   write.table(names_to_ids_filt, file.path(subdir, "names_to_ids_filt.csv"), sep=",", row.names=FALSE, quote=FALSE)
 } else {
-  cat("Not creating names_to_ids.csv because it already exists. Delete or rename it and rerun script to update it.")
+  cat("Not creating names_to_ids.csv because it already exists. Delete or rename it and rerun script to update it.\n")
 }
 
 ###############################
@@ -94,15 +94,19 @@ if (!file.exists(file.path(subdir, "names_to_ids_filt.csv"))) {
 #### Use taxids to get info on known habitats, phenotypes and use for all identified taxa
 
 # Need to run commands through system
-system('scriptdir="..";
-        outdir="../../output/community_analysis";
-        cut -d, -f 2 $outdir/names_to_ids_filt.csv | sort | uniq > $outdir/taxids.tmp;
-        sed -i '/NA/d' $outdir/taxids.tmp;
-        sed -i '/ids/d' $outdir/taxids.tmp;
-        python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "habitat";
-        python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "phenotype";
-        python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "use";
-        rm $outdir/taxids.tmp')
+cmd <- paste(
+    'scriptdir="..";',
+    'outdir="../../output/community_analysis";',
+    'cut -d, -f 2 $outdir/names_to_ids_filt.csv | sort | uniq > $outdir/taxids.tmp;',
+    'sed -i "/NA/d" $outdir/taxids.tmp;',
+    'sed -i "/ids/d" $outdir/taxids.tmp;',
+    'python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "habitat";',
+    'python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "phenotype";',
+    'python $scriptdir/access_omnicrobe_db.py $outdir/taxids.tmp $outdir "use";',
+    'rm $outdir/taxids.tmp',
+    sep = " "
+)
+system(cmd)
 
 cat("Finished getting taxids and omnicrobe data.\n")
 
