@@ -147,13 +147,14 @@ write.csv(core_genera_summary, file = file.path(subdir, "core_mb_per_host_specie
 
 cor.test(core_genera_summary$n_core_taxa, core_genera_summary$n_samples, method = "spearman")
 
+#### Core taxa per host order ####
 # For orders with more than two species, get core taxa per order
 # defined as taxa that are considered core in at least half of species in that order
 
 core_genera_per_order <- core_genera %>% group_by(host_order) %>%
-        filter(n_distinct(host_species) > 2) %>%
-        # Calculate number of species in order
+         # Calculate number of species in order
         mutate(n_species = n_distinct(host_species)) %>%
+        filter(n_species > 2) %>%
         # Calculate prevalence in order
         group_by(core_taxa, core_phylum, host_order) %>%
         summarise(prevalence_in_order = n_distinct(host_species)/first(n_species)) %>%
@@ -193,6 +194,66 @@ core_genera_venn <-
 
 ggsave(core_genera_venn, file=file.path(subdir, "core_genera_venn.png"),
        device = "png", width = 5, height = 5)
+
+#### Does number of species per order affect core size ####
+
+# Permute which species belong to which order to understand if a small number of species
+# leads to a larger core microbiome size
+
+set.seed(123)
+
+n_perm <- 100
+
+species_order_map <- core_genera %>% select(host_species, host_order) %>% unique
+
+perm_results <- data.frame()
+
+for (i in 1:n_perm) {
+        # Permute host orders across species
+        species_order_map_perm <- species_order_map
+        species_order_map_perm$host_order <- sample(species_order_map_perm$host_order)
+        
+        # Add permuted host order
+        perm_core_genera <- core_genera
+        perm_core_genera$host_order <- species_order_map_perm$host_order[match(perm_core_genera$host_species,
+                                                                 species_order_map_perm$host_species)]
+        
+        # Calculate number of core taxa per order
+        perm_core_genera_per_order <- 
+                perm_core_genera %>% group_by(host_order) %>%
+                # Calculate number of species in order
+                mutate(n_species = n_distinct(host_species)) %>%
+                filter(n_species > 2) %>%
+                # Calculate prevalence in order
+                group_by(core_taxa, core_phylum, host_order) %>%
+                summarise(prevalence_in_order = n_distinct(host_species)/first(n_species)) %>%
+                filter(prevalence_in_order >= 0.5) %>%
+                arrange(host_order, core_taxa) %>%
+                # How many orders is this taxon core in?
+                group_by(core_taxa, core_phylum) %>%
+                mutate(n_orders = n_distinct(host_order))
+        
+        # Calculate number of core taxa per order
+        perm_core_genera_per_order_summary <- perm_core_genera_per_order %>%
+                        group_by(host_order) %>%
+                        summarise(n_core_taxa = n(),
+                        n_core_phyla = n_distinct(core_phylum))
+        
+        # Add results to df
+        perm_results <- rbind(perm_results, perm_core_genera_per_order_summary)
+}
+
+#### Plot ####
+
+p <- ggplot(data = perm_results, aes(y = n_core_taxa, x = host_order)) +
+        geom_boxplot(aes(fill = host_order)) +
+        scale_fill_manual(values = order_palette, guide = "none") +
+        geom_point(data = core_genera_per_order_summary, aes(y = n_core_taxa, x = host_order),
+                color = "red", size = 3, shape = 18) +
+        xlab("") + ylab("Number of core genera") +
+        theme(axis.text.x = element_text(hjust = 1))
+
+ggsave(p, file = file.path(subdir, "core_size_permutations.png"), width = 4, height = 5)
 
 #### Core genera per host species heatmap ####
 core_df <- core_genera %>% mutate(is.core = 1) %>%
