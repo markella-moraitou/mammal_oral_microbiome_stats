@@ -79,6 +79,13 @@ elton_traits <- elton_traits %>%
   mutate(Animal = Inv + Vend + Vect + Vfish + Scav + Vunk) %>%
   select(-c(Inv, Vend, Vect, Vfish, Scav, Vunk))
 
+# Add suffix .A to sample IDs to match OTU table
+missing_sinks <- decom$Sink[!decom$Sink %in% metadata$Ext.ID]
+missing_sinks <- missing_sinks[paste0(missing_sinks, ".A") %in% metadata$Ext.ID]
+
+decom <- decom %>% mutate(Sink = case_when(Sink %in% missing_sinks ~ paste0(Sink, ".A"),
+                        TRUE ~ Sink))
+
 # Combine all sample and host species metadata in one big table
 meta <- metadata
 
