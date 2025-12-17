@@ -66,8 +66,13 @@ if (file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
   colnames(pathway_hits_df) <- c("path", "ko")
 } 
 if (add_paths == TRUE | !file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
-  if(!file.exists(file.path(subdir, "ko_to_pathways.csv"))) { pathway_hits_df <- NULL }
-    else {pathway_hits_df <- read.csv(file.path(subdir, "ko_to_pathways.csv"), stringsAsFactors = FALSE)}
+  if(!file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
+      pathway_hits_df <- data.frame(path = character(),
+                                    ko = character(),
+                                    stringsAsFactors = FALSE)
+    } else {
+      pathway_hits_df <- read.csv(file.path(subdir, "ko_to_pathways.csv"), stringsAsFactors = FALSE)
+    }
   # Go through each KO and get pathways, skipping those already in the file
   # and appending any new ones
   lapply(ko_list, function(ko) {
@@ -96,7 +101,6 @@ if (add_paths == TRUE | !file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
               append = TRUE, col.names = FALSE)
       }
     })
-  write.table(data.frame(path = character(), ko = character()), sep = ",", file.path(subdir, "ko_to_pathways.csv"), row.names = FALSE, quote = FALSE, col.names = TRUE)
 }
 
 #### Get components of all identified pathways ####
@@ -279,6 +283,17 @@ p <- ggplot(aes(x = Sample, y = path_name_short, fill = abundance), data = pathw
             panel.background = element_rect(fill = "black", color = "black"))
 
 ggsave(p, filename = file.path(subdir, "pathway_abundance_per_sample_heatmap.png"), width = 20, height = 30)
+
+p <- ggplot(aes(x = Sample, y = path_name_short, fill = completeness), data = pathway_l) +
+      geom_tile() +
+      scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+      labs(x = "Sample", y = "KEGG Pathway", fill = "Completeness") +
+      facet_grid(cols = vars(Common.name), rows = vars(class), scales = "free", space = "free") +
+      theme(axis.text.x = element_blank(),
+            strip.text.x = element_text(angle = 90), strip.text.y = element_text(angle = 0),
+            panel.background = element_rect(fill = "black", color = "black"))
+
+ggsave(p, filename = file.path(subdir, "pathway_completeness_per_sample_heatmap.png"), width = 20, height = 30)
 
 #### Calculate pathways completeness per microbial genus per sample ####
 ko_per_taxon_df <- gene_str %>% filter(database == "KEGG") %>%

@@ -221,7 +221,7 @@ annot_info <- annot_mod %>%
                                     database == "CAZY" ~ "CAZy enzyme",
                                     TRUE ~ category))
 
-write.table(annot, file.path(subdir, "gene_info.csv"),
+write.table(annot_info, file.path(subdir, "gene_info.csv"),
             sep = "\t", quote = FALSE, row.names = TRUE)
 
 ##################################
@@ -303,7 +303,7 @@ prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
 
 write.csv(prevalence, file.path(subdir, "gene_prevalence_per_species.csv"), quote = FALSE)
 
-# Identify taxa that have at least 10% prevalence in a single species
+# Identify taxa that have at least 20% prevalence in a single species
 low_prevalence_genes <- prevalence %>%
   rowwise() %>%
   filter(all(c_across(where(is.numeric)) < 0.2)) %>%
