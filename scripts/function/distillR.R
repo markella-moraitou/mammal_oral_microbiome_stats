@@ -13,8 +13,11 @@ library(tibble)
 library(stringr)
 library(phyloseq)
 library(ggplot2)
+library(rphylopic)
+library(ggExtra)
 library(RColorBrewer)
 library(distillR)
+library(microViz)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -44,6 +47,8 @@ phy_gene_f <- readRDS(file.path(datadir, "phy_gene_f.RDS"))
 # Stratified sample data
 gene_str <- read.table(file.path(datadir, "gene_abundance_stratified_modified.tsv"),
                       quote = "", comment.char = "", header = TRUE, sep = "\t")
+
+phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
 ################################
 #### DISTILL COMMUNITY WIDE ####
@@ -76,27 +81,21 @@ GIFTs_elements_long <-
   # Turn function into factor
   arrange(Domain, Function) %>% mutate(Function = factor(Function, levels = unique(Function)))
 
-# Remove communities with low total abundance
-low_depth <- data.frame(phy_gene_f@sam_data) %>% filter(Total_abundance < 10^5) %>%
-                  rownames
-
-GIFTs_elements_long <- GIFTs_elements_long %>% filter(!Sample %in% low_depth) %>% unique
-
-# Match this on wide table
-GIFTs_elements <- GIFTs_elements[!rownames(GIFTs_elements) %in% low_depth, ]
-
 p <- ggplot(GIFTs_elements_long, aes(y=Sample, x=Element)) +
   geom_tile(aes(fill=Completeness)) +
   scale_fill_viridis_c() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
         axis.text.y = element_blank(),
-        strip.text.y = element_text(angle = 0)) +
+        strip.text.y = element_text(angle = 0),
+        strip.text.x = element_text(angle = 90)) +
   labs(y="Sample", x="Compound", fill="Completeness") +
-  facet_grid(rows = vars(Common.name), cols = vars(Function), scales = "free", space = "free")
+  facet_grid(rows = vars(Common.name),
+             cols = vars(gsub(
+                gsub(Function, pattern = " biosynthesis", replacement = "\nbiosynthesis"),
+                pattern = " degradation", replacement = "\ndegradation")),
+             scales = "free", space = "free")
   
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_community.png"), width = 25, height = 20)
-
-write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_community.csv"), row.names = FALSE)
 
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
@@ -106,9 +105,7 @@ GIFTs_functions_long <-
   GIFTs_functions %>% data.frame %>% rownames_to_column("Sample") %>%
   pivot_longer(cols = -c(Sample), names_to = "Code_function", values_to = "Completeness") %>%
   left_join(select(rownames_to_column(data.frame(phy_gene_f@sam_data), "Sample"), c(Sample, Common.name, Order, diet.general))) %>%
-  left_join(unique(select(GIFT_db, c("Code_function", "Function", "Domain")))) %>%
-  # Remove samples in incomplete communities
-  filter(!Sample %in% low_depth)
+  left_join(unique(select(GIFT_db, c("Code_function", "Function", "Domain"))))
 
 p <- ggplot(GIFTs_functions_long, aes(y=Sample, x=Function)) +
   geom_tile(aes(fill=Completeness)) +
@@ -123,55 +120,86 @@ ggsave(p, filename = file.path(subdir, "GIFTs_functions_community.png"), width =
 
 write.csv(GIFTs_functions_long, file.path(subdir, "GIFTs_functions_long.csv"), row.names = FALSE)
 
-#### PCA ####
-# Remove AMR genes
+#### RDA ####
 
-amr <- GIFTs_elements_long %>% filter(Function == "Antibiotic degradation") %>% pull(Code_element) %>% unique
+phy_gifts_el <- phyloseq(otu_table(GIFTs_elements, taxa_are_rows = FALSE),
+                        sample_data(phy_gene_f))
 
-GIFTs_elements <- GIFTs_elements[, !colnames(GIFTs_elements) %in% amr] # Remove AMR genes
+# Recode order and habitat as TRUE and FALSE
+phy_gifts_el <- phy_gifts_el %>%
+        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+                  Carnivora = (Order == "Carnivora"),
+                  Perissodactyla = (Order == "Perissodactyla"),
+                  Primates = (Order == "Primates"),
+                  Rodentia = (Order == "Rodentia"),
+                  ruminant = (digestion == "Ruminant"),
+                  marine = (habitat.general == "Marine"),
+                  animalivore = (diet.general == "Animalivore"))
 
-ord <- prcomp(GIFTs_elements)
+# Species traits to use as constraints
+species_traits <- c("Artiodactyla", "Perissodactyla", "Primates", "Rodentia",
+                    "ruminant", "marine", "Fruit", "Animal")
 
-# Get some info for plotting
-var_explained <- round(ord$sdev^2 * 100 / sum(ord$sdev^2), 1) # Variance explained
+# Ordinate using all data
+ord <- ord_calc(phy_gifts_el, constraints = species_traits, method = "RDA")
 
-loadings <- data.frame(Code_element = rownames(ord$rotation[,c(1,2)]), ord$rotation[,c("PC1", "PC2")]) %>%
-  left_join(unique(select(GIFT_db, c("Code_element", "Element", "Function", "Domain")))) %>%
-  mutate(Variables = paste(Element, Domain, sep = " ")) %>%
-  # Keep the longest arrows
-  arrange(desc(sqrt(PC1^2 + PC2^2))) %>%
-  select(PC1, PC2, Variables, Function)
+# Select variables and check for collinearity
+ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+vif.cca(ord_step)
 
-metadata <- data.frame(phy_gene_f@sam_data)[rownames(ord$x),]
+# Scree plot
+p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
+            xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-# Color by order, shape by diet
-diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
+ggsave(file.path(subdir, "ord_community_screeplot.png"), p, width=3, height=3)
 
-# Plot
-pca <- ggplot(aes(x = PC1, y = PC2, colour = metadata$Order), data = data.frame(ord$x)) +
-  geom_point(aes(shape = metadata$diet.general, size = metadata$Total_abundance)) +
-  scale_colour_manual(values = order_palette, name = "") +
-  scale_shape_manual(values = diet_shape_scale, name = "") +
-  scale_size_continuous(trans = "log10") +
-  xlab(paste("PC1 -", var_explained[1], "%")) +
-  ylab(paste("PC2 -", var_explained[2], "%")) +
-  geom_segment(data = loadings[1:10,], aes(x = 0, y = 0, xend = (PC1*10),
-                                       yend = (PC2*10)), arrow = arrow(length = unit(0.5, "picas")),
-               color = "black") +
-  geom_label(data = loadings[1:10,], aes(x = (PC1*10), y = (PC2*10), label = Variables),
-            size = 2, hjust = 0.5, vjust = -0.5, color = "black", alpha = 0.7) +
-  theme(legend.position = "bottom") +
-  guides(colour = guide_legend(nrow =3), shape = guide_legend(nrow = 3))
+#### Get shape scales for plotting ####
+order_shape_scale <- c("Carnivora" = 4, "Primates" = 19, "Artiodactyla" = 5, "Perissodactyla" = 2, "Rodentia" = 1, "Rest" = 12, "Proboscidea_Sirenia" = 12)
 
-ggsave(pca, filename = file.path(subdir, "PCA_GIFTs_community.png"), width = 10, height = 10)
+p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5) +
+  custom_theme() +
+  scale_shape_manual(values=order_shape_scale, name = "Order") +
+  scale_color_manual(values=diet_palette, name = "Estimated diet") +
+  geom_phylopic(data = centroids(ord@ord, phy_gifts_el), aes(colour = diet.general), uuid = centroids(ord@ord, phy_gifts_el)$uid, width = 0.1, fill = "transparent") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
 
-# Extract info on functions explaining the most variance (top 20)
-var_gifts <- loadings %>% head(20) %>%
-    # Get genes implicated in these orders
-    left_join(mutate(GIFT_db, Variables = paste(Element, Domain))) %>%
-    select(Element, Domain, Function, Definition)
+p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
 
-write.csv(var_gifts, file.path(subdir, "GIFTs_explaining_variance.csv"), row.names = FALSE)
+ggsave(p, filename = file.path(subdir, "ord_community_diet.png"), width=6, height=6)
+
+# Plot arrows
+# Get loading arrows coordinaties
+arrows <- arrow_coord(ord@ord, axes = c(1, 2))
+
+element_info <- GIFTs_elements_long %>% select(Code_element, Element, Function, Domain) %>%
+                  distinct() %>% column_to_rownames("Code_element")
+
+# Get gene category
+arrows <- arrows %>% cbind(element_info[rownames(arrows),])
+
+arrows$plot_label <- (rownames(arrows) %in% head(rownames(arrows), 10))
+
+# Save
+write.csv(arrows, file.path(subdir, "ord_community_arrows.csv"), quote = TRUE, row.names = FALSE)
+
+# Keep only strongest associations
+arrows_sum <- arrows %>% group_by(Function, Domain) %>%
+              summarise(RDA1 = mean(RDA1), RDA2 = mean(RDA2)) %>%
+              arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>% head(10)
+
+p <- ggplot(data = arrows) +
+  geom_segment(aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = Domain), linewidth = 0.5, alpha = 0.3, linetype = "dashed") +
+  geom_label(data = arrows[arrows$plot_label,], aes(x = RDA1*1.1, y = RDA2*1.1, label = Element, colour = Domain), size = 2, fill = "white", alpha = 0.7) +
+  geom_segment(data = arrows_sum, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = Domain), linewidth = 1, alpha = 0.7) +
+  geom_label(data = arrows_sum, aes(x = RDA1*1.1, y = RDA2*1.1, label = str_remove(Function, tolower(Domain)), fill = Domain), size = 2, colour = "white", alpha = 0.7) +
+  scale_colour_manual(values = c("Degradation" = "#D55E00", "Biosynthesis" = "#0072B2", "Structure" = "#6A6A6A"), name = "") +
+  scale_fill_manual(values = c("Degradation" = "#D55E00", "Biosynthesis" = "#0072B2", "Structure" = "#6A6A6A"), name = "") +
+  xlab("RDA1") + ylab("RDA2") +
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(nrow = 1))
+
+ggsave(p, filename = file.path(subdir, "ord_community_arrows.png"), width=6, height=5)
 
 ##########################
 #### DISTILL BY TAXON ####
@@ -182,9 +210,9 @@ if(file.exists(file.path(subdir, "GIFTs_by_taxon.csv"))) {
   GIFTs <- read.csv(file.path(subdir, "GIFTs_by_taxon.csv"), row.names = 1)
 } else {
   cat("Running distillR to get GIFTs\n")
-  data <- gene_str %>% select(gene_id, database, species, sample, totalAvgDepth) %>%
+  data <- gene_str %>% select(gene_id, database, species, Sample, mapped_reads) %>%
     # Keep entries with a totalAvgDepth > 1
-    filter(totalAvgDepth > 1) %>%
+    filter(mapped_reads > 1) %>%
     # Keep only taxa identified at the species level
     filter(species != "no support") %>%
     #filter(species %in% diff_taxa$species) %>%
@@ -192,11 +220,11 @@ if(file.exists(file.path(subdir, "GIFTs_by_taxon.csv"))) {
     filter(gene_id %in% taxa_names(phy_gene_f)) %>%
     filter(database == "KEGG") %>%
     # Combine species and sample into a "genome" column
-    mutate(genome = paste(species, sample, sep = " - ")) %>%
+    mutate(genome = paste(species, Sample, sep = " - ")) %>%
     # Remove genomes with less than 200 genes
     group_by(genome) %>% mutate(n_genes = n_distinct(gene_id)) %>% filter(n_genes > 400) %>%
     # Keep microbial species found in at least 5 samples
-    group_by(species) %>% filter(n_distinct(sample) > 5) %>% ungroup %>%
+    group_by(species) %>% filter(n_distinct(Sample) > 5) %>% ungroup %>%
     select(genome, gene_id)
   GIFTs <- distill(data, GIFT_db, genomecol=1, annotcol=2)
   write.csv(GIFTs, file.path(subdir, "GIFTs_by_taxon.csv"), row.names = TRUE)
@@ -216,18 +244,24 @@ GIFTs_elements_long <-
   # Turn function into factor
   arrange(Domain, Function) %>% mutate(Function = factor(Function, levels = unique(Function)))
 
-p <- ggplot(GIFTs_elements_long, aes(y=genome, x=Element)) +
+write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_by_taxon.csv"), row.names = FALSE)
+
+# Plot genera with at least 10 taxa
+GIFTs_elements_long <- GIFTs_elements_long %>% group_by(genus) %>%
+  filter(n_distinct(genome) > 10) %>% ungroup()
+
+p <- ggplot(GIFTs_elements_long, aes(x=genome, y=Element)) +
   geom_tile(aes(fill=Completeness)) +
   scale_fill_viridis_c() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-        axis.text.y = element_blank(),
-        strip.text.y = element_text(angle = 0)) +
-  labs(y="Sample", x="Compound", fill="Completeness") +
-  facet_grid(rows = vars(genus), cols = vars(Function), scales = "free", space = "free")
+  theme(axis.text.y = element_text(hjust = 1, vjust = 0.5),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.y = element_text(angle = 0),
+        strip.text.x = element_text(angle = 90)) +
+  labs(y="Compound", x="Sample", fill="Completeness") +
+  facet_grid(cols = vars(genus), rows = vars(Function), scales = "free", space = "free")
   
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_by_taxon.png"), width = 25, height = 20)
-
-write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_by_taxon.csv"), row.names = FALSE)
 
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
@@ -253,66 +287,3 @@ p <- ggplot(GIFTs_functions_long, aes(y=genome, x=Function)) +
 ggsave(p, filename = file.path(subdir, "GIFTs_functions_by_taxon.png"), width = 10, height = 15)
 
 write.csv(GIFTs_functions_long, file.path(subdir, "GIFTs_functions_by_taxon.csv"), row.names = FALSE)
-
-#### PCA ####
-amr <- GIFTs_elements_long %>% filter(Function == "Antibiotic degradation") %>% pull(Code_element) %>% unique
-GIFTs_elements <- GIFTs_elements[, !colnames(GIFTs_elements) %in% amr]
-
-ord <- prcomp(GIFTs_elements)
-
-# Get some info for plotting
-var_explained <- round(ord$sdev^2 * 100 / sum(ord$sdev^2), 1) # Variance explained
-
-loadings <- data.frame(Code_element = rownames(ord$rotation[,c(1,2)]), ord$rotation[,c("PC1", "PC2")]) %>%
-  left_join(unique(select(GIFT_db, c("Code_element", "Element", "Function", "Domain")))) %>%
-  mutate(Variables = paste(Element, Domain, sep = " ")) %>%
-  # Keep the longest arrows
-  arrange(desc(sqrt(PC1^2 + PC2^2))) %>%
-  slice(1:12) %>% select(PC1, PC2, Variables, Function)
-
-metadata <- GIFTs_functions_long[match(rownames(ord$x), GIFTs_functions_long$genome),] %>%
-  select(Sample, Common.name, Order_grouped, diet.general, genome, genus) %>%
-  # Group genomes to highlight most abundant genera in plot
-  group_by(genus) %>%
-  mutate(n_genomes = n_distinct(genome))
-
-top_genera <- metadata %>% arrange(desc(n_genomes)) %>% pull(genus) %>% unique %>% head(8)
-
-metadata <- metadata %>%
-  mutate(genus_grouped = case_when(genus %in% top_genera ~ genus,
-                                   TRUE ~ "Other")) %>%
-  mutate(genus_grouped = factor(genus_grouped, levels = c(top_genera, "Other")))
-
-# Get palette with RColorBrewer
-genus_palette <- brewer.pal(n = length(unique(metadata$genus_grouped))-1, name = "Dark2")
-names(genus_palette) <- unique(metadata$genus_grouped)[-which(unique(metadata$genus_grouped) == "Other")]
-genus_palette["Other"] <- "grey"
-
-# Plot
-pca <- ggplot(aes(x = PC1, y = PC2, colour=metadata$genus_grouped), data = data.frame(ord$x)) +
-  geom_point(size=2, alpha = 0.8) +
-  scale_colour_manual(values = genus_palette, name = "") +
-  xlab(paste("PC1 -", var_explained[1], "%")) +
-  ylab(paste("PC2 -", var_explained[2], "%")) +
-  geom_segment(data = loadings, aes(x = 0, y = 0, xend = (PC1*6),
-                                       yend = (PC2*6)), arrow = arrow(length = unit(0.5, "picas")),
-               color = "black") +
-  geom_label(data = loadings, aes(x = (PC1*6), y = (PC2*6), label = Variables),
-            size = 2, hjust = 0.5, vjust = -0.5, color = "black", alpha = 0.7) +
-  theme(legend.position = "bottom") +
-  guides(colour = guide_legend(nrow = 3))
-
-ggsave(pca, filename = file.path(subdir, "PCA_GIFTs_by_taxon.png"), width = 10, height = 10)
-
-# Plot
-pca <- ggplot(aes(x = PC1, y = PC2, colour=metadata$Order_grouped, shape = metadata$diet.general), data = data.frame(ord$x)) +
-  geom_point(size=1, alpha = 0.8) +
-  scale_colour_manual(values = order_palette, name = "") +
-  scale_shape_manual(values = diet_shape_scale, name = "") +
-  xlab(paste("PC1 -", var_explained[1], "%")) +
-  ylab(paste("PC2 -", var_explained[2], "%")) +
-  facet_wrap(~metadata$genus_grouped, ncol = 2) +
-  theme(legend.position = "bottom") +
-  guides(colour = guide_legend(nrow = 3), shape = guide_legend(nrow = 3))
-
-ggsave(pca, filename = file.path(subdir, "PCA_GIFTs_by_taxon_faceted.png"), width = 10, height = 10)
