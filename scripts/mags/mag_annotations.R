@@ -363,11 +363,11 @@ for (clade in names(cod_clades)) {
   
   # Keep GIFTs for degradation or biosynthesis that vary across this clade
   filt_degr <- gift_elem_degradation %>% filter(label %in% filt_meta$label) %>%
-    group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0) %>% ungroup() %>%
+    group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0 & max(Completeness > 0.8)) %>% ungroup() %>%
     mutate(Element = droplevels(Element))
   
   filt_bios <- gift_elem_biosynthesis %>% filter(label %in% filt_meta$label) %>%
-    group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0) %>% ungroup() %>%
+    group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0 & max(Completeness > 0.8)) %>% ungroup() %>%
     mutate(Element = droplevels(Element))
   
   n_degr <- nlevels(filt_degr$Element)
@@ -379,7 +379,7 @@ for (clade in names(cod_clades)) {
   
   # Plot tree
   p <- ggtree(sub_tree) %<+% select(filt_meta, c(label, host_order, diet.general, uid)) +
-    geom_tiplab(size=3, aes(colour=host_order)) +
+    geom_tiplab(size=5, aes(colour=host_order)) +
     scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
     new_scale_color() +
     geom_phylopic(aes(uuid = uid, fill = host_order), size = 0.5) +
@@ -399,12 +399,12 @@ for (clade in names(cod_clades)) {
   p <- p +
     new_scale_fill() +
     geom_fruit(data = filt_degr, geom=geom_tile, mapping = aes(y=label, x=Element, fill=Completeness),
-             offset = 0.5, pwidth = 4*(n_degr/n_elements), axis.params=list(axis = "x", text.angle = 90, text.size = 4, colour = "black", hjust=1)) +
+             offset = 0.6, pwidth = 4*(n_degr/n_elements), axis.params=list(axis = "x", text.angle = 90, text.size = 6, colour = "black", hjust=1)) +
     scale_fill_viridis_c(name = "Completeness", option = "C") +
     geom_fruit(data = filt_bios, geom=geom_tile, mapping = aes(y=label, x=Element, fill=Completeness),
-             offset = 0.1, pwidth = 4*(n_bios/n_elements), axis.params=list(axis = "x", text.angle = 90, text.size = 4, colour = "black", hjust=1)) +
-    theme(plot.margin = unit(c(0, -2, 3, 2), "cm")) +  # Ensure bottom margin is large enough
+             offset = 0.1, pwidth = 4*(n_bios/n_elements), axis.params=list(axis = "x", text.angle = 90, text.size = 6, colour = "black", hjust=1)) +
+    theme(plot.margin = unit(c(0, -2, 6, 3), "cm")) +  # Ensure bottom margin is large enough
     coord_cartesian(clip = "off")
 
-  ggsave(p, file=file.path(subdir, paste0(clade, "_function_tree.png")), width = ceiling(n_elements/5) + 6, height = 8)
+  ggsave(p, file=file.path(subdir, paste0(clade, "_function_tree.png")), width = ceiling(n_elements/3) + 6, height = ceiling(length(sub_tree$tip.label)/3 + 3))
 }

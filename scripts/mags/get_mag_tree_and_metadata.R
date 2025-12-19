@@ -85,6 +85,7 @@ get_taxon_label <- function(row) {
 meta <-
     # Add host metadata
     mag_meta %>% rename("host_species"="Species") %>%
+    mutate(host_species = str_trim(host_species)) %>%
     left_join(host_meta, by=c("host_species"), relationship = "many-to-one") %>%
     left_join(contig_info, by=c("Sample" = "sample"), relationship = "many-to-one") %>%
     separate(classification, sep=";", into=c("domain", "phylum", "class", "order", "family", "genus", "species")) %>%
