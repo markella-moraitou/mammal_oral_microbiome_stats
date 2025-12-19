@@ -22,7 +22,7 @@ flowchart TD;
     A-->D[distillR];
     B-->C[func_tax_procrustes];
     B-->E[exploratory_plots];
-    D-->F[Functional core microbiome];
+    B-->F[Functional core microbiome];
     E-->G[diff_abund_func_enrich]
 ```
 
@@ -34,5 +34,5 @@ flowchart TD;
     A-->C[mag_mapping_stats]
     B-->D[plot_mag_tree]
     B-->E[codiversification_test]
-    A-->F[mag_annotations]
+    E-->F[mag_annotations]
 ```
