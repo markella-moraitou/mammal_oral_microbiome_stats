@@ -65,11 +65,27 @@ sample_counts <- data.frame(phy_gen@sam_data) %>%
 
 phy_gen <- phy_gen %>% subset_samples(Species %in% sample_counts$Species[sample_counts$n_samples >= 4])
 
+## Calculate prevalence of each genus in each species
+
+species <- phy_gen@sam_data$Species %>% levels
+prevalence <- data.frame()
+
+for (spe in species) {
+  subset <- phy_gen %>% subset_samples(Species == spe) %>% transform("compositional")
+  temp <- prevalence(subset, detection = det, sort = TRUE) %>% data.frame() %>% t
+  rownames(temp) <- spe
+  prevalence <- rbind(prevalence, temp)
+}
+
+prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
+                rownames_to_column("taxon")
+
+write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = FALSE, row.names = FALSE)
+
 #### Get core taxa per species ####
 ## 75% prevalence
 
 ## Try difference prevalence thresholds
-species <- phy_gen@sam_data$Species %>% levels
 
 core_genera <- data.frame(core_taxa = character(), host_species = character())
 core_plots <- list()
@@ -104,22 +120,6 @@ for (sp in species) {
 # Save core taxa plots
 p <- plot_grid(plotlist = core_plots, ncol = 4, align = "hv", axis = "tb")
 ggsave(p, file = file.path(subdir, "core_thresholds.png"), width = 20, height = 20)
-
-## Calculate prevalence of each genus in each species
-
-prevalence <- data.frame()
-
-for (spe in species) {
-  subset <- phy_gen %>% subset_samples(Species == spe) %>% transform("compositional")
-  temp <- prevalence(subset, detection = det, sort = TRUE) %>% data.frame() %>% t
-  rownames(temp) <- spe
-  prevalence <- rbind(prevalence, temp)
-}
-
-prevalence <- t(prevalence) %>% data.frame %>% arrange(desc(rowSums(.))) %>%
-                rownames_to_column("taxon")
-
-write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = FALSE, row.names = FALSE)
 
 # Add extra information
 # on the taxa
@@ -407,7 +407,7 @@ core_taxa_abund <-
                                    OTU %in% core_genera_per_order$core_taxa ~ "Core in other order")) %>%
         mutate(is.core = factor(is.core, levels = c("Core in other order", "Core in this order", "Mammalian core"))) %>%
         filter(!is.na(is.core)) %>%
-        # Get relative abunddance of host taxa per sample
+        # Get relative abunddance per sample
         group_by(Sample, Species, Common.name, Order, is.core) %>%
         summarise(Abundance = sum(Abundance)) %>%
         # Summarize by species
