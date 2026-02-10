@@ -1,4 +1,4 @@
-##### ASSESS CONTAMINANTION #####
+##### ASSESS CONTAMINATION #####
 
 #### Use various sources of information to assess if a taxon is a contaminant or not
 #### and if a sample is contaminated or not
@@ -131,7 +131,7 @@ p_a <- ggplot(abundance_ratios, aes(x = mean_ratio, y = OTU, fill = common.conta
                     trans = "log10", breaks = c(0.01, 1, 100)) +
   geom_vline(xintercept = s_b_ratio, linetype = "dashed") +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
-  theme(axis.text.y = element_blank(), axis.ticks.x = element_blank(), legend.position = "none")
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "none")
 
 ## Plot mean ratio distribution
 abundance_ratios <- abundance_ratios %>%
@@ -177,13 +177,14 @@ prevalence_summ <- prevalence %>%
             min = min(prevalence, na.rm = TRUE),
             max = max(prevalence, na.rm = TRUE))
 
-p_p <- ggplot(prevalence_summ, aes(x = mean, fill = mean, y = OTU)) +
+p_p <- ggplot(prevalence_summ, aes(x = mean, colour = mean, y = OTU)) +
   geom_errorbar(aes(xmin = q1, xmax = q3), linewidth = 0.5, colour = "grey") +
-  geom_point(aes(colour = mean, alpha = 0.5)) +
+  geom_point(aes(colour = mean), alpha = 0.5) +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
-  scale_colour_viridis_c(option = "magma") + xlab("\nprevalence per\nhost species") +
+  scale_colour_viridis_c(option = "magma", breaks = c(0.25, 0.5, 0.75)) + xlab("\nprevalence per\nhost species") +
   geom_vline(xintercept = prev_thresh, linetype = "dashed") +
-  theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+  theme(legend.position="top", legend.text = element_text(angle = 90), legend.title = element_blank(),
+        axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), , axis.title.x.top = element_text())
 
 abundance_df <-
@@ -195,9 +196,8 @@ abundance_df <-
   mutate(OTU = factor(OTU, levels = otu_order))
 
 # Plot
-p_ma <- ggplot(abundance_df, aes(x = mean_abundance, fill = mean_abundance, y = OTU)) +
+p_ma <- ggplot(abundance_df, aes(x = mean_abundance, y = OTU)) +
   geom_point(shape = 21) +
-  scale_colour_viridis_c() +
   scale_x_log10() + xlab("mean abundance\nin samples") +
   # Add threshold line
   geom_hline(yintercept = ythresh, linetype = "dashed") +
@@ -226,13 +226,13 @@ habitats <- data.frame(taxon = otu_order) %>%
             mutate(habitat = gsub(" ", "_", habitat)) %>%
             # Only select some of the most informative terms
             mutate(habitat = case_when(habitat == "laboratory_equipment" ~ "lab", TRUE ~ habitat)) %>%
-            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut", "lab"))
+            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut", "skin"))
 
 # Get occurences as a percentage of the total
 habitats <- habitats %>% group_by(taxon) %>% mutate(perc_occurences = occurences/sum(occurences)) %>% ungroup
 
 # Set habitat as a factor
-habitats$habitat <- factor(habitats$habitat, levels = c("oral", "animal", "rumen", "gut", "marine", "soil", "lab"))
+habitats$habitat <- factor(habitats$habitat, levels = c("oral", "animal", "rumen", "gut", "marine", "soil", "skin"))
 
 habitats$taxon <- factor(habitats$taxon, levels = otu_order)
 
@@ -244,12 +244,14 @@ p_h <- habitats %>%
       geom_point(shape = 21, alpha = 0.2) +
       scale_size_continuous(range = c(0.5, 5), breaks = c(0.25, 0.75)) +
       geom_hline(yintercept = ythresh, linetype = "dashed") +
-      scale_fill_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "lab" = "black")) +
-      scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "lab" = "black")) +
+      scale_fill_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "skin" = "#ad703a")) +
+      scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73", "skin" = "#ad703a")) +
       theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_text(hjust = 1),
-        axis.title.y = element_blank(), axis.title.x = element_blank(), legend.title = element_text(hjust = 0.5),
-        legend.key.width = unit(1, "cm")) +
-      guides(size = guide_legend(title = "proportion of reports", title.position = "top", direction = "horizontal"), fill = "none", colour = "none")
+        axis.title.y = element_blank(), legend.title = element_text(hjust = 0.5),
+        legend.key.width = unit(1, "cm"), legend.position = "top") +
+      guides(size = guide_legend(title = "proportion of reports", title.position = "top", direction = "horizontal"), 
+             fill = "none",
+             colour = "none")
 
 #### DAMAGE PATTERNS ####
 
@@ -272,8 +274,10 @@ p_d <- ggplot(damage_df, aes(x = median + 0.01, y = OTU)) +
             position = position_jitter(width = 0.05)) +
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   scale_x_continuous(trans = "log10") +
-  scale_colour_viridis_c(option = "turbo", trans = "log10") + xlab("\ndamage patterns\n(damage_model_pmax)") +
-  theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+  scale_colour_viridis_c(option = "turbo", trans = "log10", name = "damage_model_pmax") +
+  xlab("\ndamage patterns") +
+  theme(legend.position="top", legend.text = element_text(angle = 90), legend.title = element_blank(),
+        axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), axis.title.x.top = element_text())
 
 #### Combine all tables ####
@@ -294,11 +298,11 @@ assess_taxa <- abundance_ratios %>%
 write.table(assess_taxa, file=file.path(subdir, "assess_taxa.csv"), sep=",", row.names=FALSE, quote=FALSE)
 
 #### Plot ####
-p <- plot_grid(p_a + theme(legend.position="none"),
-               p_ma + theme(legend.position="none"),
-               p_p + theme(legend.position="none"),
-               p_h + theme(legend.position="bottom"),
-               p_d + theme(legend.position="none"),
+p <- plot_grid(p_a,
+               p_ma,
+               p_p,
+               p_h,
+               p_d,
                nrow = 1, align = "h", axis = "tb", rel_widths = c(1, 0.75, 0.75, 1, 1))
 
 ggsave(file=file.path(subdir, "assess_taxa.png"), p, width=10, height=16)
@@ -394,7 +398,7 @@ decom_tbl <- data.frame(phy_sp@sam_data) %>%
   # turn all NAs to 0 (for plotting)
   mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
   # Calculate oral to soil+skin ratio
-  mutate(oral_contam_ratio = (p_aOral + p_mOral)/(p_Sediment.Soil + p_Skin))
+  mutate(oral_contam_ratio = (p_OralH + p_OralMM +p_OralTM)/(p_Sediment.Soil + p_Skin))
 
 decom_tbl_long <- decom_tbl %>%
   # Pivot longer
@@ -402,11 +406,11 @@ decom_tbl_long <- decom_tbl %>%
 
 # Turn source into a factor
 decom_tbl_long$Source <- factor(decom_tbl_long$Source,
-                                levels = c("p_aOral", "p_mOral", "p_Sediment.Soil", "p_Skin", "p_Unknown"))
+                                levels = c("p_OralH", "p_OralMM", "p_OralTM", "p_Rumen", "p_Sediment.Soil", "p_Skin", "p_Unknown"))
 
 # Order samples by oral proportion
 sample_levels <- decom_tbl %>%
-  arrange(Order_grouped, Species, desc(p_aOral + p_mOral)) %>% pull(new_name)
+  arrange(Order_grouped, Species, desc(oral_contam_ratio)) %>% pull(new_name)
 
 decom_tbl_long$new_name <- factor(decom_tbl_long$new_name, levels = sample_levels)
 decom_tbl$new_name <- factor(decom_tbl$new_name, levels = sample_levels)
@@ -415,7 +419,7 @@ decom_tbl$new_name <- factor(decom_tbl$new_name, levels = sample_levels)
 decom_tbl_long <- decom_tbl_long %>% arrange(Order_grouped, new_name, Source)
 
 # Palette for decom barplot
-source_palette <- list("p_aOral"="#E54457", "p_mOral"="#AB0A1D", "p_Sediment.Soil"="#B2AD0B", "p_Skin"="#FFCC73", "p_Unknown"="#AAAAAA")
+source_palette <- list("p_OralH"="#EB3838", "p_OralTM"="#A20404", "p_OralMM"="#FFAEAE", "p_Rumen"="#C4D307", "p_Sediment.Soil"="#666200", "p_Skin"="#AD703A", "p_Unknown"="#AAAAAA")
 
 # Plot decom results
 p_d <-
@@ -423,7 +427,7 @@ p_d <-
   geom_bar(stat = "identity", colour = NA) +
   facet_grid(Order_grouped~., space = "free_y", scales = "free_y", switch = "y") +
   scale_fill_manual(values = source_palette, name = "",
-                    labels = c("ancient oral", "modern oral", "sediment/soil", "skin", "unknown")) +
+                    labels = c("human oral", "terrestrial oral", "marine oral", "rumen", "sediment/soil", "skin", "unknown")) +
   scale_x_continuous(expand = c(0,0)) + 
   theme(legend.position = "top",
         axis.text.y = element_blank(), axis.ticks.y = element_blank(),

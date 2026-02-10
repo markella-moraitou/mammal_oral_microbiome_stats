@@ -26,6 +26,8 @@ phydir <- normalizePath(file.path(subdir, "phyloseq_objects")) # subdirectory fo
 dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 dir.create(phydir, showWarnings = FALSE)
 
+options(encoding = "UTF-8")
+
 #######################
 #####  LOAD INPUT #####
 #######################
@@ -88,6 +90,10 @@ decom <- decom %>% mutate(Sink = case_when(Sink %in% missing_sinks ~ paste0(Sink
 
 # Combine all sample and host species metadata in one big table
 meta <- metadata
+
+# A sample we thought was killer whale turned out to be a false killer whale
+# We will still analyse it as an orca, since they are ecologically and phylogenetically similar, to increase sample size
+meta <- meta %>% mutate(Species = ifelse(Species == "Pseudorca crassidens", "Orcinus orca", Species))
 
 meta <-
   meta %>%
@@ -244,7 +250,7 @@ phy_sp@sam_data$taxa_raw <- estimate_richness(phy_sp, measures="Observed")$Obser
 phy_sp@sam_data$is.neg <- grepl("blank|control", phy_sp@sam_data$Order_grouped)
 
 # Calculate oral to soil ratio according to DecOM results
-phy_sp@sam_data <- phy_sp@sam_data %>% data.frame %>% mutate(oral_to_soil_ratio=(p_mOral + p_aOral)/p_Sediment.Soil) %>% sample_data
+phy_sp@sam_data <- phy_sp@sam_data %>% data.frame %>% mutate(oral_to_soil_ratio=(p_OralH + p_OralMM +p_OralTM)/p_Sediment.Soil) %>% sample_data
 
 # CLR-normalisation
 phy_sp_clr <- phy_sp %>% transform('clr')

@@ -99,7 +99,7 @@ if __name__ == "__main__":
     # Define search terms
     habitat_terms = ["laboratory equipment", "marine water", "deep sea", "soil",
                  "mammalian", "wild animal", "mammalian livestock",
-                 "biofilm in natural environment", "host associated biofilm",
+                 "biofilm in natural environment", "host associated biofilm", "skin",
                  "mouth", "dental plaque", "gut", "rumen"]
     
     phenotype_terms = ["biofilm forming", "non-biofilm forming", 
