@@ -17,6 +17,8 @@ library(picante)
 library(phyr)
 library(phytools)
 library(MCMCglmm)
+library(lme4)
+library(lmerTest)
 library(parallel)
 library(ggtree)
 library(ggtreeExtra)
@@ -213,7 +215,7 @@ alpha_div <- left_join(alpha_div,
 alpha_div <- alpha_div %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion, latitude, biogeography),
             by = c("Sample"))
 
 write.csv(alpha_div, file = file.path(subdir, "alpha_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -453,7 +455,7 @@ m <- mclapply(1:10, function(i) {
          verbose = TRUE, # pr = TRUE, pl = TRUE,
          nitt = 40000,
          burnin = 20000,
-         thin = 100)
+         thin = 50)
   }, mc.cores = 1)
 
 mlist <- lapply(m, function(model) model$Sol)
@@ -494,3 +496,77 @@ mcmc_res <- rbind(fixed_results, random_results) %>%
     group_by(term)
 
 write.csv(mcmc_res, file = file.path(subdir, "mcmcglmm_alpha_results.csv"), quote = FALSE, row.names = FALSE)
+
+##########################################
+#### ALPHA DIVERSITY ACROSS LATITUDES ####
+##########################################
+
+#### Estimated latitudes ####
+
+alpha_lat <- alpha_div %>% filter(!is.na(latitude) & !is.na(filt_rarefied))
+
+# Plot
+p <- ggplot(alpha_lat, aes(x=abs(latitude), y=filt_rarefied, colour = Order_grouped)) +
+  geom_point() +
+  theme(legend.position = "none") +
+  scale_colour_manual(values=order_palette, name = "") +
+  facet_grid(diet.general ~ ., scales = "fixed", space = "fixed") +
+  geom_smooth(method = "lm", aes(colour = NULL), colour = "black",
+              linewidth = 0.5, linetype = "dotted") +
+  theme(legend.position = "bottom") +
+  xlab("Absolute latitude") + ylab("Species richness") +
+  guides(colour = guide_legend(ncol = 3))
+
+ggsave(file.path(subdir, "latitude_est.png"), p, width=6, height=6)
+
+# Test
+model <- lmer(filt_rarefied ~ abs(latitude) + (1|Species), data = alpha_lat)
+
+pdf(file=file.path(subdir, "latitude_est_diagnostics.pdf"))
+plot(model)
+dev.off()
+
+shapiro.test(residuals(model))
+
+summary(model)
+
+#### Latitude zones: arctic vs tropical ####
+
+# Use zones instead (based on biogeography)
+alpha_bio <- alpha_div %>% filter(!is.na(biogeography)) %>%
+    mutate(latitude_zone = case_when(grepl("tropical", biogeography) ~ "Tropical",
+                                     biogeography == "Indomalayan" ~ "Tropical", 
+                                     grepl("rctic", biogeography) ~ "Not-Tropical",
+                                     TRUE ~ NA)) %>%
+    filter(!is.na(latitude_zone) & !is.na(filt_rarefied))
+
+# Summarise alpha diversity by latitude zone
+# Get the weighted average of alpha diversity
+# First get average per species, then the average of all species in a zone
+alpha_bio_sum <-
+  alpha_bio %>% group_by(latitude_zone, Species) %>%
+  summarise(filt_rarefied = mean(filt_rarefied)) %>%
+  group_by(latitude_zone) %>%
+  summarise(filt_rarefied = weighted.mean(filt_rarefied))
+
+p <- ggplot(alpha_bio, aes(x=Common.name, y=filt_rarefied, colour = Order_grouped)) +
+  geom_boxplot() +
+  theme(legend.position = "none") +
+  scale_colour_manual(values=order_palette, name = "Host order") +
+  facet_grid(~ latitude_zone, scales = "free", space = "free") +
+  geom_hline(aes(yintercept = filt_rarefied), linetype = "dashed", data = alpha_bio_sum) +
+  theme(legend.position = "none", axis.text.x = element_text(hjust = 1)) +
+  xlab("") + ylab("Species richness")
+
+ggsave(file.path(subdir, "latitude_zones.png"), p, width=6, height=5)
+
+# Test
+model <- lmer(filt_rarefied ~ latitude_zone + (1|Species), data = alpha_bio)
+
+pdf(file=file.path(subdir, "latitude_zones_diagnostics.pdf"))
+plot(model)
+dev.off()
+
+shapiro.test(residuals(model))
+
+summary(model)
