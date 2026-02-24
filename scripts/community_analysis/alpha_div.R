@@ -528,7 +528,9 @@ dev.off()
 
 shapiro.test(residuals(model))
 
-summary(model)
+res1 <- summary(model)[[10]] %>% data.frame %>% rownames_to_column("term")
+
+write.csv(res1, file.path(subdir, "latitude_est_results.csv"), row.names = FALSE, quote = FALSE)
 
 #### Latitude zones: arctic vs tropical ####
 
@@ -569,4 +571,6 @@ dev.off()
 
 shapiro.test(residuals(model))
 
-summary(model)
+res2 <- summary(model)[[10]] %>% data.frame %>% rownames_to_column("term")
+
+write.csv(res2, file.path(subdir, "latitude_zones_results.csv"), row.names = FALSE, quote = FALSE)

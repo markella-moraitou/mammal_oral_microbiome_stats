@@ -173,9 +173,9 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
            rcov = ~idh(trait):units,
            data = data_wide, family = rep("gaussian", length(responses)),
            verbose = TRUE,
-           nitt = 13000,
-           burnin = 3000,
-           thin = 10)
+           nitt = 40000,
+           burnin = 20000,
+           thin = 50)
     }, mc.cores = 10)
     saveRDS(m, file.path(subdir, "mcmcglmm_output.RDS"))
 }

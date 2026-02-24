@@ -272,7 +272,7 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
            verbose = TRUE, # pr = TRUE, pl = TRUE,
            nitt = 40000,
            burnin = 20000,
-           thin = 200)
+           thin = 50)
     }, mc.cores = 10)
     end.time <- Sys.time()
     cat("Finished MCMCglmm. ")

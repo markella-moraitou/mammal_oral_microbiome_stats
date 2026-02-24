@@ -58,7 +58,7 @@ ko_list <- phy_gene_f %>% subset_taxa(database == "KEGG") %>% taxa_names
 
 #### Map KOs to pathways ####
 
-add_paths <- FALSE # Change this to append more taxa
+add_paths <- FALSE # Change this to append more pathways
 # Check if file exists
 if (file.exists(file.path(subdir, "ko_to_pathways.csv"))) {
   cat("Loading ko_to_pathways.csv\n")
