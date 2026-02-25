@@ -26,7 +26,7 @@ outdir <- normalizePath(file.path("..", "..", "output", "function")) # subdirect
 taxdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # Directory with taxonomy analysis
 pathdir <- normalizePath(file.path("..", "..", "output", "function", "pathway_completeness")) # Directory with pathway analysis output
 datadir <- normalizePath(file.path(outdir, "data")) # Directory with data files
-subdir <- normalizePath(file.path(outdir, "diff_abund_taxa")) # subdirectory for the output of this script
+subdir <- normalizePath(file.path(outdir, "gsea_diff_abund_taxa")) # subdirectory for the output of this script
 
 dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
 
