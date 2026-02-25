@@ -289,7 +289,7 @@ distances_with_species <- list(
                             "habitat_dist" = habitat_dist,
                             "ruminant_dist" = ruminant_dist)
 
-phy_list <- c("phy_sp_f", "phy_artio", "phy_prim")
+phy_list <- c("phy_sp_f", "phy_artio", "phy_prim", "phy_habitat")
 
 mrm_results_nospecies <- list()
 mrm_results_species <- list()
@@ -334,8 +334,9 @@ mrm_results_nospecies_df <- bind_rows(mrm_results_nospecies) %>% dplyr::filter(V
                                             "phy_sp_f" = "Entire dataset",
                                             "phy_artio" = "Artiodactyla",
                                             "phy_prim" = "Primates",
-                                            "phy_carni" = "Carnivora"),
-                                            levels =c("Entire dataset", "Artiodactyla", "Carnivora", "Primates"))) %>%
+                                            "phy_carni" = "Carnivora",
+                                            "phy_habitat" = "Marine v. Terrest."),
+                                            levels =c("Entire dataset", "Artiodactyla", "Carnivora", "Primates", "Marine v. Terrest."))) %>%
                     mutate(Variable = str_remove(Variable, "_dist_filt")) %>%
                     mutate(Variable = factor(recode(Variable,
                                             "phy" = "Host phylogeny",
@@ -348,7 +349,7 @@ colnames(mrm_results_nospecies_df) <- gsub('mb_dist', 'coef', colnames(mrm_resul
 
 write.csv(mrm_results_nospecies_df, file = file.path(subdir, "mrm_results_without_species.csv"), row.names = FALSE, quote = TRUE)
 
-mrm_results_nospecies_df <- mrm_results_nospecies_df %>% dplyr::filter(Taxonomic_level %in% c("species", "order", "phylum"))
+mrm_results_nospecies_df <- mrm_results_nospecies_df %>% dplyr::filter(Taxonomic_level %in% c("species", "genus", "order", "phylum"))
 
 var_cols <- c("Species identity" = "#A41B1B",
               "Host phylogeny" = "#E35D5D",
@@ -363,9 +364,9 @@ p <- ggplot(mrm_results_nospecies_df,
     geom_errorbar(aes(ymin = coef_q1, ymax = coef_q3), position = position_dodge(width = 0.9), width = 0.2) +
     scale_fill_manual(values = var_cols) +
     scale_alpha_discrete(range = c(0.4, 1), name = "Microbial taxonomic level") +
-    geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
+    geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 + 0.1, coef_q1 - 0.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
+    facet_grid(Distance ~ Dataset, scale = "free", space = "free") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
@@ -388,8 +389,9 @@ mrm_results_species_df <- bind_rows(mrm_results_species) %>% dplyr::filter(Varia
                                             "phy_sp_f" = "Entire dataset",
                                             "phy_artio" = "Artiodactyla",
                                             "phy_prim" = "Primates",
-                                            "phy_carni" = "Carnivora"),
-                                            levels =c("Entire dataset", "Artiodactyla", "Carnivora", "Primates"))) %>%
+                                            "phy_carni" = "Carnivora",
+                                            "phy_habitat" = "Marine v. Terrest."),
+                                            levels =c("Entire dataset", "Artiodactyla", "Carnivora", "Primates", "Marine v. Terrest."))) %>%
                     mutate(Variable = str_remove(Variable, "_dist_filt")) %>% 
                     mutate(Variable = factor(recode(Variable,
                                             "species" = "Species identity",
@@ -403,7 +405,7 @@ colnames(mrm_results_species_df) <- gsub('mb_dist', 'coef', colnames(mrm_results
 
 write.csv(mrm_results_species_df, file = file.path(subdir, "mrm_results_with_species.csv"), row.names = FALSE, quote = TRUE)
 
-mrm_results_species_df <- mrm_results_species_df %>% dplyr::filter(Taxonomic_level %in% c("species", "order", "phylum"))
+mrm_results_species_df <- mrm_results_species_df %>% dplyr::filter(Taxonomic_level %in% c("species", "genus", "order", "phylum"))
 
 # Plot result summary as barplot
 p <- ggplot(mrm_results_species_df,
@@ -412,9 +414,9 @@ p <- ggplot(mrm_results_species_df,
     geom_errorbar(aes(ymin = coef_q1, ymax = coef_q3), position = position_dodge(width = 0.9), width = 0.2) +
     scale_fill_manual(values = var_cols) +
     scale_alpha_discrete(range = c(0.4, 1), name = "Microbial taxonomic level") +
-    geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
+    geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 + 0.1, coef_q1 - 0.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
+    facet_grid(Distance ~ Dataset, scale = "free", space = "free") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
@@ -447,7 +449,7 @@ mb_tree_clr <- nj(mb_dist_clr)
 mb_dist_clr_matrix <- as.matrix(mb_dist_clr)
 
 # Microbiome tree from philr distances
-mb_dist_philr <- vegdist(t(phy_sp_philr@otu_table), method="euclidean")
+mb_dist_philr <- vegdist(phy_sp_philr@otu_table, method="euclidean")
 mb_tree_philr <- nj(mb_dist_philr)
 mb_dist_philr_matrix <- as.matrix(mb_dist_philr)
 
@@ -627,3 +629,5 @@ for (i in 1:n_iter) {
 }
 dev.off()
 cat("done\n")
+
+write.csv(tree_res, file = file.path(subdir, "parafit_results_subsampled.csv"), row.names = FALSE, quote = TRUE)

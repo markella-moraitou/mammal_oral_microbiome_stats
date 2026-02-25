@@ -318,10 +318,12 @@ ggsave(filename =  file.path(subdir, "host_phylogeny.png"), p, width  =  8, heig
 #### SEQUENCING DEPTH ####
 ##########################
 
-p <- ggplot(metadata, aes(y = Common.name, x = unmapped_count, fill = (is.na(project_name)))) +
+metadata$this_study <- ifelse(metadata$project_name == "Moraitou2025 and this study", "This study", "Previous studies")
+
+p <- ggplot(metadata, aes(y = Common.name, x = unmapped_count, fill = this_study)) +
     geom_boxplot() +
     scale_x_continuous(trans = "log10") +
-    scale_fill_manual(values = c(`TRUE` = "#73B55B", `FALSE` = "#C96474"), name = "This study") +
+    scale_fill_manual(values = c(`This study` = "#73B55B", `Previous studies` = "#C96474"), name = "") +
     facet_grid(rows = vars(Order), space = "free", scales = "free")
 
 ggsave(filename =  file.path(subdir, "read_count_per_species.png"), p, width  =  8, height = 12)

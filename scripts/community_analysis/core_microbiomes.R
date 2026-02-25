@@ -70,6 +70,9 @@ phy_gen <- phy_gen %>% subset_samples(Species %in% sample_counts$Species[sample_
 species <- phy_gen@sam_data$Species %>% levels
 prevalence <- data.frame()
 
+prev = 0.75
+det = 10^-3
+
 for (spe in species) {
   subset <- phy_gen %>% subset_samples(Species == spe) %>% transform("compositional")
   temp <- prevalence(subset, detection = det, sort = TRUE) %>% data.frame() %>% t
@@ -89,9 +92,6 @@ write.csv(prevalence, file = file.path(subdir, "taxa_prevalence.csv"), quote = F
 
 core_genera <- data.frame(core_taxa = character(), host_species = character())
 core_plots <- list()
-
-prev = 0.75
-det = 10^-3
 
 for (sp in species) {
   phy_sub <- phy_gen %>% subset_samples(Species == sp) %>% transform("compositional")
@@ -315,11 +315,11 @@ heat_data <- phy_gen %>% transform("compositional") %>% psmelt %>%
         filter(OTU %in% taxa_names(phy_core)) %>%
         filter(Sample %in% sample_names(phy_core)) %>%
         mutate(taxon_type = case_when(OTU %in% Reduce(intersect, core_taxa) ~ "Mammalian core",
-                                      OTU %in% setdiff(core_taxa[["Primates"]], unlist(core_taxa[!names(core_taxa) %in% "Primates"])) ~ "Primates core only",
-                                      OTU %in% setdiff(core_taxa[["Perissodactyla"]], unlist(core_taxa[!names(core_taxa) %in% "Perissodactyla"])) ~ "Perissodactyla core only",
-                                      OTU %in% setdiff(core_taxa[["Carnivora"]], unlist(core_taxa[!names(core_taxa) %in% "Carnivora"])) ~ "Carnivora core only",
+                                      OTU %in% setdiff(core_taxa[["Primates"]], unlist(core_taxa[!names(core_taxa) %in% "Primates"])) ~ "Primates core",
+                                      OTU %in% setdiff(core_taxa[["Perissodactyla"]], unlist(core_taxa[!names(core_taxa) %in% "Perissodactyla"])) ~ "Perissodactyla core",
+                                      OTU %in% setdiff(core_taxa[["Carnivora"]], unlist(core_taxa[!names(core_taxa) %in% "Carnivora"])) ~ "Carnivora core",
                                       TRUE ~ "Other")) %>%
-        mutate(taxon_type = factor(taxon_type, levels = c("Mammalian core", "Primates core only", "Perissodactyla core only", "Carnivora core only", "Other"))) %>%
+        mutate(taxon_type = factor(taxon_type, levels = c("Mammalian core", "Primates core", "Perissodactyla core", "Carnivora core", "Other"))) %>%
         # Shorten order names for plotting
         mutate(Order = recode(Order, "Perissodactyla" = "Peris.", "Carnivora" = "Carn.")) %>%
         # Arrange sample by species name
@@ -343,14 +343,14 @@ p <- ggplot(heat_data, aes(x = Sample, y = OTU, fill = Abundance)) +
               panel.spacing.y = unit(1.5, "lines"),
               strip.placement = "outside",
               strip.clip = "off",
-              strip.text.y.left = element_text(size = 12, angle=0, vjust=1, hjust = 1, face = "bold"),
+              strip.text.y.left = element_text(angle=0, vjust=1, size = 12, hjust = 1, face = "bold"),
               strip.text.y = element_text(margin = margin(t=-15, r = -60)),
               strip.background.y = element_blank())
 
 # Add species bar
-species_bar <- data.frame(Sample = heat_data$Sample,
-                          Species = phy_core@sam_data$Species[match(heat_data$Sample, rownames(phy_core@sam_data))],
-                          Order = phy_core@sam_data$Order[match(heat_data$Sample, rownames(phy_core@sam_data))]) %>%
+species_bar <- data.frame(Sample = unique(heat_data$Sample),
+                          Species = phy_core@sam_data$Species[match(unique(heat_data$Sample), rownames(phy_core@sam_data))],
+                          Order = phy_core@sam_data$Order[match(unique(heat_data$Sample), rownames(phy_core@sam_data))]) %>%
                 left_join(phylopics, by = "Species") %>%
                 # Keep uid for middle sample
                 group_by(Species) %>%
@@ -364,25 +364,26 @@ sample_to_label <- setNames(species_bar$label, species_bar$Sample)
 p_bar <- ggplot(species_bar, aes(x = Sample, y = 1)) +
         geom_tile(aes(fill = Species)) +
         scale_fill_manual(values = species_palette, name = "Species") +
-        geom_phylopic(aes(x = Sample, y = 1, uuid = uid), height = 0.2, alpha = 1, fill = "white") +
+        geom_phylopic(aes(x = Sample, y = 1, uuid = uid), width = 15, alpha = 1, fill = "white",
+                      position = position_jitter(height = 0.1), hjust = 0.5) +
         facet_grid(cols = vars(Order), scales = "free", space = "free") +
         scale_x_discrete(labels = sample_to_label) +
         theme(axis.ticks.y = element_blank(),
               axis.text.y = element_blank(),
               axis.title.y = element_blank(),
               axis.ticks.x = element_blank(),
-              axis.text.x = element_text(hjust = 0, vjust = 0, size = 8),
+              axis.text.x = element_text(hjust = 1, vjust = 0.5),
               axis.title.x = element_blank(),
               legend.position = "none",
               panel.background = element_rect(fill = "white", color = "white"),
               strip.background.x = element_blank(),
               strip.text.x = element_blank(),
-              plot.margin = margin(t = 0, r = 0, b = 0, l = 0))
+              plot.margin = margin(t = 0, r = 0, b = 20, l = 0))
 
 # Combine heatmap and species bar
-p <- plot_grid(p, p_bar, ncol = 1, rel_heights = c(1, 0.2), align = "v", axis = "lr")
+p_grid <- plot_grid(p, p_bar, ncol = 1, rel_heights = c(1, 0.5), align = "v", axis = "lr")
 
-ggsave(file.path(subdir, "core_abundance_heatmap.png"), p, width=8, height=11)
+ggsave(file.path(subdir, "core_abundance_heatmap.png"), p_grid, width=8, height=8)
 
 #### Percentage of abundance consisting of core taxa ####
 # This reflects how representative the above PCA is of the whole community

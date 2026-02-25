@@ -103,7 +103,7 @@ p <- ggplot(known_uses_abund, aes(x = known_abund, y = Common.name, fill = diet.
 
 ggsave(file.path(subdir, "known_function_abundance.png"), p, width=5, height=7)
 
-## Does the abundance and diversity of proteolytic microorganisms correlate with the amount of crude protein in the diet?
+## Does the abundance and diversity of proteolytic microorganisms correlate with the amount of Animal content in the diet?
 proteolytic_abund <- taxa_uses_abund %>% filter(proteolytic_activity > 0) %>% group_by(Sample, Species, Order, Animal) %>% summarise(proteolytic_abund = sum(Abundance))
 
 p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animal, colour = Order)) +
@@ -112,12 +112,12 @@ p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animal, colour
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
-  labs(x="Crude protein in diet (%)", y="Porphyromonas\nabundance (%)") +
+  labs(x="Animal proportion in diet (%)", y="Porphyromonas\nabundance (%)") +
   theme(legend.position = "none")
 
 ggsave(file.path(subdir, "proteolytic_abundance_animal.png"), p, width=5, height=2)
 
-## Does the abundance and diversity of fermentative microorganisms correlate with the amount of carbohydrates in the diet?
+## Does the abundance and diversity of fermentative microorganisms correlate with the amount of Fruit content in the diet?
 fermentative_abund <- taxa_uses_abund %>% filter(fermentative_activity > 0) %>% group_by(Sample, Species, Order, Fruit) %>% summarise(fermentative_abund = sum(Abundance))
 
 p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Fruit, colour = Order)) +
@@ -126,7 +126,7 @@ p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Fruit, colou
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
   scale_color_manual(values = order_palette, name = "") +
-    labs(x="Nitrogen free extract in diet (%)", y="fermentative\nabundance (%)") +
+    labs(x="Fruit proportion in diet (%)", y="fermentative\nabundance (%)") +
   theme(legend.position = "bottom") +
   guides(colour = guide_legend(nrow = 3))
 
@@ -141,7 +141,7 @@ p <- ggplot(antimicrobial_abund, aes(y = antimicrobial_abund*100, x = Animal, co
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
-  labs(x="Crude protein in diet (%)", y="antimicrobial\nabundance(%)") +
+  labs(x="Animal proportion in diet (%)", y="antimicrobial\nabundance(%)") +
   theme(legend.position = "none")
 
 ggsave(file.path(subdir, "antimicrobial_abundance_Animal.png"), p, width=5, height=2)
@@ -237,38 +237,37 @@ ggsave(file.path(subdir, "habitat_abundance.png"), p, width=8, height=8)
 
 ## Do ruminants have more rumen taxa?
 rumen_abund <- taxa_habitats_abund %>% filter(rumen > 0) %>%
-                # Get genera identified in rumen
-                mutate(genus = gsub(" .*", "", OTU)) %>% group_by(Sample, Common.name, Order, digestion, diet.general, genus) %>%
-                summarise(Abundance = sum(Abundance)) %>% group_by(Common.name, Order, digestion, diet.general, genus) %>%
+                group_by(Sample, Common.name, Order, digestion, diet.general, OTU) %>%
+                summarise(Abundance = sum(Abundance)) %>% group_by(Common.name, Order, digestion, diet.general, OTU) %>%
                 summarise(Abundance = mean(Abundance)) %>%
                 mutate(digestion = case_when(digestion == "" ~ "Non-ruminant", TRUE ~ digestion)) %>%
                 # If Artiodactyla, group by digestion, otherwise group by diet
-                mutate(group = case_when(Order == "Artiodactyla" ~ digestion,
+                mutate(group = case_when(digestion %in% c("Ruminant", "Pseudoruminant") ~ digestion,
                                          TRUE ~ diet.general)) %>%
-                mutate(group = factor(group, levels = c("Ruminant", "Pseudoruminant", "Non-ruminant", "Herbivore", "Frugivore", "Omnivore", "Animalivore"))) %>%
+                mutate(group = factor(group, levels = c("Ruminant", "Pseudoruminant", "Other", "Herbivore", "Frugivore", "Omnivore", "Animalivore"))) %>%
                 # shorten names for plotting
-                mutate(group = recode(group, "Pseudoruminant" = "Ps.", "Non-ruminant" = "Non.", "Omnivore" = "Om.", "Animalivore" = "An.")) %>%
-                select(Common.name, genus, Abundance, group)
+                mutate(group = recode(group, "Pseudoruminant" = "Ps.", "Other" = "Non.", "Omnivore" = "Om.", "Animalivore" = "An.")) %>%
+                select(Common.name, OTU, Abundance, group)
  
-# Group top 5 genera, group the rest as "Other"
-top_genera <- rumen_abund %>% group_by(genus) %>% summarise(total = sum(Abundance, na.rm = TRUE)) %>% arrange(desc(total)) %>% top_n(5, total) %>% pull(genus)               
+# Group top 5 otus, group the rest as "Other"
+top_otus <- rumen_abund %>% group_by(OTU) %>% summarise(total = sum(Abundance, na.rm = TRUE)) %>% arrange(desc(total)) %>% top_n(5, total) %>% pull(OTU)               
 
-rumen_abund <- rumen_abund %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Other")) %>%
-                mutate(genus = factor(genus, levels = c("Other", rev(top_genera))))
+rumen_abund <- rumen_abund %>% mutate(OTU = ifelse(OTU %in% top_otus, OTU, "Other")) %>%
+                mutate(OTU = factor(OTU, levels = c("Other", rev(top_otus))))
 
-genera_palette <- setNames(brewer.pal(length(top_genera), "Set3"), top_genera)
-genera_palette["Other"] <- "grey70"
+otu_palette <- setNames(brewer.pal(length(top_otus), "Set3"), top_otus)
+otu_palette["Other"] <- "grey70"
 
-p <- ggplot(rumen_abund, aes(x = Abundance*100, y = Common.name, fill = genus)) +
+p <- ggplot(rumen_abund, aes(x = Abundance*100, y = Common.name, fill = OTU)) +
       geom_bar(stat = "identity") +
-      scale_fill_manual(values = genera_palette, name = "") +
+      scale_fill_manual(values = otu_palette, name = "") +
       facet_grid(rows = vars(group), scales = "free", space = "free") +
       theme(legend.position = "bottom") +
       labs(y="", x="Rel. abundance of\nrumen microorganisms (%)") +
       # Reverse guide order
-      guides(fill = guide_legend(reverse = TRUE, nrow = 3))
+      guides(fill = guide_legend(reverse = TRUE, ncol=1))
 
-ggsave(file.path(subdir, "rumen_abundance.png"), p, width=5, height=8)
+ggsave(file.path(subdir, "rumen_abundance.png"), p, width=6, height=8)
 
 #######################################
 #### COLONISER STAGE - HYPSODONTY  ####
