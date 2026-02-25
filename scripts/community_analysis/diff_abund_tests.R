@@ -17,10 +17,7 @@ library(phytools)
 library(MCMCglmm)
 library(parallel)
 library(coda)
-#library(car)
 library(lme4)
-#library(tibble)
-#library(ggregplot)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
