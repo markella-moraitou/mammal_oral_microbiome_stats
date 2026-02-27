@@ -164,40 +164,57 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   # Get species centroids
   centroids <- centroids(ord@ord, phyloseq)
   # Plot
-  p <- ord_plot(ord, colour=colour_var, shape=shape_var, alpha = 0.8) +
+  p <- ord_plot(ord, auto_caption = NA, plot_samples = FALSE,
+                constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 3),
+                constraint_vec_style = vec_constraint(colour = "grey20", alpha = 0.5)) +
     custom_theme() +
-    geom_phylopic(data = centroids, aes_string(colour = colour_var), uuid = centroids$uid, fill = "transparent", width = 0.3)
+    geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 1.5) +
+    geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "transparent", alpha = 0.8, uuid = centroids$uid, width = 0.2)
   # Add the correct scales
   if (colour_var == "Order_grouped") {
     p <- p +
-        scale_color_manual(values=order_palette, name = "Host order")
+        scale_colour_manual(values=order_palette, name = "Host order") +
+        scale_fill_manual(values=order_palette, name = "Host order") +
+        guides(colour = guide_legend(ncol = 2))
   } else if (colour_var == "diet.general") {
     p <- p +
-        scale_color_manual(values=diet_palette, name = "Estimated diet")
+        scale_colour_manual(values=diet_palette, name = "Host diet") +
+        scale_fill_manual(values=diet_palette, name = "Host diet") +
+        guides(colour = guide_legend(ncol = 1))
   } else if (colour_var == "habitat.general") {
     p <- p +
-        scale_colour_manual(values=habitat_palette, name = "Habitat")
+        scale_colour_manual(values=habitat_palette, name = "Habitat") +
+        scale_fill_manual(values=habitat_palette, name = "Habitat") +
+        guides(colour = guide_legend(ncol = 1))
   }
   if (shape_var == "diet.general") {
     p <- p +
-        scale_shape_manual(values=diet_shape_scale, name = "Estimated diet")
+        scale_shape_manual(values=diet_shape_scale, name = "Host diet") +
+        guides(shape = guide_legend(ncol = 1))
   } else if (shape_var == "Order_grouped") {
     p <- p +
-        scale_shape_manual(values=order_shape_scale, name = "Order")
+        scale_shape_manual(values=order_shape_scale, name = "Host order") +
+        guides(shape = guide_legend(ncol = 2))
   } else if (shape_var == "Common.name") {
     p <- p +
-        scale_shape_manual(values=species_shape_scale, name = "Species")
+        scale_shape_manual(values=species_shape_scale, name = "Species") +
+        guides(shape = guide_legend(ncol = 2))
+  }
+  else if (shape_var == "digestion") {
+    p <- p +
+        scale_shape_manual(values=digestion_shape_scale, name = "Host digestion") +
+        guides(shape = guide_legend(ncol = 2))
   }
   # Add more layers
   p <- p +
-    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-    guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
+    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8), legend.title = element_text(size = 9))
   # If PCA, add taxon arrows
   if (type == "PCA") {
     p <- p +
       new_scale_colour() +
       geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*arrows_scaling, yend = PC2*arrows_scaling, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
-      scale_color_manual(values = phylum_palette, name = "Microbial phylum")
+      scale_color_manual(values = phylum_palette, name = "Phylum") +
+      guides(shape = guide_legend(ncol = 1))
   }
   # If RDA add marginals
   if (type == "RDA") {
@@ -227,10 +244,11 @@ taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
     scale_linetype_identity() +
     scale_color_manual(values = phylum_palette, name = "Phylum") +
     geom_label(aes(label = label, x = RDA1, y = RDA2),
-              size = 1.7, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
+              size = 2, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
     scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "bottom", legend.title = element_blank()) + guides(colour = guide_legend(nrow = 3)) +
-    xlim(min(taxa_rda$RDA1)*1.1, max(taxa_rda$RDA1)*1.2)
+    theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 8)) +
+    guides(colour = guide_legend(ncol = 2)) +
+    xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
   return(list(plot = p, data = taxa_rda))
 }

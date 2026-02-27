@@ -235,7 +235,7 @@ p <- ggplot(alpha_div, aes(x=Species, y=filt)) +
   ylab("Observed species richness") +
   coord_flip()
 
-ggsave(file.path(subdir, "alpha_diversity_filt.png"), p, width=8, height=10)
+ggsave(file.path(subdir, "alpha_diversity_filt.png"), p, width=6, height=8)
 
 # Filtered & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=filt_rarefied)) +
@@ -246,10 +246,10 @@ p <- ggplot(alpha_div, aes(x=Species, y=filt_rarefied)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
   theme(legend.position = "none", axis.title.y = element_blank()) +
-  ylab("Observed species richness (after rarefaction)") +
+  ylab("Observed species richness\n(after rarefaction)") +
   coord_flip()
 
-ggsave(file.path(subdir, "alpha_diversity_filt_rarefied.png"), p, width=8, height=10)
+ggsave(file.path(subdir, "alpha_diversity_filt_rarefied.png"), p, width=6, height=8)
 
 # Raw
 p <- ggplot(alpha_div, aes(x=Species, y=raw)) +
@@ -263,7 +263,7 @@ p <- ggplot(alpha_div, aes(x=Species, y=raw)) +
   ylab("Observed species richness") +
   coord_flip()
 
-ggsave(file.path(subdir, "alpha_diversity_raw.png"), p, width=8, height=10)
+ggsave(file.path(subdir, "alpha_diversity_raw.png"), p, width=6, height=8)
 
 # Raw & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=raw_rarefied)) +
@@ -274,10 +274,10 @@ p <- ggplot(alpha_div, aes(x=Species, y=raw_rarefied)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
   theme(legend.position = "none", axis.title.y = element_blank()) +
-  ylab("Observed species richness (after rarefaction)") +
+  ylab("Observed species richness\n(after rarefaction)") +
   coord_flip()
 
-ggsave(file.path(subdir, "alpha_diversity_raw_rarefied.png"), p, width=8, height=10)
+ggsave(file.path(subdir, "alpha_diversity_raw_rarefied.png"), p, width=6, height=8)
 
 ####################
 #### FAITH'S PD ####
@@ -309,7 +309,7 @@ p <- ggplot(phy_div, aes(x=Species, y=PD)) +
   ylab("Faith's PD") +
   coord_flip()
 
-ggsave(file.path(subdir, "phylogenetic_diversity.png"), p, width=8, height=10)
+ggsave(file.path(subdir, "phylogenetic_diversity.png"), p, width=6, height=8)
 
 # Plot relationship between PD and species richness
 p <- ggplot(phy_div, aes(x=SR, y=PD)) +
@@ -322,9 +322,9 @@ p <- ggplot(phy_div, aes(x=SR, y=PD)) +
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
   theme(legend.position = "bottom", axis.text = element_text(size = 8),
         strip.text.y = element_text(size = 10)) +
-  xlab("Observed species richness (after rarefaction)") + ylab("Faith's PD (after rarefaction)")
+  xlab("Observed species richness\n(after rarefaction)") + ylab("Faith's PD\n(after rarefaction)")
 
-ggsave(file.path(subdir, "alpha_vs_pd.png"), width=8, height=10)
+ggsave(file.path(subdir, "alpha_vs_pd.png"), width=6, height=8)
 
 ###################
 #### RUN TESTS ####
