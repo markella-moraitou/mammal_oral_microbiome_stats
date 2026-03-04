@@ -49,6 +49,12 @@ low_prev <- read.csv(file.path(taxdir, "assess_contamination", "low_prevalence_t
 
 contam <- unique(c(abund_negs$x, low_prev$x))
 
+# Poorly preserved samples
+contam_samples <- read.csv(file.path(taxdir, "assess_contamination", "contaminated_samples.csv"))
+shallow_samples <- read.csv(file.path(taxdir, "assess_contamination", "contaminated_samples.csv"))
+
+bad_samples <- unique(c(contam_samples$x, shallow_samples$x))
+
 # DRAM genome summary form
 summary_form <- read.table(file.path(indir, "DRAM_genome_summary_form.tsv"),
                             sep = "\t", header = TRUE, check.names=FALSE, quote = "\"", comment = "")
@@ -80,6 +86,10 @@ elton_traits <- elton_traits %>%
 
 # Combine all sample and host species metadata in one big table
 meta <- metadata
+
+# A sample we thought was killer whale turned out to be a false killer whale
+# We will still analyse it as an orca, since they are ecologically and phylogenetically similar, to increase sample size
+meta <- meta %>% mutate(Species = ifelse(Species == "Pseudorca crassidens", "Orcinus orca", Species))
 
 meta <-
   meta %>%
@@ -282,6 +292,9 @@ saveRDS(phy_gene_clr, file.path(subdir, "phy_gene_clr.RDS"))
 phy_gene_f <- prune_samples(!(sample_names(phy_gene) %in% low_content_samples), phy_gene)
 phy_gene_f <- subset_samples(phy_gene_f, !is.neg)
 phy_gene_f <- prune_taxa(taxa_sums(phy_gene_f) > 0, phy_gene_f)
+
+# Also remove samples that were previously identified as poorly preserved or contaminated by the community-wide analysis
+phy_gene_f <- prune_samples(!(sample_names(phy_gene_f) %in% bad_samples), phy_gene_f)
 
 ##############################
 #### FILTER BY PREVALENCE ####
