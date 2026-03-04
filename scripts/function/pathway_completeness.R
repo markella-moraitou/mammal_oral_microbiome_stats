@@ -127,7 +127,6 @@ if (file.exists(file.path(subdir, "pathways_to_kos.csv"))) {
 if (file.exists(file.path(subdir, "pathway_info.csv"))) {
   cat("Loading pathway_info.csv\n")
   path_info_df <- read.csv(file.path(subdir, "pathway_info.csv"), stringsAsFactors = FALSE)
-  colnames(path_info_df) <- c("path", "path_name", "path_class", "completeness_in_dataset", "mean_reads")
 } else {
   path_info <- sapply(unique_pathways, function(pw) {
     cat("Getting info for pathway", pw, which(unique_pathways == pw), "of", length(unique_pathways), "...\n")
@@ -225,7 +224,7 @@ if (file.exists(file.path(subdir, "pathway_completeness_per_sample.csv")) &
   for (i in 1:length(filt_pathways)) {
     cat("Calculating completeness for pathway", i, "of", length(filt_pathways), "...\n")
     pw <- filt_pathways[i]
-    kos <- pathway_kos[[i]] %>% str_remove("ko:")
+    kos <- pathway_kos[[pw]] %>% str_remove("ko:")
     if (is.null(kos)) {
       cat("No KOs found for pathway", pw, "\n")
       pathway_compl_sample[pw, ] <- NA

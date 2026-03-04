@@ -19,11 +19,13 @@ Analysis workflow for functional community-level analysis:
 ```mermaid
 flowchart TD;
     A[prepare_data]-->B[pathway_completeness];
-    A-->D[distillR];
-    B-->C[func_tax_procrustes];
-    B-->E[exploratory_plots];
-    B-->F[Functional core microbiome];
-    E-->G[diff_abund_func_enrich]
+    B-->C[diff_abund_path];
+    B-->D[functional_core];
+    B-->E[gsea_da_taxa];
+    A-->F[distillR];
+    C-->G[func_tax_procrustes];
+    C-->H[multivariate_stats_func];
+    C-->I[func_models];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:

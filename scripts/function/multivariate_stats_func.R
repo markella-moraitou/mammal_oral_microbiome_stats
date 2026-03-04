@@ -20,6 +20,7 @@ library(RColorBrewer)
 library(ggnewscale)
 library(scales)
 library(ggExtra)
+library(distillR)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -50,11 +51,17 @@ phy_gene_f_clr <- readRDS(file.path(datadir, "phy_gene_f_clr.RDS"))
 phy_pathway <- readRDS(file.path(pathdir, "phy_pathway.RDS"))
 phy_pathway_clr <- readRDS(file.path(pathdir, "phy_pathway_clr.RDS"))
 
+phy_gifts_el <- readRDS(file.path(datadir, "phy_gifts_el.RDS"))
+
 phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFactors = FALSE)
 
 ###################
 #### RDA PLOTS ####
 ###################
+
+#### Get shape scales for plotting ####
+diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
+order_shape_scale <- c("Carnivora" = 4, "Primates" = 19, "Artiodactyla" = 5, "Perissodactyla" = 2, "Rodentia" = 1, "Rest" = 12, "Proboscidea_Sirenia" = 12)
 
 #### GENE ABUNDANCE (CLR) ####
 
@@ -64,13 +71,11 @@ phy_gene_f_clr <- phy_gene_f_clr %>%
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  Rodentia = (Order == "Rodentia"),
                   ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
-species_traits <- c("Artiodactyla", "Perissodactyla", "Primates", "Rodentia",
+species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
                     "ruminant", "marine", "Fruit", "Animal")
 
 # Ordinate using all data
@@ -82,45 +87,24 @@ vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
-            xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
+            xlim(paste0("RDA", 1:length(species_traits)))
 
 ggsave(file.path(subdir, "screeplot_genes.png"), p, width=3, height=3)
 
-# Color by order
-
-#### Get shape scales for plotting ####
-diet_shape_scale <- c("Animalivore" = 8, "Omnivore" = 9 , "Frugivore" = 2, "Herbivore" = 16)
-
-p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
-  custom_theme() +
-  scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
-  scale_color_manual(values=order_palette, name = "Order") +
-  geom_phylopic(data = centroids(ord@ord, phy_gene_f), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_gene_f)$uid, width = 0.3, fill = "transparent") +
-  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-  guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
-  
-p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
-
-ggsave(p, filename = file.path(subdir, "gene_ordination_order.png"), width=6, height=6)
+## SAMPLE PLOTS
 
 # Color by diet
+p <- custom_ord_plot(phy_gene_f_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-#### Get shape scales for plotting ####
-order_shape_scale <- c("Carnivora" = 4, "Primates" = 19, "Artiodactyla" = 5, "Perissodactyla" = 2, "Rodentia" = 1, "Rest" = 12, "Proboscidea_Sirenia" = 12)
+ggsave(p, filename = file.path(subdir, "gene_ordination_diet.png"), width=5, height=5)
 
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5) +
-  custom_theme() +
-  scale_shape_manual(values=order_shape_scale, name = "Order") +
-  scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  geom_phylopic(data = centroids(ord@ord, phy_gene_f), aes(colour = diet.general), uuid = centroids(ord@ord, phy_gene_f)$uid, width = 0.3, fill = "transparent") +
-  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-  guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
+# Colour by order
+p <- custom_ord_plot(phy_gene_f_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
+ggsave(p, filename = file.path(subdir, "gene_ordination_order.png"), width=5, height=5)
 
-ggsave(p, filename = file.path(subdir, "gene_ordination_diet.png"), width=6, height=6)
+## PLOT ARROWS
 
-# Plot arrows
 # Get loading arrows coordinaties
 arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 
@@ -144,18 +128,18 @@ arrows_filt <- arrows_filt %>%
                                             TRUE ~ "Other"), levels = c(common_categories, "Other")))
 
 # Set colours for categories using colour brewer
-arrow_colours <- brewer.pal(n = length(unique(arrows_filt$category_grouped))-1, name = "Dark2")
-names(arrow_colours) <- unique(arrows_filt$category_grouped)[-length(unique(arrows_filt$category_grouped))] # Remove "Other" from names
+arrow_colours <- brewer.pal(n = length(unique(arrows_filt$category_grouped)), name = "Dark2")
+names(arrow_colours) <- unique(arrows_filt$category_grouped) # Remove "Other" from names
 arrow_colours["Other"] <- "grey90" # Set "Other" to grey
 
 p <- ggplot(data = arrows_filt) +
   geom_segment(aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = category_grouped), linewidth = 0.5, alpha = 0.5) +
-  scale_color_manual(values = arrow_colours, name = "Module") +
+  scale_color_manual(values = arrow_colours, name = "Category") +
   xlab("RDA1") + ylab("RDA2") +
   theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
   guides(colour = guide_legend(nrow = 2))
 
-ggsave(p, filename = file.path(subdir, "gene_ordination_arrows.png"), width=6, height=6)
+ggsave(p, filename = file.path(subdir, "gene_ordination_arrows.png"), width=5, height=5)
 
 #### PATH ABUNDANCE (CLR) ####
 
@@ -164,10 +148,8 @@ phy_pathway_clr <- phy_pathway_clr %>%
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  Rodentia = (Order == "Rodentia"),
                   ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  marine = (habitat.general == "Marine"))
 
 # Ordinate using all data
 ord <- ord_calc(phy_pathway_clr, constraints = species_traits, method = "RDA")
@@ -178,81 +160,144 @@ vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
-            xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
+            xlim(paste0("RDA", 1:length(species_traits)))
 
 ggsave(file.path(subdir, "screeplot_pathways.png"), p, width=3, height=3)
 
-# Color by order
-p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
-  custom_theme() +
-  scale_shape_manual(values=diet_shape_scale, name = "Estimated diet") +
-  scale_color_manual(values=order_palette, name = "Order") +
-  geom_phylopic(data = centroids(ord@ord, phy_pathway_clr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_pathway_clr)$uid, width = 0.2, fill = "transparent") +
-  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-  guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
-
-p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
-
-ggsave(p, filename = file.path(subdir, "pathway_ordination_order.png"), width=6, height=6)
+## SAMPLE PLOTS
 
 # Color by diet
-p <- ord_plot(ord, colour="diet.general", shape="Order_grouped", alpha = 0.5) +
-  custom_theme() +
-  scale_shape_manual(values=order_shape_scale, name = "Order") +
-  scale_color_manual(values=diet_palette, name = "Estimated diet") +
-  geom_phylopic(data = centroids(ord@ord, phy_pathway_clr), aes(colour = diet.general), uuid = centroids(ord@ord, phy_pathway_clr)$uid, width = 0.2, fill = "transparent") +
-  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
-  guides(shape = guide_legend(ncol = 2), colour = guide_legend(ncol = 2))
+p <- custom_ord_plot(phy_pathway_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
+ggsave(file.path(subdir, "pathway_ordination_diet.png"), p, width=5, height=5)
 
-ggsave(p, filename = file.path(subdir, "pathway_ordination_diet.png"), width=6, height=6)
+# Colour by order
+p <- custom_ord_plot(phy_pathway_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-# Plot arrows
+ggsave(file.path(subdir, "pathway_ordination_order.png"), p, width=5, height=5)
+
+## Plot arrows
+# Get scores and add info
+taxa_rda <- data.frame(vegan::scores(ord@ord, display="species", choices=1:3)) %>%
+            cbind(tax_table(phy_pathway_clr)[, c("path_name", "path_class")]) %>%
+            rownames_to_column("OTU") %>%
+            # Get grouped categories
+            mutate(category = str_remove(path_class, ".*; "))
+
+# Identify 10 pathways with the highest correlation
+top_taxa <- taxa_rda %>% arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>%
+              slice_head(n = 10) %>% pull(path_name)
+
+taxa_rda <- taxa_rda %>% mutate(label = ifelse(path_name %in% top_taxa, path_name, NA)) %>%
+            mutate(label = factor(path_name, levels = top_taxa)) %>%
+            mutate(linetype = ifelse(path_name %in% top_taxa, "solid", "dashed"))
+
+# Group uncommon categories for labelled taxa
+common_categories <- table(taxa_rda$category[!is.na(taxa_rda$label)]) %>% sort(decreasing = TRUE) %>% head(7) %>% names
+
+taxa_rda <- taxa_rda %>%
+    mutate(category_grouped = factor(case_when(category %in% common_categories ~ category,
+                                            TRUE ~ "Other"), levels = c(rev(common_categories), "Other")))  
+
+# Save
+write.csv(taxa_rda, file.path(subdir, "pathway_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
+
+# Set colours for categories using colour brewer
+arrow_colours <- brewer.pal(n = length(unique(taxa_rda$category_grouped))-1, name = "Dark2")
+names(arrow_colours) <- unique(taxa_rda$category_grouped)[-length(unique(taxa_rda$category_grouped))] # Remove "Other" from names
+arrow_colours["Other"] <- "grey70" # Set "Other" to grey
+
+# Plot
+set.seed(245)
+
+p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = category_grouped)) +
+  geom_segment(linewidth = 0.5, alpha = 0.8, aes(linetype = linetype)) +
+  scale_linetype_identity() +
+  scale_color_manual(values = arrow_colours, name = "Pathway class") +
+  geom_label(aes(label = label, x = RDA1, y = RDA2),
+            size = 2, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
+  custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
+  theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 7)) +
+  guides(colour = guide_legend(ncol = 2)) +
+  xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
+
+ggsave(p, filename = file.path(subdir, "pathway_ordination_arrows.png"), width=5, height=5)
+
+#### GIFTs (distillR) ####
+
+phy_gifts_el <- phy_gifts_el %>% 
+        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+                  Carnivora = (Order == "Carnivora"),
+                  Perissodactyla = (Order == "Perissodactyla"),
+                  Primates = (Order == "Primates"),
+                  ruminant = (digestion == "Ruminant"),
+                  marine = (habitat.general == "Marine"))
+
+# Ordinate using all data
+ord <- ord_calc(phy_gifts_el, constraints = species_traits, method = "RDA")
+
+# Select variables and check for collinearity
+ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+vif.cca(ord_step)
+
+# Scree plot
+p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
+            xlim(paste0("RDA", 1:length(species_traits)))
+
+ggsave(file.path(subdir, "screeplot_gifts.png"), p, width=3, height=3)
+
+## SAMPLE PLOTS
+
+# Color by diet
+p <- custom_ord_plot(phy_gifts_el, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
+
+ggsave(file.path(subdir, "gift_ordination_diet.png"), p, width=5, height=5)
+
+# Colour by order
+p <- custom_ord_plot(phy_gifts_el, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
+
+ggsave(file.path(subdir, "gift_ordination_order.png"), p, width=5, height=5)
+
+## Plot arrows
+
 # Get loading arrows coordinaties
 arrows <- arrow_coord(ord@ord, axes = c(1, 2))
 
-# Get gene category
-arrows$name <- as.character(phy_pathway_clr@tax_table[match(rownames(arrows), rownames(phy_pathway_clr@tax_table)), "path_name"])
-arrows$category <- as.character(phy_pathway_clr@tax_table[match(rownames(arrows), rownames(phy_pathway_clr@tax_table)), "path_class"])
-arrows$category <- str_remove(arrows$category, ".*; ")
+element_info <- GIFT_db %>% select(Code_element, Element, Function, Domain) %>%
+                  filter(Code_element %in% rownames(arrows)) %>%
+                  distinct() %>% column_to_rownames("Code_element")
 
-arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), nrow(arrows)))
+# Get gene category
+arrows <- arrows %>% cbind(element_info[rownames(arrows),])
+
+arrows$plot_label <- (rownames(arrows) %in% head(rownames(arrows), 10))
 
 # Save
-write.csv(rownames_to_column(arrows, "gene"), file.path(subdir, "gene_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
+write.csv(taxa_rda, file.path(subdir, "gift_ordination_arrows.txt"), quote = FALSE, row.names = FALSE)
 
 # Keep only strongest associations
-arrows_filt <- arrows %>% filter(to_plot) %>%
-              select(contains(c("1", "2")), name, category)
+arrows_sum <- arrows %>% group_by(Function, Domain) %>%
+              summarise(RDA1 = mean(RDA1), RDA2 = mean(RDA2)) %>%
+              arrange(desc(sqrt(RDA1^2 + RDA2^2))) %>% head(10)
 
-# Group uncommon categories
-common_categories <- table(arrows_filt$category) %>% sort(decreasing = TRUE) %>% head(8) %>% names
-
-arrows_filt <- arrows_filt %>%
-    mutate(category_grouped = factor(case_when(category %in% common_categories ~ category,
-                                            TRUE ~ "Other"), levels = c(common_categories, "Other")))
-
-# Set colours for categories using colour brewer
-arrow_colours <- brewer.pal(n = length(unique(arrows_filt$category_grouped))-1, name = "Dark2")
-names(arrow_colours) <- unique(arrows_filt$category_grouped)[-length(unique(arrows_filt$category_grouped))] # Remove "Other" from names
-arrow_colours["Other"] <- "grey90" # Set "Other" to grey
-
-p <- ggplot(data = arrows_filt) +
-  geom_segment(aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = category_grouped), linewidth = 0.5, alpha = 0.5) +
-  #geom_text(aes(x = RDA1, y = RDA2, label = name, hjust = ifelse(RDA1 < 0, 1, 0)), size = 1.5, vjust = 1) +
-  scale_color_manual(values = arrow_colours, name = "Pathway class") +
-  xlim(c(min(arrows_filt$RDA1)*2, max(arrows_filt$RDA1)*2)) +
+p <- ggplot(data = arrows) +
+  geom_segment(aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = Domain), linewidth = 0.5, alpha = 0.3, linetype = "dashed") +
+  geom_label(data = arrows[arrows$plot_label,], aes(x = RDA1*1.1, y = RDA2*1.1, label = Element, colour = Domain), size = 2, fill = "white", alpha = 0.7) +
+  geom_segment(data = arrows_sum, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = Domain), linewidth = 1, alpha = 0.7) +
+  geom_label(data = arrows_sum, aes(x = RDA1*1.1, y = RDA2*1.1, label = str_remove(Function, tolower(Domain)), fill = Domain), size = 2, colour = "white", alpha = 0.7) +
+  scale_colour_manual(values = c("Degradation" = "#D55E00", "Biosynthesis" = "#0072B2", "Structure" = "#6A6A6A"), name = "") +
+  scale_fill_manual(values = c("Degradation" = "#D55E00", "Biosynthesis" = "#0072B2", "Structure" = "#6A6A6A"), name = "") +
   xlab("RDA1") + ylab("RDA2") +
-  theme(legend.position = "bottom", legend.direction = "vertical",
-        legend.text = element_text(size = 7), legend.title = element_text(size = 10)) +
-  guides(colour = guide_legend(ncol = 2))
+  theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8)) +
+  guides(colour = guide_legend(nrow = 1))
 
-ggsave(p, filename = file.path(subdir, "pathway_ordination_arrows.png"), width=6, height=5)
+ggsave(p, filename = file.path(subdir, "gift_ordination_arrows.png"), width=5, height=5)
 
 ###################
 #### PERMANOVA ####
 ###################
+
+sample_data <- as.data.frame(phy_gene_f_clr@sam_data)
 
 # Explanatory variables
 order <- sample_data$Order
@@ -265,30 +310,45 @@ species <- sample_data$Species
 #### GENE DATA ####
 set.seed(123)
 
-otu_table <- as.data.frame(phy_gene_f_clr@otu_table)
+otu_table <- t(as.data.frame(phy_gene_f_clr@otu_table))
 
 perm <- adonis2(otu_table ~ order + diet + habitat + ruminant + hypsodont,
         permutations = 1000, by = "margin", method = "euclidean")
 
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_allfactors.csv"), row.names = TRUE, quote = TRUE)
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_gene_allfactors.csv"), row.names = TRUE, quote = TRUE)
 
 perm <- adonis2(otu_table ~ sample_data$Species,
         permutations = 1000, by = "margin", method = "euclidean")
 
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
-
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_gene_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
 
 #### PATHWAY DATA ####
 set.seed(123)
 
-otu_table <- as.data.frame(phy_gene_f_clr@otu_table)
+otu_table <- t(as.data.frame(phy_pathway@otu_table))[rownames(sample_data),]
 
 perm <- adonis2(otu_table ~ order + diet + habitat + ruminant + hypsodont,
         permutations = 1000, by = "margin", method = "euclidean")
 
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_allfactors.csv"), row.names = TRUE, quote = TRUE)
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_pathway_allfactors.csv"), row.names = TRUE, quote = TRUE)
 
 perm <- adonis2(otu_table ~ sample_data$Species,
         permutations = 1000, by = "margin", method = "euclidean")
 
-write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_clr_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_pathway_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
+
+#### GIFT DATA ####
+
+set.seed(123)
+
+otu_table <- as.data.frame(phy_gifts_el@otu_table)[rownames(sample_data),]
+
+perm <- adonis2(otu_table ~ order + diet + habitat + ruminant + hypsodont,
+        permutations = 1000, by = "margin", method = "euclidean")
+
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_gift_allfactors.csv"), row.names = TRUE, quote = TRUE)
+
+perm <- adonis2(otu_table ~ sample_data$Species,
+        permutations = 1000, by = "margin", method = "euclidean")
+
+write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_gift_onlyspecies.csv"), row.names = TRUE, quote = TRUE)
