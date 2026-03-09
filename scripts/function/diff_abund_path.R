@@ -303,11 +303,11 @@ HPDinterval(m1$VCV)
 # Collect results into tables
 fixed_results <- summary(m1)$solutions %>%
   data.frame %>% rownames_to_column("term") %>%
-  mutate(pathway = str_extract(term, "OTU[^:]*")) %>% # Separate pathways
-  mutate(term = str_remove(term, pathway) %>% str_remove(":")) %>%  # Separate term
-  mutate(pathway = str_remove_all(pathway, "OTU|:")) %>% # Remove fluff from pathway name
+  mutate(pathway = str_extract(term, "OTUpath:ko[0-9]+")) %>% # Separate pathways
+  mutate(term = str_remove(str_remove(term, pathway), ":")) %>%  # Separate term
+  mutate(pathway = str_remove(pathway, "OTU")) %>%
   # Remove intercepts
-  filter(!is.na(OTU))
+  filter(!is.na(pathway))
 
 random_results <- summary(m1)$Gcovariances %>%
   data.frame %>% rownames_to_column("term") %>%
@@ -363,25 +363,118 @@ r2 <- data.frame(pathway = lambda$pathway, R2 = sapply(lambda$pathway, get_r2, m
 
 write.csv(r2, file = file.path(subdir, "mcmcglmm_r2.csv"), quote = FALSE, row.names = FALSE)
 
+common_categories <- table(phy_pathway_clr@tax_table[,"path_class"]) %>% sort(decreasing = TRUE) %>%
+            head(8) %>% names %>% str_remove(".*; ")
+
 # Combine lamda and R2
 phylo_v_eco <-
     full_join(lambda, r2, by = "pathway") %>%
     # Add taxonomy
-    left_join(phy_genus_clr@tax_table %>% as.data.frame %>% rownames_to_column("pathway"), by = "pathway") %>%
+    left_join(phy_pathway_clr@tax_table %>% as.data.frame %>% rownames_to_column("pathway"), by = "pathway") %>%
     mutate(category = str_remove(path_class, ".*; ")) %>%
-    mutate(category = case_when(category %in%  ~ common_categories,
+    mutate(category = case_when(category %in% common_categories ~ category,
                                 TRUE ~ "Other"))
+
+cat_palette <- brewer.pal(n = length(common_categories), name = "Dark2")
+names(cat_palette) <- common_categories # Remove "Other" from names
+cat_palette["Other"] <- "grey50"
 
 p <- ggplot(phylo_v_eco, aes(x = lambda, y = category, colour = category)) +
     geom_jitter(size = 3, alpha = 0.8, height = 0.2, width = 0) +
-    scale_colour_manual(values = cat_palette, name = "Path class")
+    scale_colour_manual(values = cat_palette, name = "Path class") +
+    theme(legend.position = "bottom", legend.direction = "vertical")
 
-ggsave(p, filename = file.path(subdir, "mcmcglmm_lambda.png"), width = 8, height = 6)
+ggsave(p, filename = file.path(subdir, "mcmcglmm_lambda.png"), width = 8, height = 8)
 
 p <- ggplot(phylo_v_eco, aes(x = lambda, y = R2, colour = category)) +
     geom_point() +
     scale_colour_manual(values = cat_palette, name = "Path class") +
     labs(x = "Phylogenetic lambda (λ)", y = "Ecology effects (fixed R2)") +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom", legend.direction = "vertical")
 
 ggsave(p, filename = file.path(subdir, "mcmcglmm_lambda_v_r2.png"), width = 8, height = 6)
+
+###########################################
+#### COMBINE MCMCglmm and PGLMM/lambda ####
+###########################################
+
+# Use lambda instead of species for MCMCglmm results to match with PGLMM
+lambda <- lambda %>% rename(coefficient = lambda) %>%
+        mutate(term = "lambda",
+               pval = NA)
+
+mcmc_res_long <- mcmc_res %>% select(pathway, term, post.mean, pMCMC, padj) %>%
+    mutate(term = str_remove(term, "habitat.general") %>% str_remove("ruminant")) %>%
+    filter(term != "Species") %>%
+    rename(coefficient = post.mean,
+           pval = pMCMC) %>%
+    rbind(lambda)
+
+# t for traditional approach, b for Bayesian MCMCglmm
+all_res <- full_join(combined_long, mcmc_res_long, by = c("pathway", "term"), suffix = c("_t", "_b"))
+
+write.csv(all_res, file = file.path(subdir, "all_diffabund_path_results.csv"), quote = FALSE, row.names = FALSE)
+
+# Do coefficients correlated?
+p <- ggplot(all_res, aes(x = coefficient_t, y = coefficient_b, colour = term)) +
+    geom_point() +
+    facet_wrap(~ term, scales = "free") +
+    labs(x = "PGLMM/Pagel's lambda coefficient", y = "MCMCglmm coefficient") +
+    theme(legend.position = "none")
+
+ggsave(p, filename = file.path(subdir, "all_diffabund_path_coeff_correlation.png"), width = 6, height = 6)
+
+### Plot abundances ####
+
+res_labels <- all_res %>%
+            # Keep significant results only in either method (after p-value adjustment)
+            filter(padj_t < 0.05 | padj_b < 0.05) %>%
+            # label association (positive and negative)
+            mutate(assoc = case_when(coefficient_t < 0 & coefficient_b < 0 ~ paste0(term, "-"),
+                                     coefficient_t > 0 & coefficient_b > 0 ~ paste0(term, "+"),
+                                     coefficient_t < 0 & coefficient_b > 0 ~ paste0(term, " mixed-+"),
+                                     coefficient_t > 0 & coefficient_b < 0 ~ paste0(term, " mixed+-")),
+                   signif = case_when(padj_t < 0.05 & padj_b < 0.05 ~ "both padj < 0.05",
+                                      padj_t < 0.05 & pval_b < 0.05 ~ "padj_t < 0.05, pval_b < 0.05",
+                                      padj_t < 0.05 ~ "padj_t < 0.05, pval_b ns",
+                                      pval_t < 0.05 & padj_b < 0.05 ~ "pval_t < 0.05, padj_b < 0.05",
+                                      pval_t >= 0.05 ~ "pval_t ns, padj_b < 0.05",
+                                      # if an OTU doesn't come up as significant in either method (after adjusting), remove
+                                      TRUE ~ "remove")) %>% 
+            filter(signif != "remove") %>%
+            # Then summarise all associations per taxon
+            group_by(pathway, path_name) %>%
+            summarise(label = paste(paste(assoc, signif, sep = ": "), collapse="\n")) %>%
+            mutate(label = str_remove_all(label, "ruminant|habitat.general"))
+
+# Get abundances per sample for the differentially abundant taxa
+abundances <- phy_pathway_clr@otu_table %>% t %>% data.frame %>% rownames_to_column("Sample") %>%
+              pivot_longer(cols = -Sample, names_to = "pathway", values_to = "Abundance") %>%
+              left_join(rownames_to_column(select(data.frame(phy_pathway_clr@sam_data), Common.name, Order, diet.general), "Sample"), by = "Sample") %>%
+              mutate(pathway = gsub("\\.", ":", pathway)) %>%
+              right_join(res_labels)
+
+# Reorder host species
+species_levels <- phy_pathway_clr@sam_data %>% data.frame %>% arrange(as.character(Order), as.character(digestion), Common.name) %>% select(Order, Common.name) %>% unique
+abundances$Common.name <- factor(abundances$Common.name, levels = species_levels$Common.name)
+
+# Reorder pathways
+path_levels <- abundances %>% arrange(label) %>% pull(path_name) %>% unique
+abundances$path_name <- factor(abundances$path_name, levels = path_levels)
+
+# Plot
+order_palette2 <- order_palette
+order_palette2["Sirenia/Proboscidea"] <- order_palette2["Sirenia"]
+
+p <- ggplot(abundances, aes(x = Common.name, y = Abundance, colour = Order, fill = diet.general)) +
+    geom_boxplot(alpha = 0.8, size = 0.5) +
+    scale_colour_manual(values = order_palette2, name = "Order") +
+    scale_fill_manual(values = diet_palette, name = "Diet") +
+    facet_wrap(~ paste(paste0(path_name, " (", pathway, ")"), label, sep = "\n"), ncol = 3, scales = "free_y") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
+          axis.title.x = element_blank(),
+          strip.text.x = element_text(size = 8),
+          legend.position = "bottom") + ylab("CLR-transformed abundances") +
+    guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+ggsave(p, filename = file.path(subdir, "all_diffabund_paths_abundances.png"), width = 12, height = 20)
