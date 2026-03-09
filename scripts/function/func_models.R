@@ -484,14 +484,14 @@ plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
 # Cophyloplot Pathways
-coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_pathway, assoc=links)
 
 png(file.path(subdir, "func_cophyloplot_pathway.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
-coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_clr, assoc=links)
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_pathway, assoc=links)
 
 png(file.path(subdir, "func_cophyloplot_pathway_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)

@@ -146,30 +146,18 @@ expand_palette <- function(subcategories_df, base_colours) {
 }
 
 custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_scaling, type) {
-  #### Get arrows ####
-  # Get loading arrows coordinaties
-  arrows <- arrow_coord(ord@ord, axes = c(1, 2, 3))
-  # Get genus and phylum
-  arrows$genus <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "genus"])
-  arrows$phylum <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "phylum"])
-  arrows$superkingdom <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "superkingdom"])
-  arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 100))
-  # Group phyla for better plotting
-  arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
-                                                          superkingdom == "Bacteria" ~ "Other Bacteria",
-                                                          superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
-  # Keep only strongest associations
-  arrows_filt <- arrows %>% filter(to_plot) %>%
-                select(contains(c("1", "2")), phylum_grouped)
   # Get species centroids
-  centroids <- centroids(ord@ord, phyloseq)
+  centroids <- centroids(ordination@ord, phyloseq)
+  # Calculate width for phylopics
+  x_axis_range <- diff(range(vegan::scores(ordination@ord, choices = 1, display = "sites")))
+  phylopic_width <- round(0.05 * x_axis_range, digits = 2)
   # Plot
-  p <- ord_plot(ord, auto_caption = NA, plot_samples = FALSE,
+  p <- ord_plot(ordination, auto_caption = NA, plot_samples = FALSE,
                 constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 3),
                 constraint_vec_style = vec_constraint(colour = "grey20", alpha = 0.5)) +
     custom_theme() +
     geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 1.5) +
-    geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "transparent", alpha = 0.8, uuid = centroids$uid, width = 0.2)
+    geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "transparent", alpha = 0.8, uuid = centroids$uid, width = phylopic_width)
   # Add the correct scales
   if (colour_var == "Order_grouped") {
     p <- p +
@@ -210,7 +198,24 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
     theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8), legend.title = element_text(size = 9))
   # If PCA, add taxon arrows
   if (type == "PCA") {
+      #### Get arrows ####
+      # Get loading arrows coordinaties
+      arrows <- arrow_coord(ordination@ord, axes = c(1, 2, 3))
+      # Get genus and phylum
+      arrows$genus <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "genus"])
+      arrows$phylum <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "phylum"])
+      arrows$superkingdom <- as.character(phyloseq@tax_table[match(rownames(arrows),  phyloseq@tax_table[, "species"]), "superkingdom"])
+      arrows$to_plot <- (rownames(arrows) %in% head(rownames(arrows), 100))
+      # Group phyla for better plotting
+      arrows <- arrows %>% mutate(phylum_grouped = factor(case_when(phylum %in% names(phylum_palette) ~ phylum,
+                                                              superkingdom == "Bacteria" ~ "Other Bacteria",
+                                                              superkingdom == "Archaea" ~ "Other Archaea"), levels = names(phylum_palette)))
+      # Keep only strongest associations
+      arrows_filt <- arrows %>% filter(to_plot) %>%
+                    select(contains(c("1", "2")), phylum_grouped)
+    # PLOT
     p <- p +
+      guides(colour = guide_legend(ncol = 1)) +
       new_scale_colour() +
       geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*arrows_scaling, yend = PC2*arrows_scaling, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
       scale_color_manual(values = phylum_palette, name = "Phylum") +
@@ -245,7 +250,6 @@ taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
     scale_color_manual(values = phylum_palette, name = "Phylum") +
     geom_label(aes(label = label, x = RDA1, y = RDA2),
               size = 2, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
-    scale_size_continuous(range = c(0.01, 2), name = "Mean CLR-abundance") +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
     theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 8)) +
     guides(colour = guide_legend(ncol = 2)) +
