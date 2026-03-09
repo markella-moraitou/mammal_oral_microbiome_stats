@@ -53,6 +53,8 @@ phy_gene_f_clr <- readRDS(file.path(datadir, "phy_gene_f_clr.RDS"))
 phy_pathway <- readRDS(file.path(outdir, "pathway_completeness", "phy_pathway.RDS"))
 phy_pathway_clr <- readRDS(file.path(outdir, "pathway_completeness", "phy_pathway_clr.RDS"))
 
+phy_gifts_el <- readRDS(file.path(datadir, "phy_gifts_el.RDS"))
+
 # Host phylogeny
 host_consensus <- read.tree(file.path(outdir, "..", "community_analysis", "host_consensus.tre"))
 
@@ -122,7 +124,7 @@ species_dist <- as.dist(species_dist)
 ##########################
 
 # Write function to get microbiome distances at different taxonomic levels
-get_mb_dist <- function(phy, method = c("jaccard", "aitchison"), scale = TRUE) {
+get_mb_dist <- function(phy, method = c("jaccard", "aitchison", "euclidean"), scale = TRUE) {
     if ("aitchison" %in% method) {
         # CLR normalisation
         phy_clr <- microbiome::transform(phy, "clr")
@@ -131,15 +133,24 @@ get_mb_dist <- function(phy, method = c("jaccard", "aitchison"), scale = TRUE) {
     dist_list <- list("raw" = "jaccard",
                       "aitchison" = "euclidean")
     mbdist_list <- list()
+    otu_table <- phy@otu_table
+    if (taxa_are_rows(phy)) {
+        otu_table <- t(otu_table)
+    }
     if ("jaccard" %in% method) {
-        mbdist <- vegdist(t(phy@otu_table), method="jaccard")
+        mbdist <- vegdist(otu_table, method="jaccard")
         (scale == TRUE) & (mbdist <- as.dist(scale(mbdist))) # Scale microbiome distances
         mbdist_list[["jaccard"]] <- mbdist
     } 
     if ("aitchison" %in% method) {
-        mbdist <- vegdist(t(phy_clr@otu_table), method="euclidean")
+        mbdist <- vegdist(otu_table, method="euclidean")
         (scale == TRUE) & (mbdist <- as.dist(scale(mbdist))) # Scale microbiome distances
         mbdist_list[["aitchison"]] <- mbdist
+    }
+    if ("euclidean" %in% method) {
+        mbdist <- vegdist(otu_table, method="euclidean")
+        (scale == TRUE) & (mbdist <- as.dist(scale(mbdist))) # Scale microbiome distances
+        mbdist_list[["euclidean"]] <- mbdist
     }
     return(mbdist_list)
 }
@@ -195,8 +206,9 @@ sampling_mrm <- function(mb_dist, predictor_dists = list(), niter = 100, sample_
 
 dist_list <- list()
 
-dist_list[["gene"]] <- get_mb_dist(phy_gene_f)
-dist_list[["pathway"]] <- get_mb_dist(phy_pathway)
+dist_list[["gene"]] <- get_mb_dist(phy_gene_f, method = c("jaccard", "aitchison"))
+dist_list[["pathway"]] <- get_mb_dist(phy_pathway, method = c("jaccard", "aitchison"))
+dist_list[["gifts"]] <- get_mb_dist(phy_gifts_el, method = c("jaccard", "euclidean"))
 
 saveRDS(dist_list, file = file.path(subdir, "mb_func_distances.RDS"))
 
@@ -217,7 +229,7 @@ distances_with_species <- list(
                             "habitat_dist" = habitat_dist,
                             "ruminant_dist" = ruminant_dist)
 
-phy_list <- c("phy_gene_f", "phy_pathway")
+phy_list <- c("phy_gene_f", "phy_pathway", "phy_gifts_el")
 
 mrm_results_nospecies <- list()
 mrm_results_species <- list()
@@ -247,14 +259,18 @@ for (i in 1:length(phy_list)) {
 mrm_results_nospecies_df <- bind_rows(mrm_results_nospecies) %>% dplyr::filter(Variable != "Int") %>%
                     mutate(sig = case_when(pval < 0.05 ~ "*",
                                            TRUE ~ "")) %>%
+                    # Show Euclidean and Aitchison together
+                    mutate(Distance = case_when(Distance %in% c("euclidean", "aitchison") ~ "Euclidean/Aitchison",
+                                                TRUE ~ Distance)) %>%
                     mutate(Distance = factor(recode(Distance,
                                             "jaccard" = "Jaccard",
-                                            "aitchison" = "Aitchison"),
-                                            levels = c("Jaccard", "Aitchison"))) %>%
+                                            "aitchison" = "Euclidean/Aitchison"),
+                                            levels = c("Jaccard", "Euclidean/Aitchison"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_gene_f" = "Genes",
-                                            "phy_pathway" = "KEGG Pathways"),
-                                            levels =c("Genes", "KEGG Pathways"))) %>%
+                                            "phy_pathway" = "KEGG Pathways",
+                                            "phy_gifts_el" = "Element-level GIFTs"),
+                                            levels =c("Genes", "KEGG Pathways", "Element-level GIFTs"))) %>%
                     mutate(Variable = str_remove(Variable, "_dist_filt")) %>%
                     mutate(Variable = factor(recode(Variable,
                                             "phy" = "Host phylogeny",
@@ -281,7 +297,7 @@ p <- ggplot(mrm_results_nospecies_df,
     scale_fill_manual(values = var_cols) +
     geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
+    facet_grid(Distance ~ Dataset, scale = "free", space = "free_x") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
@@ -294,14 +310,18 @@ ggsave(p, filename = file.path(subdir, "func_mrm_results_without_species_barplot
 mrm_results_species_df <- bind_rows(mrm_results_species) %>% dplyr::filter(Variable != "Int") %>%
                     mutate(sig = case_when(pval < 0.05 ~ "*",
                                            TRUE ~ "")) %>%
+                    # Show Euclidean and Aitchison together
+                    mutate(Distance = case_when(Distance %in% c("euclidean", "aitchison") ~ "Euclidean/Aitchison",
+                                                TRUE ~ Distance)) %>%
                     mutate(Distance = factor(recode(Distance,
                                             "jaccard" = "Jaccard",
-                                            "aitchison" = "Aitchison"),
-                                            levels = c("Jaccard", "Aitchison"))) %>%
+                                            "aitchison" = "Euclidean/Aitchison"),
+                                            levels = c("Jaccard", "Euclidean/Aitchison"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_gene_f" = "Genes",
-                                            "phy_pathway" = "KEGG Pathways"),
-                                            levels =c("Genes", "KEGG Pathways"))) %>%
+                                            "phy_pathway" = "KEGG Pathways",
+                                            "phy_gifts_el" = "Element-level GIFTs"),
+                                            levels =c("Genes", "KEGG Pathways", "Element-level GIFTs"))) %>%
                     mutate(Variable = str_remove(Variable, "_dist_filt")) %>% 
                     mutate(Variable = factor(recode(Variable,
                                             "species" = "Species identity",
@@ -323,7 +343,7 @@ p <- ggplot(mrm_results_species_df,
     scale_fill_manual(values = var_cols) +
     geom_text(aes(label = sig, y = ifelse(coef_median > 0, coef_q3 * 1.1, coef_q1 * 1.1)),
                   position = position_dodge(width = 0.9), size = 4) +
-    facet_grid(Distance ~ Dataset, scale = "free_x", space = "free_x") +
+    facet_grid(Distance ~ Dataset, scale = "free", space = "free_x") +
     labs(y = "MRM coefficient", x = "") +
     theme(legend.position = "bottom",
           axis.text.x = element_text(hjust = 1),
@@ -345,15 +365,20 @@ links <- samples_to_species %>%
         rename("phy1" = "Common.name", "phy2" = "Sample") %>%
         select(phy1, phy2, colour)
 
-# Microbiome tree from Jaccard distances
-mb_dist_jaccard <- vegdist(t(phy_pathway@otu_table), method="jaccard")
-mb_tree_jaccard <- nj(mb_dist_jaccard)
-mb_dist_jaccard_matrix <- as.matrix(mb_dist_jaccard)
+# Gene tree based on Aitchison distances
+mb_dist_gene <- vegdist(t(phy_gene_f_clr@otu_table), method="euclidean")
+mb_tree_gene <- nj(mb_dist_gene)
+mb_dist_gene_matrix <- as.matrix(mb_dist_gene)
 
-# Microbiome tree from CLR distances
-mb_dist_clr <- vegdist(t(phy_pathway_clr@otu_table), method="euclidean")
-mb_tree_clr <- nj(mb_dist_clr)
-mb_dist_clr_matrix <- as.matrix(mb_dist_clr)
+# Pathway tree based on Aitchison distances
+mb_dist_pathway <- vegdist(t(phy_pathway_clr@otu_table), method="euclidean")
+mb_tree_pathway <- nj(mb_dist_pathway)
+mb_dist_pathway_matrix <- as.matrix(mb_dist_pathway)
+
+# GIFT tree based on Euclidean distances
+mb_dist_gift <- vegdist(phy_gifts_el@otu_table, method="euclidean")
+mb_tree_gift <- nj(mb_dist_gift)
+mb_dist_gift_matrix <- as.matrix(mb_dist_gift)
 
 # Get host distances per host species
 host_dist <- dcast(host_dist_melt, Item1 ~ Item2, value = "host_distance") %>% column_to_rownames("Item1")
@@ -383,40 +408,56 @@ parafit_results <- data.frame(mb_distance = character(),
 assoc <- links %>% select(phy1, phy2) %>% mutate(assoc = 1) %>% pivot_wider(names_from = phy2, values_from = assoc, values_fill = 0) %>%
           column_to_rownames("phy1") %>% as.matrix()
 
-# Jaccard
-res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_jaccard_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+## Genes vs host phylogeny
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_gene_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
 
 parafit_results <- rbind(parafit_results,
-                         data.frame(mb_distance = "Jaccard",
+                         data.frame(mb_distance = "Genes",
                                     host_distance = "Phylogeny",
                                     ParaFitGlobal = res$ParaFitGlobal,
                                     p.global = res$p.global))
 
-# CLR
-res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+## Genes vs host diet
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_gene_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
 
 parafit_results <- rbind(parafit_results,
-                         data.frame(mb_distance = "CLR",
-                                    host_distance = "Phylogeny",
-                                    ParaFitGlobal = res$ParaFitGlobal,
-                                    p.global = res$p.global))
-
-## Compare host diet and microbiome diversification
-
-# Jaccard
-res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_jaccard_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
-
-parafit_results <- rbind(parafit_results,
-                         data.frame(mb_distance = "Jaccard",
+                         data.frame(mb_distance = "Genes",
                                     host_distance = "Diet",
                                     ParaFitGlobal = res$ParaFitGlobal,
                                     p.global = res$p.global))
 
-# CLR
-res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_clr_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+## Pathways vs host phylogeny
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_pathway_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
 
 parafit_results <- rbind(parafit_results,
-                         data.frame(mb_distance = "CLR",
+                         data.frame(mb_distance = "Pathways",
+                                    host_distance = "Phylogeny",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+## Pathways vs host diet
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_pathway_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "Pathways",
+                                    host_distance = "Diet",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+## GIFTs vs host phylogeny
+res <- parafit(host.D = as.matrix(host_dist), para.D = mb_dist_gift_matrix, HP = assoc, nperm = 1000, seed = 123, correction="cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "GIFTs",
+                                    host_distance = "Phylogeny",
+                                    ParaFitGlobal = res$ParaFitGlobal,
+                                    p.global = res$p.global))
+
+## GIFTs vs host diet
+res <- parafit(host.D = as.matrix(diet_sp_dist), para.D = mb_dist_gift_matrix, HP = assoc, nperm = 1000, seed = 123, correction = "cailliez")
+
+parafit_results <- rbind(parafit_results,
+                         data.frame(mb_distance = "GIFTs",
                                     host_distance = "Diet",
                                     ParaFitGlobal = res$ParaFitGlobal,
                                     p.global = res$p.global))
@@ -424,35 +465,51 @@ parafit_results <- rbind(parafit_results,
 write.csv(parafit_results, file = file.path(subdir, "func_parafit_results.csv"), row.names = FALSE, quote = TRUE)
 
 #### Plot cophyloplots ####
-# Cophyloplot Jaccard
 
 host_consensus$tip.label <- sample_data$Common.name[match(host_consensus$tip.label, sample_data$Species)]
 
-coph <- cophylo(tr1=host_consensus, tr2=mb_tree_jaccard, assoc=links)
+# Cophyloplot Genes
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_gene, assoc=links)
 
-png(file.path(subdir, "func_cophyloplot_jaccard.png"), width = 800, height = 500)
+png(file.path(subdir, "func_cophyloplot_gene.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
-coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_jaccard, assoc=links)
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_gene, assoc=links)
 
-png(file.path(subdir, "func_cophyloplot_jaccard_diet.png"), width = 800, height = 500)
+png(file.path(subdir, "func_cophyloplot_gene_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
-# Cophyloplot CLR
+# Cophyloplot Pathways
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
 
-png(file.path(subdir, "func_cophyloplot_clr.png"), width = 800, height = 500)
+png(file.path(subdir, "func_cophyloplot_pathway.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()
 
 coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_clr, assoc=links)
 
-png(file.path(subdir, "func_cophyloplot_clr_diet.png"), width = 800, height = 500)
+png(file.path(subdir, "func_cophyloplot_pathway_diet.png"), width = 800, height = 500)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+# Cophyloplot GIFTs
+
+coph <- cophylo(tr1=host_consensus, tr2=mb_tree_gift, assoc=links)
+
+png(file.path(subdir, "func_cophyloplot_gift.png"), width = 800, height = 500)
+par(mar=c(5, 4, 4, 2) + 0.1)
+plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+dev.off()
+
+coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_gift, assoc=links)
+
+png(file.path(subdir, "func_cophyloplot_gift_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
 plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
 dev.off()

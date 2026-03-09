@@ -41,6 +41,8 @@ phy_gene_f_clr <- readRDS(file.path(outdir, "data", "phy_gene_f_clr.RDS"))
 
 phy_pathway_clr <- readRDS(file.path(outdir, "pathway_completeness", "phy_pathway_clr.RDS"))
 
+phy_gifts_el <- readRDS(file.path(outdir, "data", "phy_gifts_el.RDS"))
+
 phy_sp_f_clr <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f_clr.RDS"))
 phy_sp_f <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f.RDS"))
 
@@ -67,6 +69,15 @@ phy_pathway_clr <- phy_pathway_clr %>%
                   marine = (habitat.general == "Marine"),
                   animalivore = (diet.general == "Animalivore"))
 
+phy_gifts_el <- phy_gifts_el %>%
+        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+                  Carnivora = (Order == "Carnivora"),
+                  Perissodactyla = (Order == "Perissodactyla"),
+                  Primates = (Order == "Primates"),
+                  ruminant = (digestion == "Ruminant"),
+                  marine = (habitat.general == "Marine"),
+                  animalivore = (diet.general == "Animalivore"))
+
 phy_sp_f_clr <- phy_sp_f_clr %>%
         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
@@ -85,14 +96,18 @@ species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
 ##########################
 
 func_tax_procrustes <- function(phy_func, phy_tax, out_suffix) {
+    # Scale and centre the data
+    phy_func <- microbiome::transform(phy_func, "standardize")
+    phy_tax <- microbiome::transform(phy_tax, "standardize")
     # Run PCA on both datasets
     cat("Running RDA on functional data...\n")
-    ord_func <- phy_func %>% ord_calc(constraints = species_traits, method = "RDA", centre = TRUE, scale. = TRUE)
+    ord_func <- phy_func %>% ord_calc(constraints = species_traits, method = "RDA", centre = TRUE)
     cat("Running RDA on taxonomic data...\n")
-    ord_tax <- phy_tax %>% ord_calc(constraints = species_traits, method = "RDA", centre = TRUE, scale. = TRUE)
+    ord_tax <- phy_tax %>% ord_calc(constraints = species_traits, method = "RDA", centre = TRUE)
     
     ## Procrustes analysis
     pro <- procrustes(X = ord_tax@ord, Y = ord_func@ord, symmetric = FALSE)
+    
     # Test significance
     set.seed(123)
     test <- protest(X = ord_tax@ord, Y = ord_func@ord, scores = "sites", permutations = 999)
@@ -120,7 +135,7 @@ func_tax_procrustes <- function(phy_func, phy_tax, out_suffix) {
     
     # Get species with higest residuals to colour
     highlight_species <- res %>% group_by(Species) %>% summarise(mean_res = mean(Residual)) %>%
-        arrange(desc(mean_res)) %>% slice_head(n = 3) %>% pull(Species)
+        arrange(desc(mean_res)) %>% slice_head(n = 4) %>% pull(Species)
     
     pro_df <- pro_df %>% left_join(select(data.frame(phy_tax@sam_data),
                                     c(new_name, diet.general, Species, Order, Order_grouped)),
@@ -128,11 +143,11 @@ func_tax_procrustes <- function(phy_func, phy_tax, out_suffix) {
         mutate(highlight = case_when(Species %in% highlight_species ~ Species, TRUE ~ "Other")) %>%
         mutate(highlight = factor(highlight, levels = c(levels(highlight_species), "Other")))
     
-    species_palette_mod <- append(species_palette, setNames(c("grey30"), "Other"))
+    species_palette_mod <- append(species_palette, setNames(c("black"), "Other"))
     
     p <- ggplot(data = pro_df) +
         # Add ellipses for each diet group
-        stat_ellipse(aes(x = Func1, y = Func2, fill = diet.general), geom = "polygon", type = "t", alpha = 0.3) +
+        stat_ellipse(aes(x = Tax1, y = Tax2, fill = diet.general), geom = "polygon", type = "t", alpha = 0.3) +
         scale_fill_manual(values = diet_palette, name = "Host diet") +
         # Add arrows
         geom_segment(aes(x = Tax1, y = Tax2, xend = Func1, yend = Func2, colour = highlight),
@@ -163,6 +178,12 @@ func_tax_procrustes(
             phy_func = prune_samples(shared_samples, phy_pathway_clr),
             out_suffix = "species_pathways")
 
+# Species level - GIFTS
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_sp_f_clr),
+            phy_func = prune_samples(shared_samples, phy_gifts_el),
+            out_suffix = "species_gifts")
+
 #### Get genus level data
 phy_gen_f <- tax_glom(phy_sp_f, taxrank = "genus", NArm = FALSE)
 
@@ -180,3 +201,9 @@ func_tax_procrustes(
             phy_tax = prune_samples(shared_samples, phy_gen_f_clr),
             phy_func = prune_samples(shared_samples, phy_pathway_clr),
             out_suffix = "genus_pathways")
+
+# Genus level - GIFTS
+func_tax_procrustes(
+            phy_tax = prune_samples(shared_samples, phy_gen_f_clr),
+            phy_func = prune_samples(shared_samples, phy_gifts_el),
+            out_suffix = "genus_gifts")
