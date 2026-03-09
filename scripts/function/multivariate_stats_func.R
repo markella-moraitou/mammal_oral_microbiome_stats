@@ -21,6 +21,7 @@ library(ggnewscale)
 library(scales)
 library(ggExtra)
 library(distillR)
+library(cowplot)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -218,7 +219,7 @@ p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = categ
             size = 2, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
   custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
   theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 7)) +
-  guides(colour = guide_legend(ncol = 2)) +
+  guides(colour = guide_legend(ncol = 1)) +
   xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
 
 ggsave(p, filename = file.path(subdir, "pathway_ordination_arrows.png"), width=5, height=5)
@@ -292,6 +293,87 @@ p <- ggplot(data = arrows) +
   guides(colour = guide_legend(nrow = 1))
 
 ggsave(p, filename = file.path(subdir, "gift_ordination_arrows.png"), width=5, height=5)
+
+#### Heatmaps ####
+
+# Pathways
+# Heatmaps based on the pathways and gifts with the largest loadings
+paths_heatmap <- prune_taxa(taxa_rda$OTU[!is.na(taxa_rda$label)], phy_pathway_clr) %>% psmelt %>%
+                group_by(OTU, path_name, path_class, Animal, Common.name, Species, diet.general) %>%
+                summarise(Abundance = mean(Abundance)) %>%
+                # Order element by animalivory
+                arrange(Animal, Common.name, path_name) %>%
+                mutate(path_name = paste(path_name, str_remove(OTU, "path:"))) %>%
+                mutate(Common.name = factor(Common.name, levels = unique(Common.name)),
+                       path_name = factor(path_name, levels = unique(path_name)),
+                       category = str_remove(path_class, ".*; ")) %>%
+                mutate(diet_short = recode(diet.general,
+                                            "Animalivore" = "An.",
+                                            "Omnivore" = "Omniv.",
+                                            "Herbivore" = "Herbivore",
+                                            "Frugivore" = "Frugivore")) %>% ungroup()
+
+p1 <- ggplot(paths_heatmap, aes(x = Common.name, y = path_name, fill = Abundance)) +
+    geom_tile() +
+    scale_fill_viridis_c(name = "Pathway abundance (CLR) ", breaks = c(-9, -4, 1)) +
+    facet_grid(rows = vars(category),
+               cols = vars(diet_short), scale = "free", space = "free",
+               labeller = as_labeller(function(x) str_wrap(x, width = 30))) + 
+    scale_y_discrete(labels = function(x) str_wrap(x, width = 30)) +
+    theme(legend.position = "top", axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.text.y = element_text(size = 10), axis.title = element_blank(),
+          strip.text.y = element_text(angle = 0), plot.margin = margin(t = 0, r = 0, b = 0, l = 20))
+
+# GIFTs
+gifts_heatmap <- # Keep only elements with strong associations with RDA axes
+                prune_taxa(head(rownames(arrows), 10), phy_gifts_el) %>% psmelt %>%
+                rename(Code_element = OTU, Completeness = Abundance) %>%
+                left_join(rownames_to_column(element_info, "Code_element")) %>%
+                group_by(Element, Function, Domain, Animal, Common.name, Species, diet.general) %>%
+                summarise(Completeness = mean(Completeness)) %>%
+                # Order element by animalivory
+                arrange(Animal, Common.name, Domain, Element) %>%
+                mutate(Common.name = factor(Common.name, levels = unique(Common.name)),
+                       Element = factor(Element, levels = unique(Element))) %>%
+                mutate(diet_short = recode(diet.general,
+                                            "Animalivore" = "An.",
+                                            "Omnivore" = "Omniv.",
+                                            "Herbivore" = "Herbivore",
+                                            "Frugivore" = "Frugivore")) %>% ungroup()
+
+p2 <- ggplot(gifts_heatmap, aes(x = Common.name, y = Element, fill = Completeness)) +
+    geom_tile() +
+    scale_fill_gradient(low = "white", high = "#160583", name = "Functional trait completeness ", breaks = c(0, 0.5, 1)) +
+    facet_grid(rows = vars(Function),
+               cols = vars(diet_short), scale = "free", space = "free",
+               labeller = as_labeller(function(x) str_wrap(x, width = 30))) + 
+    theme(legend.position = "top", strip.text.x = element_blank(),
+          axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title = element_blank(),
+          strip.text.y = element_text(angle = 0), plot.margin = margin(t = 0, r = 0, b = 0, l = 20))
+
+# Depth and number of genes
+depth <- data.frame(phy_gifts_el@sam_data) %>% select(Common.name, diet.general, contig_count, Gene_richness, Total_abundance) %>%
+    group_by(Common.name, diet.general) %>%
+    summarise(Gene_richness = mean(Gene_richness), Total_abundance = mean(Total_abundance)) %>%
+    mutate(Common.name = factor(Common.name, levels = unique(gifts_heatmap$Common.name))) %>%
+    left_join(unique(select(gifts_heatmap, c(Common.name, diet_short))))
+
+p3 <- ggplot(depth, aes(x = Common.name, y = Total_abundance, group = diet_short)) +
+    geom_line() +
+    scale_y_continuous(sec.axis = sec_axis(~./10^5)) +
+    geom_line(aes(y = Gene_richness*10^5), colour = "red", linetype = "dashed") +
+    facet_grid(cols = vars(diet_short), scale = "free", space = "free_x") + 
+    geom_label(data = data.frame(label = c("Total abundance", "Gene richness"),
+                                 x = c(10, 10), y = c(mean(depth$Total_abundance), mean(depth$Gene_richness)*10^5),
+                                 diet_short = depth$diet_short[1:2]),
+              aes(label = label, x = x, y = y), colour = c("black", "red"), alpha = 0.6, inherit.aes = TRUE) +
+    theme(legend.position = "bottom", strip.text.x = element_blank(),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.title = element_blank(),
+          strip.text.y = element_text(angle = 0, size = 7), axis.text.y.right = element_text(color = "red"),
+          plot.margin = margin(t = 0, r = 0, b = 20, l = 0))
+
+p <- plot_grid(p1, p2, p3, ncol = 1, align = "v", axis = "lr", rel_heights = c(1.2, 1, 0.8))
+
+ggsave(p, filename = file.path(subdir, "loadings_heatmap.png"), width=10, height=12)
 
 ###################
 #### PERMANOVA ####
