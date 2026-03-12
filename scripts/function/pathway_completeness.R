@@ -45,6 +45,7 @@ source(file.path("..","ordination_functions.R"))
 
 # Phyloseq object
 phy_gene_f <- readRDS(file.path(outdir, "data", "phy_gene_f.RDS"))
+phy_gene_f_clr <- readRDS(file.path(outdir, "data", "phy_gene_f_clr.RDS"))
 
 # Gene abundance stratified
 gene_str <- read.table(file.path(datadir, "gene_abundance_stratified_modified.tsv"),
@@ -164,8 +165,8 @@ if (file.exists(file.path(subdir, "pathway_info.csv"))) {
     mean(ko_abundances)
   })
   compl_df <- data.frame(path = unique_pathways,
-                          completeness_in_dataset = completeness,
-                          abundance = abundance)
+                         completeness_in_dataset = completeness,
+                         abundance = abundance)
   # Add to pathway info
   path_info_df <- path_info_df %>%
                     left_join(compl_df, by = "path")
@@ -293,6 +294,48 @@ p <- ggplot(aes(x = Sample, y = path_name_short, fill = completeness), data = pa
             panel.background = element_rect(fill = "black", color = "black"))
 
 ggsave(p, filename = file.path(subdir, "pathway_completeness_per_sample_heatmap.png"), width = 20, height = 30)
+
+#### Plot gene abundance per species per pathway ####
+
+# Write function
+gene_abundances <- function(phyloseq, pathway, kos) {
+  # Subset to KOs in pathway
+  phy_sub <- prune_taxa(taxa_names(phyloseq) %in% str_remove(kos, "ko:"), phyloseq)
+  cat(paste("Number of KOs in pathway:", length(kos), "\n"))
+  cat(paste("Number of KOs present in dataset:", length(taxa_names(phy_sub)), "\n"))
+  # Get abundance per sample
+  abundances <- psmelt(phy_sub) %>% select(OTU, Sample, Abundance, Common.name, Species, diet.general, Order_grouped)
+  # Plot
+  p <- ggplot(aes(y = Sample, x = OTU, fill = Abundance), data = abundances) +
+        geom_tile(stat = "identity") +
+        scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+        facet_grid(rows = vars(Order_grouped), scales = "free", space = "free") +
+        theme(axis.title.x = element_blank(), axis.title.y = element_blank(), axis.text.y = element_blank(),
+              strip.text.y = element_text(angle = 0),
+              panel.background = element_rect(fill = "black", color = "black")) +
+        labs(title = paste(pathway, path_info_df$path_name[path_info_df$path == pathway]))
+  return(p)
+}
+
+# Only filtered pathways except for overview pathways
+pathway_to_plot <- path_info_filt %>%
+        filter(path_class != "Overview Pathway" & completeness_in_dataset > 0.1 & path_class != "") %>%
+        arrange(desc(completeness_in_dataset)) %>% pull(path)
+
+pdf(file.path(subdir, "gene_abundance_per_pathway.pdf"), width = 10, height = 10)
+i <- 1
+for (pathway in pathway_to_plot) {
+  kos <- pathway_kos[[pathway]]
+  cat(paste("Plotting pathway", i ,"-", pathway, "...", "\n"))
+  if (is.null(kos)) {
+    cat("No KOs found for pathway", pathway, "\n")
+    next
+  }
+  p <- gene_abundances(phy_gene_f_clr, pathway, kos)
+  plot(p)
+  i <- i + 1
+}
+dev.off()
 
 #### Calculate pathways completeness per microbial genus per sample ####
 ko_per_taxon_df <- gene_str %>% filter(database == "KEGG") %>%
@@ -506,15 +549,18 @@ setwd("pathway_plots")
 
 path_info_filt <- path_info_filt %>% filter(completeness_in_dataset > 0.1 & path_class != "")
 
+# Keep only KOs present in the data
+kos <- pathway_kos_filt %>% filter(str_remove(kos, "ko:") %in% taxa_names(phy_gene_f))
+
 for (i in 1:nrow(path_info_filt)) {
   pathname <- path_info_filt$path_name[i]
   pathid <- path_info_filt$path[i]
   cat("GETTING INFO ON ", pathname, pathid, "\n")
-
+  kos_path <- kos$kos[kos$pathway == pathid] %>% str_remove("ko:")
   # Plot pathway
   tryCatch({
     path <- pathview(
-      gene.data = str_remove(pathway_kos_filt$kos, "ko:"),
+      gene.data = kos_path,
       pathway.id = str_remove(pathid, "path:"),
       species = "ko",
       out.suffix = make.names(pathname))

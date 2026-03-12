@@ -413,7 +413,7 @@ mcmc_res_long <- mcmc_res %>% select(pathway, term, post.mean, pMCMC, padj) %>%
 # t for traditional approach, b for Bayesian MCMCglmm
 all_res <- full_join(combined_long, mcmc_res_long, by = c("pathway", "term"), suffix = c("_t", "_b"))
 
-write.csv(all_res, file = file.path(subdir, "all_diffabund_path_results.csv"), quote = FALSE, row.names = FALSE)
+write.csv(all_res, file = file.path(subdir, "all_diffabund_path_results.csv"), quote = TRUE, row.names = FALSE)
 
 # Do coefficients correlated?
 p <- ggplot(all_res, aes(x = coefficient_t, y = coefficient_b, colour = term)) +
