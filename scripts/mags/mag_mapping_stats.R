@@ -87,7 +87,7 @@ map_stats_meta <- map_stats %>%
     # Order host species by order
     mutate(Species = factor(Species, levels = host_labels)) %>%
     # Get bin label and completeness
-    inner_join(bin_meta[,c("bin", "label", "Completeness", "Contamination")]) %>%
+    inner_join(bin_meta[,c("bin", "label", "phylum", "Completeness", "Contamination")]) %>%
     # Label the sample where a bin was assembled from
     mutate(assembly_sample = case_when(sample == str_remove(str_remove(bin, "^.*-"), "\\..*$") ~ TRUE,
                                        TRUE ~ FALSE)) %>%
@@ -99,15 +99,30 @@ bin_order <- bin_order[bin_order %in% map_stats_meta$label]
 
 map_stats_meta$label <- factor(map_stats_meta$label, levels = bin_order)
 
+#### Completeness per gene set and phylum
+
+p <- ggplot(data = filter(bac_meta, is.tip), aes(y = Completeness, x = phylum)) +
+        geom_boxplot()
+
+ggsave(file.path(subdir, "completeness_per_phylum.png"), p, width = 6, height = 4)
+
 # Keep only HQ MAGs as well as identities above 90%
 map_stats_hq <- map_stats_meta %>% 
     filter(identity >= 90) 
 
 #### Plot coverage - identity - number of reads ####
+
+# Set identity and coverage thresholds based on mappings stats in assembly samples
+min_id <- 98
+min_cov <- 75
+min_reads <- 10^4
+
 p1 <- ggplot(data = map_stats_hq, aes(x = mapped_reads, y = coverage, colour = identity)) +
         geom_point(alpha = 0.5, size = 0.1) +
         geom_point(data = filter(map_stats_hq, assembly_sample), alpha = 1, size = 0.2, colour = "red") +
         scale_x_log10() +
+        geom_vline(xintercept = min_reads, linewidth = 0.5, linetype = "dashed", color = "black") +
+        geom_hline(yintercept = min_cov, linewidth = 0.5, linetype = "dashed", color = "black") +
         scale_colour_viridis_b(name = "Identity", option = "plasma") +
         theme(legend.position = "top", legend.text = element_text(size = 6, angle = 45, hjust = 1))
 
@@ -115,17 +130,19 @@ p2 <- ggplot(data = map_stats_hq, aes(x = identity, y = coverage, colour = mappe
         geom_point(alpha = 0.5, size = 0.1) +
         geom_point(data = filter(map_stats_hq, assembly_sample), alpha = 1, size = 0.2, colour = "red") +
         scale_x_log10() +
-        geom_vline(xintercept = 98, linewidth = 0.5, linetype = "dashed", color = "black") +
+        geom_vline(xintercept = min_id, linewidth = 0.5, linetype = "dashed", color = "black") +
         scale_colour_viridis_b(name = "Mapped reads", option = "mako", trans = "log10") +
         theme(legend.position = "top", legend.text = element_text(size = 6, angle = 45, hjust = 1))
 
 p3 <- ggplot(data = map_stats_hq, aes(x = coverage, fill = assembly_sample)) +
         geom_histogram(alpha=0.5) +
+        geom_vline(xintercept = min_cov, linewidth = 0.5, linetype = "dashed", color = "black") +
         scale_fill_manual(name = "Assembly sample", values = c("TRUE" = "red", "FALSE" = "grey")) +
         theme(legend.position = "top")
 
 p4 <- ggplot(data = map_stats_hq, aes(x = identity, fill = assembly_sample)) +
         geom_histogram(alpha=0.5) +
+        geom_vline(xintercept = min_id, linewidth = 0.5, linetype = "dashed", color = "black") +
         scale_fill_manual(name = "Assembly sample", values = c("TRUE" = "red", "FALSE" = "grey")) +
         theme(legend.position = "top")
 
@@ -201,13 +218,10 @@ p <- ggplot(data = map_stats_per_host_filt, aes(x = host_species, y = label)) +
 ggsave(file.path(subdir, "hq_mag_cov_and_id_max.png"), plot = p, width = 10, height = 40)
 
 #### Define presence-absence of MAGs per host species ####
-# Set identity and coverage thresholds based on mappings stats in assembly samples
-min_id <- 98
-min_cov <- 75
 
 mag_pres_per_sp <- 
             # Keep only mappings passing the thresholds
-            map_stats_hq %>% filter((identity >= min_id & coverage >= min_cov) | assembly_sample) %>%
+            map_stats_hq %>% filter((identity >= min_id & coverage >= min_cov & mapped_reads >= min_reads) | assembly_sample) %>%
             group_by(host_species, host_genus, host_order, label, bin) %>%
             # Get maximum identity, coverage and mapped reads per species. Also indicate if the MAG was assembled from that species
             summarise(max_identity = max(identity),

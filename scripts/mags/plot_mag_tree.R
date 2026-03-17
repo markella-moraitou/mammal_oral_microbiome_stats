@@ -46,14 +46,18 @@ drep_bins <- read.table(file.path(indir, "dereplicated_bins_list.txt"), header=F
 #### KEEP ONLY HQ MAGS ####
 ###########################
 
-## Keep only HQ MAGs
-hq_bacs <- bac_meta %>% filter(Completeness >= 90 & Contamination <= 5) %>% filter(bin %in% drep_bins) %>% pull(label) 
+## Keep only HQ MAGs and Patescibacteria (which are likely to have they completeness underestimated)
+hq_bacs <- bac_meta %>% filter(Completeness >= 90 & Contamination <= 5 | phylum == "Patescibacteria") %>% filter(bin %in% drep_bins) %>% pull(label) 
 
 hq_ars <- ar_meta %>% filter(Completeness >= 90 & Contamination <= 5) %>% filter(bin %in% drep_bins) %>% pull(label)
 
 ## Subset trees to only include HQ MAGs
 bac_tree <- drop.tip(bac_tree, setdiff(bac_tree$tip.label, hq_bacs))
 ar_tree <- drop.tip(ar_tree, setdiff(ar_tree$tip.label, hq_ars))
+
+# Fix node labels
+bac_tree$node.label <- str_remove_all(bac_tree$node.label, "'")
+ar_tree$node.label <- str_remove_all(ar_tree$node.label, "'")
 
 ## Subset metadata to only include HQ MAGs
 bac_meta <- bac_meta %>% filter(label %in% c(bac_tree$tip.label, bac_tree$node.label))
@@ -90,7 +94,9 @@ habitats <- rbind(bac_meta, ar_meta) %>% filter(!is.na(bin)) %>% select(label, c
             summarise(occurences = sum(occurences)) %>%
             mutate(habitat = gsub(" ", "_", habitat)) %>%
             # Only select some of the most informative terms
-            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut"))
+            mutate(habitat = case_when(habitat == "laboratory_equipment" ~ "lab", TRUE ~ habitat)) %>%
+            filter(habitat %in% c("oral", "animal", "soil", "marine", "rumen", "gut", "skin")) %>%
+            mutate(habitat = factor(habitat, levels = c("oral", "animal", "rumen", "gut", "marine", "soil", "skin")))
 
 bac_habitats <- habitats %>% filter(domain == "Bacteria")
 write.csv(bac_habitats, file.path(subdir, "bac_habitats.csv"), row.names = FALSE)
@@ -99,7 +105,7 @@ ar_habitats <- habitats %>% filter(domain == "Archaea")
 write.csv(ar_habitats, file.path(subdir, "ar_habitats.csv"), row.names = FALSE)
 
 # Get specimen ages and damage for plotting
-ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample, host_order, host_species, Year, host_species, min_damage_model_p, q1_damage_model_p, mean_damage_model_p, median_damage_model_p, q3_damage_model_p, max_damage_model_p) %>% filter(!is.na(Year) & Year != "") %>%
+ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample, host_order, host_species, Year, host_species, min_damage_model_pmax, q1_damage_model_pmax, mean_damage_model_pmax, median_damage_model_pmax, q3_damage_model_pmax, max_damage_model_pmax) %>% filter(!is.na(Year) & Year != "") %>%
   filter(!is.na(bin)) %>%
   # If the value in the year column is not numeric, remove the non numeric symbols and convert to number
   mutate(Year_most_recent = case_when(is.na(as.numeric(Year)) ~ as.numeric(str_remove_all(Year, "<|\\?| \\(received\\)|[0-9][0-9][0-9][0-9]-")), TRUE ~ as.numeric(Year))) %>%
@@ -112,7 +118,7 @@ ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample
 
 #### Bacteria tree ####
 # Colour by order and habitat
-bac_p <- ggtree(bac_tree, layout = "circular", aes(color=phylum), size = 1.5) %<+%
+bac_p <- ggtree(bac_tree, layout = "circular", aes(color=phylum), size = 1) %<+%
     select(bac_meta, c(label, phylum, host_order, habitat.general)) +
   scale_colour_manual(values = phylum_palette, name = "MAG phylum", na.value = "black") +
   new_scale_color() +
@@ -131,20 +137,20 @@ bac_p <- ggtree(bac_tree, layout = "circular", aes(color=phylum), size = 1.5) %<
   guides(fill = guide_legend(override.aes = list(size = 5)), 
   color = guide_legend(override.aes = list(size = 5)))
 
-bac_py <- filter(select(bac_meta, c(label, bin, median_damage_model_p)), !is.na(bin))
+bac_py <- filter(select(bac_meta, c(label, bin, median_damage_model_pmax)), !is.na(bin))
 
 # Add info
 bac_p <- bac_p +
-  # Add boxplot with damage patterns
-  geom_fruit(data=bac_py, geom=geom_bar, mapping = aes(y=label, x = -log10(median_damage_model_p + 0.001)),
+  # Add barplot with damage patterns
+  geom_fruit(data=bac_py, geom=geom_bar, mapping = aes(y=label, x = -log10(median_damage_model_pmax + 0.001)),
              stat = "identity", axis.params=list(axis = "x", text.size = 6, hjust = 1, vjust = 0., nbreak = 3),
-             offset = 0.3, pwidth = 0.2, alpha = 0.3) +
+             offset = 0.3, pwidth = 0.15, alpha = 0.3) +
   new_scale_color() +
   # Add point with collection year
   geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 2,
              offset = -0.2) +
   scale_colour_viridis_c(option = "magma", name = "Collection year", na.value = "transparent") +
-  scale_shape(name = "", labels = c("Yes" = "Approximated", "No" = "From records")) +
+  scale_shape(name = "Year approximated") +
   new_scale_colour() +
   # Add bubbleplot with habitat occurences
   geom_fruit(data = bac_habitats, geom=geom_point, mapping = aes(y=label, x=habitat, colour=habitat, size = occurences),
@@ -179,24 +185,24 @@ ar_p <- ggtree(ar_tree)%<+%
   guides(fill = guide_legend(override.aes = list(size = 2.5)), 
          color = guide_legend(override.aes = list(size = 2.5))) 
 
-ar_py <- filter(select(ar_meta, c(label, bin, median_damage_model_p)), !is.na(bin))
+ar_py <- filter(select(ar_meta, c(label, bin, median_damage_model_pmax)), !is.na(bin))
 
 # Add info
 ar_p <- ar_p +
   # Add boxplot with damage patterns
-  geom_fruit(data=ar_py, geom=geom_bar, mapping = aes(y=label, x = -log10(median_damage_model_p + 0.001)),
+  geom_fruit(data=ar_py, geom=geom_bar, mapping = aes(y=label, x = -log10(median_damage_model_pmax + 0.001)),
              stat = "identity", axis.params=list(axis = "x", text.size = 6, hjust = 1, vjust = 0., nbreak = 3),
-             offset = 0.39, pwidth = 0.2, alpha = 0.3) +
+             offset = 0.5, pwidth = 0.2, alpha = 0.3) +
   new_scale_color() +
   # Add point with collection year
   geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 2,
-             offset = -0.19) +
+             offset = 0.1) +
   scale_colour_viridis_c(option = "magma", name = "Collection year", na.value = "transparent") +
-  scale_shape(name = "", labels = c("Yes" = "Approximated", "No" = "From records")) +
+  scale_shape(name = "Year approximated") +
   new_scale_colour() +
   # Add bubbleplot with habitat occurences
   geom_fruit(data = ar_habitats, geom=geom_point, mapping = aes(y=label, x=habitat, colour=habitat, size = occurences),
-             offset = -0.07, pwidth = 0.1) +
+             offset = 0, pwidth = 0.1) +
   scale_color_manual(values = c("oral" = "#AE1E3D", "animal" = "#BD6E20", "rumen" = "#A4B81F", "gut" = "#BD9F20", "soil" = "#56A71C", "marine" = "#156B73"),
                      name = "MAG reported habitat") +
   scale_size(name = "MAG reported occurences") +
@@ -210,10 +216,10 @@ ggsave(ar_p, file=file.path(subdir, "ar_genome_tree.png"), width = 12, height = 
 
 p <- filter(ages_damage, Approximated_year=="NO") %>%
      group_by(host_order) %>% filter(n_distinct(Year_most_recent) > 1) %>%
-      ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = median_damage_model_p, shape = Approximated_year, colour = host_order)) +
+      ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = median_damage_model_pmax, shape = Approximated_year, colour = host_order)) +
         geom_point(alpha = 0.5) +
         scale_colour_manual(values = order_palette, name = "Host order") +
-        geom_smooth(method = "glm", inherit.aes = FALSE, aes(x = Year_most_recent, y = median_damage_model_p), colour = "black", linetype = "dotted") +
+        geom_smooth(method = "glm", inherit.aes = FALSE, aes(x = Year_most_recent, y = median_damage_model_pmax), colour = "black", linetype = "dotted") +
         facet_grid(. ~ host_order) + theme(legend.position = "none")
 
 ggsave(p, file=file.path(subdir, "age_v_damage.png"), width = 8, height = 6)

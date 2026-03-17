@@ -46,6 +46,10 @@ ar_meta <- read.table(file.path(outdir, "ar_meta_drep.tsv"), sep="\t", header=TR
 bac_tree <- read.tree(file = file.path(outdir, "bac_tree_drep.tree"))
 ar_tree <- read.tree(file = file.path(outdir, "ar_tree_drep.tree"))
 
+# Fix node labels
+bac_tree$node.label <- str_remove_all(bac_tree$node.label, "'")
+ar_tree$node.label <- str_remove_all(ar_tree$node.label, "'")
+
 # Host phylogeny
 host_consensus <- read.tree(file.path(taxdir, "host_consensus.tre"))
 
