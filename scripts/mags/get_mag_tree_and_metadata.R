@@ -86,6 +86,12 @@ meta <-
     # Add host metadata
     mag_meta %>% rename("host_species"="Species") %>%
     mutate(host_species = str_trim(host_species)) %>%
+    # Updates species names
+    mutate(host_species = case_when(host_species == "Pseudorca crassidens" ~ "Orcinus orca",
+                                    host_species == "Equus burchellii" ~ "Equus quagga",
+                                    host_species == "Otaria byronia" ~ "Otaria flavescens",
+                                    host_species == "Sus scrofa domesticus" ~ "Sus domesticus",
+                                    TRUE ~ host_species)) %>%
     left_join(host_meta, by=c("host_species"), relationship = "many-to-one") %>%
     left_join(contig_info, by=c("Sample" = "sample"), relationship = "many-to-one") %>%
     separate(classification, sep=";", into=c("domain", "phylum", "class", "order", "family", "genus", "species")) %>%
@@ -96,12 +102,12 @@ meta <-
     group_by(classification) %>% mutate(label=paste(gsub(" ", "_", classification), row_number(), sep="_")) %>%
     # Remove *__ prefix
     mutate(across(domain:species, ~ str_remove(.x, "^[dpcofgs]__"))) %>% ungroup() %>%
-    rename(min_damage_model_p = min,
-                 q1_damage_model_p = q1,
-                 mean_damage_model_p = mean,
-                 median_damage_model_p = median,
-                 q3_damage_model_p = q3,
-                 max_damage_model_p = max)
+    rename(min_damage_model_pmax = min,
+                 q1_damage_model_pmax = q1,
+                 mean_damage_model_pmax = mean,
+                 median_damage_model_pmax = median,
+                 q3_damage_model_pmax = q3,
+                 max_damage_model_pmax = max)
 
 ## Get taxonomic ids
 get_taxon_id <- function(taxon_name) {
@@ -148,10 +154,6 @@ subset_tree <- function(tree, metadata) {
     pruned_tree <- drop.tip(tree, tips.to.drop)
     # Rename labels
     pruned_tree$tip.label <- meta$label[match(pruned_tree$tip.label, str_remove(meta$bin, ".gz"))]
-    #pruned_tree <- unroot(pruned_tree)
-    # When the node label is missing, use the node number
-    node_labs <- paste0("N", (Ntip(pruned_tree)+1):(Ntip(pruned_tree) + Nnode(pruned_tree)))
-    pruned_tree$node.label <- ifelse(pruned_tree$node.label=="", node_labs, pruned_tree$node.label)
     return(pruned_tree)
 }
 
@@ -160,6 +162,33 @@ bac_tree_new <- subset_tree(bac_tree, bac_meta)
 
 # Archaea tree
 ar_tree_new <- subset_tree(ar_tree, ar_meta)
+
+#### Give nodes more informative names ####
+
+get_node_labels <- function(tree, metadata) {
+    node_labels <- data.frame(node=integer(), old_label = character(), new_label=character())
+    for (i in 1:tree$Nnode + Ntip(tree)) {
+        # Keep old labels when present
+        old_label <- tree$node.label[i-Ntip(tree)]
+        if (old_label != "") {
+          new_label <- old_label
+        } else {
+          # Get the descendants of this node
+          desc <- tree$tip.label[getDescendants(tree, i)]
+          new_label <- metadata %>% filter(label %in% desc) %>%
+                      select(species:domain) %>% select_if(~ !all(is.na(.))) %>%
+                      pivot_longer(cols=everything(), names_to="rank", values_to="taxon") %>% group_by(rank) %>%
+                      mutate(unique_values = n_distinct(taxon)) %>% filter(unique_values == 1) %>% pull(taxon) %>% head(1)
+        }
+        node_labels <- rbind(node_labels, data.frame(node=i, old_label=old_label, new_label=new_label))
+    }
+    node_labels$new_label <- make.unique(node_labels$new_label) %>% str_replace_all(" ", "_") %>% str_remove_all("'")
+    tree$node.label <- node_labels$new_label[match(1:tree$Nnode + Ntip(tree), node_labels$node)]
+    return(tree)
+}
+
+bac_tree_new <- get_node_labels(bac_tree_new, bac_meta)
+ar_tree_new <- get_node_labels(ar_tree_new, ar_meta)
 
 # Add some traits should be added to the entire clade that shares a common ancestor, not just the tips
 add_node_metadata <- function(tree, metadata, traits) {
