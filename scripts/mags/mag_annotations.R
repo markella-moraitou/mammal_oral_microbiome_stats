@@ -50,7 +50,7 @@ bac_tree <- read.tree(file = file.path(outdir, "bac_tree.tree"))
 ar_tree <- read.tree(file = file.path(outdir, "ar_tree.tree"))
 
 # DRAM output
-mag_dram <- read_tsv(file.path(indir, "MAG_annotations.tsv.gz"), quote = "", comment = "", fill = TRUE)
+mag_dram <- read_tsv(file.path(indir, "MAG_annotations.tsv.gz"), quote = "", comment = "")
 
 colnames(mag_dram)[1] <- "contig"
 
@@ -346,9 +346,9 @@ for (clade in names(cod_clades)) {
   plot_list[[clade]] <- p_clade
 }
 
-p <- plot_grid(plotlist = plot_list, ncol = 2)
+p <- plot_grid(plotlist = plot_list, ncol = 3)
 
-ggsave(p, file=file.path(subdir, "GIFTs_PCA_codiversifying.png"), width = 10, height = 10)
+ggsave(p, file=file.path(subdir, "GIFTs_PCA_codiversifying.png"), width = 15, height = 15)
 
 ####################
 #### PLOT TREES ####
@@ -362,11 +362,11 @@ for (clade in names(cod_clades)) {
   filt_meta <- hq_meta %>% filter(label %in% cod_clades[[clade]])
   
   # Keep GIFTs for degradation or biosynthesis that vary across this clade
-  filt_degr <- gift_elem_degradation %>% filter(label %in% filt_meta$label) %>%
+  filt_degr <- gift_elem_degradation %>% filter(label %in% filt_meta$label) %>% filter(Code_element %in% colnames(GIFTs_elements)) %>%
     group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0 & max(Completeness > 0.8)) %>% ungroup() %>%
     mutate(Element = droplevels(Element))
   
-  filt_bios <- gift_elem_biosynthesis %>% filter(label %in% filt_meta$label) %>%
+  filt_bios <- gift_elem_biosynthesis %>% filter(label %in% filt_meta$label) %>% filter(Code_element %in% colnames(GIFTs_elements)) %>%
     group_by(Code_element) %>% filter(var(Completeness, na.rm=TRUE) > 0 & max(Completeness > 0.8)) %>% ungroup() %>%
     mutate(Element = droplevels(Element))
   
