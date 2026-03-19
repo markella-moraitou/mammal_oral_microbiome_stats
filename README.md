@@ -26,6 +26,7 @@ flowchart TD;
     C-->G[func_tax_procrustes];
     C-->H[multivariate_stats_func];
     C-->I[func_models];
+    A-->J[nitrate_reduction];
 ```
 
 Analysis workflow for metagenomes-assembled genomes analysis:
@@ -37,4 +38,5 @@ flowchart TD;
     B-->D[plot_mag_tree]
     B-->E[codiversification_test]
     E-->F[mag_annotations]
+    E-->G[clades_for_popgen]
 ```
