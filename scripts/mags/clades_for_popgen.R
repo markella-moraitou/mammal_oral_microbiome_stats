@@ -73,9 +73,11 @@ ref_info <- select(bac_meta, closest_genome_reference.1, species) %>% rename(acc
   rbind(select(bac_meta, closest_placement_reference, species) %>% rename(accession = closest_placement_reference) ) %>%
   filter(!is.na(species)) %>% unique
 
-other_ref <- bac_meta$other_related_references.genome_id.species_name.radius.ANI.AF. %>% unique %>%
-  str_split("; ") %>% lapply(function(x) x[1:2]) %>% lapply(function(x) data.frame(accession = x[1], species = x[2])) %>% bind_rows() %>%
-  mutate(species = str_remove(species, "s__")) %>% filter(!is.na(species)) %>% unique
+other_ref <- bac_meta$other_related_references.genome_id.species_name.radius.ANI.AF. %>%
+  unique %>% lapply(function(x) str_extract_all(x, "GC.*?; s__.*?;")[[1]]) %>%
+  lapply(function(x) data.frame(genome = x)) %>% bind_rows() %>% filter(!is.na(genome)) %>%
+  separate(genome, sep = "; ", into = c("accession", "species")) %>%
+  mutate(species = str_remove(str_remove(species, "s__"), ";")) %>% unique
 
 ref_info <- rbind(ref_info, other_ref) %>% unique
 
