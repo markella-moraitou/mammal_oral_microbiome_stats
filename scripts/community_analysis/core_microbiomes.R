@@ -189,10 +189,10 @@ for (ord in unique(core_genera_per_order$host_order)) {
 }
 
 core_genera_venn <- 
-  ggVennDiagram(core_taxa, set_color = order_palette[names(core_taxa)], label_alpha = 0) +
+  ggVennDiagram(core_taxa, set_color = order_palette[names(core_taxa)], set_size = 0, label_alpha = 0) +
   scale_fill_gradient(low = "white", high = "grey40", name = "N. genera") +
   theme(plot.background = element_rect(fill = "white", color = "white"),
-        legend.position = "bottom")
+        legend.position = "bottom", plot.margin = margin(t = 0, r = 20, b = 0, l = 20))
 
 ggsave(core_genera_venn, file=file.path(subdir, "core_genera_venn.png"),
        device = "png", width = 5, height = 5)
@@ -255,7 +255,7 @@ p <- ggplot(data = perm_results, aes(y = n_core_taxa, x = host_order)) +
         xlab("") + ylab("Number of core genera") +
         theme(axis.text.x = element_text(hjust = 1))
 
-ggsave(p, file = file.path(subdir, "core_size_permutations.png"), width = 4, height = 5)
+ggsave(p, file = file.path(subdir, "core_size_permutations.png"), width = 3, height = 5)
 
 #### Core genera per host species heatmap ####
 core_df <- core_genera %>% mutate(is.core = 1) %>%
@@ -431,18 +431,20 @@ p1 <- ggplot(core_taxa_abund, aes(y = Common.name, x = mean_abundance, fill = is
         guides(fill = guide_legend(reverse = TRUE))
 
 #### Abundance of core genera ####
-mamm_core_abund <- phy_melt %>%
+mamm_core_abund_all <- phy_melt %>%
         select(OTU, genus, Sample, Species, Common.name, Order, Abundance) %>%
-        # Keep only the same orders we use for the PCA
-        filter(Order %in% core_genera_per_order$host_order) %>%
-        # Get taxa that are the mammalian core taxa
-        filter(OTU %in% unique(unlist(core_taxa))) %>%
         # Sum by genus
         group_by(Sample, Species, Common.name, Order, genus) %>%
         summarise(Abundance = sum(Abundance)) %>%
         # Calculate mean abundance per species
         group_by(Species, Common.name, Order, genus) %>%
-        summarise(mean_abundance = mean(Abundance)) %>%
+        summarise(mean_abundance = mean(Abundance))
+
+mamm_core_abund <- mamm_core_abund_all %>%
+        # Keep only the same orders we use for the PCA
+        filter(Order %in% core_genera_per_order$host_order) %>%
+        # Get taxa that are the mammalian core taxa
+        filter(OTU %in% unique(unlist(core_taxa))) %>%
         # Shorten "Perissodactyla" for plotting
         mutate(Order = recode(Order, "Perissodactyla" = "Periss.", "Carnivora" = "Carn."))
 
@@ -474,3 +476,33 @@ p2 <- ggplot(mamm_core_abund, aes(y = Common.name, x = mean_abundance, fill = ge
 p <- plot_grid(p1, p2, ncol = 2, align = "h", axis = "tb", rel_widths = c(1.5, 1))
 
 ggsave(p, file = file.path(subdir, "core_taxa_abundance.png"), width = 8, height = 8)
+
+######################
+#### ORCA CORE MB ####
+######################
+
+#### Compare orca core mb to Artiodactyla and Carnivora ####
+
+carni_core <- core_genera_per_order %>% filter(host_order == "Carnivora" & n_orders == 1) %>% pull(core_taxa)
+
+orca_core_comparison <- core_genera %>%
+        filter(host_species %in% c("Capreolus capreolus", "Orcinus orca", "Sus scrofa", "Hippopotamus amphibius", "Meles meles", "Otaria flavescens")) %>%
+        # Get abundances 
+        left_join(mamm_core_abund_all, by = c("core_taxa" = "genus", "host_species" = "Species", "host_order" = "Order")) %>%
+        group_by(host_species, Common.name, host_order) %>%
+        summarise(Carnivora_taxa = sum(core_taxa %in% carni_core)) %>%
+        ungroup() %>%
+        mutate(Common.name = ifelse(host_species == "Otaria flavescens", "Sea lion",
+                                 ifelse(host_species == "Meles meles", "Badger", Common.name))) %>%
+        mutate(Common.name = factor(Common.name, levels = c("Roe deer", "Hippo", "Wild boar", "Orca", "Sea lion", "Badger")))
+
+write.csv(orca_core_comparison, file = file.path(subdir, "orca_core_comparison.csv"), quote = FALSE, row.names = FALSE)
+
+p <- ggplot(data = orca_core_comparison, aes(x = Common.name, y = Carnivora_taxa, fill = host_order)) +
+        geom_bar(stat = "identity", position = position_dodge2()) +
+        scale_fill_manual(values = order_palette, name = "Host order") +
+        theme(axis.text.x = element_text(hjust = 1), axis.title.x = element_blank(), legend.title = element_blank(),
+                legend.position = "bottom", legend.direction = "vertical") +
+        labs(y = "Genera shared with\nCarnivora core exclusive")
+
+ggsave(file.path(subdir, "orca_core_comparison.png"), p, width = 3, height = 5)
