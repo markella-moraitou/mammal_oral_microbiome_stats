@@ -21,7 +21,7 @@ flowchart TD;
     A[prepare_data]-->B[pathway_completeness];
     B-->C[diff_abund_path];
     B-->D[functional_core];
-    B-->E[gsea_da_taxa];
+    A-->E[gsea_da_taxa];
     A-->F[distillR];
     C-->G[func_tax_procrustes];
     C-->H[multivariate_stats_func];

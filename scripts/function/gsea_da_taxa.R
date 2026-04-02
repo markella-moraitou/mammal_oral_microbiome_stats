@@ -43,13 +43,7 @@ source(file.path("..","ordination_functions.R"))
 #######################
 
 # Phyloseq objects
-phy_gene_f <- readRDS(file.path(datadir, "phy_gene_f.RDS"))
-phy_gene_f_clr <- readRDS(file.path(datadir, "phy_gene_f_clr.RDS"))
-
 phy_sp_f <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f.RDS"))
-
-phy_pathway <- readRDS(file.path(pathdir, "phy_pathway.RDS"))
-phy_pathway_clr <- readRDS(file.path(pathdir, "phy_pathway_clr.RDS"))
 
 # Differentially abundant taxa
 all_da <- read.csv(file.path(taxdir, "differential_abundance", "all_diffabund_results.csv"))

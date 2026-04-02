@@ -220,7 +220,7 @@ p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = categ
   custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
   theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 7)) +
   guides(colour = guide_legend(ncol = 1)) +
-  xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
+  xlim(min(taxa_rda$RDA1)*1.5, max(taxa_rda$RDA1)*1.2)
 
 ggsave(p, filename = file.path(subdir, "pathway_ordination_arrows.png"), width=5, height=5)
 
