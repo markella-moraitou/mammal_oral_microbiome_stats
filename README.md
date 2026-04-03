@@ -21,7 +21,6 @@ flowchart TD;
     A[prepare_data]-->B[pathway_completeness];
     B-->C[diff_abund_path];
     B-->D[functional_core];
-    A-->E[gsea_da_taxa];
     A-->F[distillR];
     C-->G[func_tax_procrustes];
     C-->H[multivariate_stats_func];
@@ -35,6 +34,7 @@ Analysis workflow for metagenomes-assembled genomes analysis:
 flowchart TD;
     A[get_mag_tree_and_metadata]-->B[collect_omnicrobe_metadata]
     A-->C[mag_mapping_stats]
+    A-->H[gsea_da_taxa];
     B-->D[plot_mag_tree]
     B-->E[codiversification_test]
     E-->F[mag_annotations]
