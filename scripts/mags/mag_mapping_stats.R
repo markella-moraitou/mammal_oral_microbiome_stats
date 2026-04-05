@@ -89,7 +89,7 @@ map_stats_meta <- map_stats %>%
     # Get bin label and completeness
     inner_join(bin_meta[,c("bin", "label", "phylum", "Completeness", "Contamination")]) %>%
     # Label the sample where a bin was assembled from
-    mutate(assembly_sample = case_when(sample == str_remove(str_remove(bin, "^.*-"), "\\..*$") ~ TRUE,
+    mutate(assembly_sample = case_when(str_detect(bin, sample) ~ TRUE,
                                        TRUE ~ FALSE)) %>%
     rename(host_species = Species, host_genus = Genus, host_order = Order)
 
@@ -250,4 +250,3 @@ p <- ggplot(data = mag_pres_per_sp, aes(x = host_species, y = label)) +
     xlab("Host species") + ylab("MAG (high-quality: >90% completeness, <5% contamination)")
 
 ggsave(file.path(subdir, "hq_mag_pres_abs.png"), plot = p, width = 10, height = 40)
-

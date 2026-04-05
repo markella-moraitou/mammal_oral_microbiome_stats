@@ -69,7 +69,15 @@ mag_host <- read.table(file.path(outdir, "mag_mapping_stats", "hq_mag_presence_p
 host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
 
 #### MAG - HOST LINKS ####
-mag_host <- mag_host %>% select(host_species, label)
+mag_host <- mag_host %>% select(host_species, label, assembly_species) %>%
+  # Also add Patescibacteria, which were not used for mapping as they didn't pass completeness filters
+    rbind(
+        filter(bac_meta, phylum == "Patescibacteria" & is.tip) %>% select(label, host_species) %>% mutate(assembly_species = TRUE)
+    ) %>%
+    # Change Sus domesticus to Sus scrofa to match tree
+    mutate(host_species = case_when(host_species == "Sus domesticus" ~ "Sus scrofa",
+                                    TRUE ~ host_species)) %>%
+    group_by(host_species, label) %>% summarise(assembly_species = any(assembly_species)) %>% ungroup
 
 hosts_per_mag <- mag_host %>% group_by(label) %>%
              summarise(n_hosts = n_distinct(host_species))
@@ -78,10 +86,7 @@ p <- ggplot(data=hosts_per_mag) + geom_histogram(aes(x=n_hosts), bins=50)
 
 ggsave(plot=p, filename=file.path(subdir, "hosts_per_mag_histogram.png"), width=6, height=4)
 
-links_all <- mag_host %>%
-    # Change Sus domesticus to Sus scrofa to match tree
-    mutate(host_species = case_when(host_species == "Sus domesticus" ~ "Sus scrofa",
-                                    TRUE ~ host_species)) %>%
+links_all <- mag_host %>% select(host_species, label) %>%
     filter(!host_species %in% c("Extraction blank", "Library blank", "Environmental control"))
 
 write.csv(links_all, file=file.path(subdir, "mag_host_links.csv"), row.names=FALSE, quote=FALSE)
@@ -268,7 +273,8 @@ analysis <- function(mag_tree, host_mag_links, host_tree, nodes_to_test, interme
     test_results <- rbind(test_results, data.frame(res))
     n <- n + 1
   }
-  # Account for multiple testing
+  # Account for multiple testing: Add a pseudocount because we have some p-values of 0
+  test_results$p.value <- test_results$p.value + 1e-5
   test_results$p.adjust <- p.adjust(test_results$p.value, method="holm")
   return(test_results)
 }
@@ -294,6 +300,12 @@ cod_results_combined <- rbind(
   ar_cod_results %>% mutate(domain="Archaea")
 )
 
+# Add phylum
+cod_results_combined <- cod_results_combined %>% left_join(select(rbind(bac_meta, ar_meta), label, phylum), by=c("node"="label")) %>%
+    mutate(phylum = case_when(node == "Synergistales" ~ "Synergistota",
+                              node == "Patescibacteria" ~ "Patescibacteria",
+                              node == "o__Erysipelotrichales" ~ "Bacillota", TRUE ~ phylum))
+
 write.csv(cod_results_combined, file=file.path(subdir, "cod_results_combined.csv"), row.names=FALSE, quote=FALSE)
 
 ######################
@@ -301,10 +313,12 @@ write.csv(cod_results_combined, file=file.path(subdir, "cod_results_combined.csv
 ######################
 
 #### Plot cophylogenies ####
-cophyloplot <- function(host_tree, mag_tree, links, host_colours) {
+cophyloplot <- function(host_tree, mag_tree, links, host_colours, host_linetypes) {
   links_rename <- links %>% rename("phy1"="label", "phy2"="host_species")
   # Add colours
   links_rename$colour <- host_colours[match(links_rename$phy2, names(host_colours))]
+  # Add line types
+  links_rename$linetype <- host_linetypes[match(links_rename$phy2, names(host_linetypes))]
   links_rename <- links_rename %>% as.matrix
   # Plot comparison
   coph <- cophylo(tr1=mag_tree, tr2=host_tree, assoc=links_rename)
@@ -317,20 +331,25 @@ create_plots <- function(mag_tree, host_mag_links, host_tree, cod_results, outdi
   for (i in 1:nrow(cod_results)) {
     node <- cod_results$node[i]
     cat(paste0(n, ":", nrow(cod_results), " - node ", node, "\n"))
-    # Get PACo input again: same files used in cophylo
+    # Get input data
     input <- prepare_input(node, mag_tree, host_mag_links, host_tree)
     mag_tree_sub <- input[[1]]
     host_tree_sub <- input[[2]]
     links <- input[[3]]
+    # Use dotted lines for non-assembly species
+    linetypes <- links %>% left_join(mag_host) %>%
+        mutate(line_type = case_when(assembly_species == FALSE ~ "dotted", TRUE ~ "solid"))
+    linetypes <- setNames(linetypes$line_type, linetypes$host_species)
     # Plot cophyloplo
-    coph <- cophyloplot(host_tree=host_tree_sub, mag_tree=mag_tree_sub, links=links, host_colours=species_palette)
+    coph <- cophyloplot(host_tree=host_tree_sub, mag_tree=mag_tree_sub, links=links, host_colours=species_palette, host_linetypes = linetypes)
     # Save plot
     png(file.path(subdir, outdir, paste(node, "cophyloplot.png", sep="_")), width = 600, height = 400)
-    par(mar=c(5, 4, 4, 2) + 0.1)
-    plot(coph, link.type="curved",link.lwd=4, link.lty="solid", link.col=coph$assoc[,"colour"])
+    par(mar=c(6, 8, 4, 2) + 0.1)
+    plot(coph, link.type="curved",link.lwd=4, link.lty=coph$assoc[,"linetype"], link.col=coph$assoc[,"colour"])
     # Add title
-    title(paste("Node:", node, cex.main=1.5))
-    text(x = 0.5, y = 0.95, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+    text(x = 0.5, y = 0.95, labels = paste("Node:", node), pos = 2, cex = 1.5, col = "black")
+    text(x = 0.5, y = 0.90, labels = paste("p-value:", format(cod_results$p.value[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
+    text(x = 0.5, y = 0.85, labels = paste("q-value:", format(cod_results$p.adjust[i], digits = 3)), pos = 2, cex = 1.5, col = "black")
     dev.off()
     n <- n + 1
   }
@@ -354,44 +373,92 @@ create_plots(ar_tree, ar_meta, host_consensus, ar_cod_results, "ar_cophylo_plots
 bac_meta_plot <- bac_meta %>% left_join(bac_cod_results, by=c("label"="node")) %>%
   # For non significant results, turn r to NA
   mutate(r = case_when(p.adjust <= 0.05 ~ r, TRUE ~ NA)) %>%
-  # Get -log10(p.value) for colouring
-  mutate(neg_log10_p = case_when(!is.na(p.value) ~ -log10(p.value+10^-5), TRUE ~ NA)) %>%
-  select(label, r, neg_log10_p, host_order, habitat.general, phylum)
+  # Get -log10(p.adjust) for colouring
+  mutate(neg_log10_p = case_when(!is.na(p.adjust) ~ -log10(p.adjust+10^-5), TRUE ~ NA)) %>%
+  select(label, r, neg_log10_p, host_order, habitat.general)
+
+codiv_nodes <- 
+    bac_cod_results %>% filter(p.adjust <= 0.05 & r > 0) %>%
+  pull(node)
+
+# Get r values of descending nodes and tips of codiversifying clades
+descending_r <- data.frame()
+
+for (n in codiv_nodes) {
+  subclade <- extract.clade(bac_tree, n)
+  all_desc <- c(subclade$tip.label, subclade$node.label)
+  node_r <- bac_cod_results %>% filter(node == n) %>% pull(r)
+  df <- data.frame(label = all_desc, desc_r = node_r)
+  descending_r <- rbind(descending_r, df) %>% filter(label != n)
+}
+
+descending_r <- descending_r %>%
+  # If a tip is in multiple codiversifying clades, take the maximum r value
+  group_by(label) %>%
+  summarise(desc_r = max(desc_r, na.rm=TRUE))
+
+bac_meta_plot <- left_join(bac_meta_plot, descending_r, by="label")
 
 # Colour by order and habitat
-bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5, aes(colour = phylum)) %<+% bac_meta_plot +
-  scale_colour_manual(values = phylum_palette, name = "Phylum", na.value = "black") +
-  new_scale_colour() +
+bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5, aes(colour = desc_r)) %<+% bac_meta_plot +
+  scale_colour_gradient2(low = "yellow", mid = "orange", high = "red", midpoint = median(bac_meta_plot$r, na.rm = TRUE), na.value = "grey", name = "r coefficient") +
   geom_nodepoint(aes(fill=r, size=neg_log10_p), shape = 21, colour = "black") +
-  scale_fill_gradient2(low = "yellow", mid = "orange", high = "red", midpoint = median(bac_meta_plot$r, na.rm = TRUE), na.value = "white") +
+  scale_fill_gradient2(low = "yellow", mid = "orange", high = "red", midpoint = median(bac_meta_plot$r, na.rm = TRUE), na.value = "white", name = "r coefficient") +
   scale_size_continuous(name = "-log10(p adjusted)", range = c(1,5)) +
-  new_scale_fill() +
-  geom_tiplab(size=3, aes(colour=host_order)) +
+  new_scale_colour() +
+  geom_tiplab(size=2.5, aes(colour=host_order)) +
   scale_colour_manual(values = order_palette, name = "Host order", na.value = "black") +
-  new_scale_color() +
-  geom_tippoint(shape=21, size=2, stroke=0.7, 
+  new_scale_colour() +
+  new_scale_fill() +
+  geom_tippoint(shape=21, size=3, stroke=1, 
                 aes(fill=host_order, color=habitat.general)) +
   scale_fill_manual(values = order_palette, name = "Host order", na.value = "black") +
   scale_colour_manual(values = habitat_palette, name = "Host habitat", na.value = "black") +
   scale_x_continuous(expand = c(0, 0)) +  # Adjust the x-axis scaling 
-  theme(plot.margin = unit(c(-6, -6, -6, 1), "cm"), # Remove margins
-  legend.position=c(0.05, 0.5),
-  legend.text = element_text(size=20),
-  legend.title = element_text(size=20)) +
+  theme(plot.margin = unit(c(-6, -6, 0, -6), "cm"), # Remove margins
+    legend.position="bottom",
+    legend.direction="vertical",
+    legend.text = element_text(size=20),
+    legend.title = element_text(size=20)) +
   guides(fill = guide_legend(override.aes = list(size = 5)), 
   color = guide_legend(override.aes = list(size = 5)))
 
-ggsave(bac_p, file=file.path(subdir, "bac_codiv_tree.png"), width = 22, height = 20)
+# Identify the node for each phylum
+phylum_nodes <- bac_meta %>% 
+  select(phylum, label) %>%
+  left_join(as_tibble(bac_tree)[c("label", "node")]) %>%
+  group_by(phylum) %>%
+  filter(node == max(node, na.rm=TRUE)) %>%
+  mutate(colour = phylum_palette[phylum]) %>%
+  filter(!is.na(colour)) %>%
+  # Need to do this manually because ggtree node numbers to not line up with the original tree node numbers
+  mutate(node = case_when(
+    phylum == "Actinomycetota" ~ 678,
+    phylum == "Bacillota" ~ 569,
+    phylum == "Pseudomonadota" ~ 938,
+    phylum == "Desulfobacterota" ~ 925,
+    phylum == "Bacteroidota" ~ 1056,
+    phylum == "Synergistota" ~ 900
+  ))
+
+bac_p_node <- bac_p
+
+for (i in 1:nrow(phylum_nodes)) {
+  node <- phylum_nodes$node[i]
+  label <- phylum_nodes$phylum[i]
+  colour <- phylum_nodes$colour[i]
+  bac_p_node <- bac_p_node +
+      geom_cladelabel(node = node, label = label, colour = colour,
+                      offset = 0.9, barsize = 3, fontsize = 0)
+}
+
+ggsave(bac_p_node, file=file.path(subdir, "bac_codiv_tree.png"), width = 20, height = 22)
 
 #######################################
 #### COMPARE CODIVERSIFYING VS NOT ####
 #######################################
 
 # Get lists of MAGs in codiversifying clades vs not codiversifying clades
-codiv_nodes <- 
-    bac_cod_results %>% filter(p.adjust <= 0.05 & r > 0) %>%
-  pull(node)
-
 # Find all descending tips
 get_desctips <- function(tree, node) {
   sub_tree <- extract.clade(tree, node)
@@ -420,7 +487,8 @@ codiv_tips_df <- codiv_tips_df %>% left_join(codiv_habitats, by="label") %>%
     mutate(habitat = factor(habitat, levels=c("oral", "rumen", "gut", "soil", "no info"))) %>%
     # Indicate MAGs counted more than once
     group_by(label) %>%
-    mutate(multiple_habitats = case_when(n_distinct(habitat) > 1 ~ TRUE, TRUE ~ FALSE))
+    mutate(multiple_habitats = case_when(n_distinct(habitat) > 1 ~ TRUE, TRUE ~ FALSE)) %>%
+    mutate(codiversifying = factor(codiversifying, levels=c(TRUE, FALSE)))
 
 # Add taxonomic info
 codiv_tax <- bac_meta %>% filter(label %in% codiv_tips_df$label) %>%
@@ -435,14 +503,19 @@ write.csv(codiv_tips_df, file=file.path(subdir, "bac_codiv_tips_info.csv"), row.
 
 p <- ggplot(data = codiv_tips_df, aes(x = codiversifying)) +
   geom_bar(aes(fill = multiple_habitats)) +
-  scale_fill_manual(values = c("FALSE" = "lightblue", "TRUE" = "darkblue"), name = "Multiple habitats") +
-  facet_wrap(~ habitat, scales = "free_y")
+  scale_fill_manual(values = c("FALSE" = "lightblue", "TRUE" = "darkblue"), labels = c("FALSE" = "single habitat", "TRUE" = "multiple habitats"), name = "") +
+  facet_grid(cols = vars(habitat), scales = "free_y") +
+  theme(strip.text = element_text(size = 10), legend.position = "top", legend.title = element_blank(),
+     axis.title.y = element_blank())
 
-ggsave(plot=p, filename=file.path(subdir, "codiv_per_habitat.png"), width=6, height=4)
+ggsave(plot=p, filename=file.path(subdir, "codiv_per_habitat.png"), width=3.5, height=2.5)
 
 #### Plot how many codiversifying MAGs are associated with each phylum ####
 p <- ggplot(data = unique(select(codiv_tips_df, c(label, phylum, codiversifying))), aes(x = codiversifying)) +
-  geom_bar(fill = "lightblue") +
-  facet_wrap(~ phylum, scales = "free_y")
+  geom_bar(aes(fill = phylum)) +
+  scale_fill_manual(values = phylum_palette, na.value = "grey", name = "Phylum") +
+  facet_grid(cols = vars(phylum), scale = "free_y") +
+  theme(strip.text = element_text(angle = 90, size = 10), legend.position = "none",
+        axis.title.y = element_blank())
 
-ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=5, height=4)
+ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=3.5, height=3)
