@@ -9,6 +9,7 @@
 #### LOAD PACKAGES ####
 library(dplyr)
 library(tidyr)
+library(tibble)
 library(phyloseq)
 
 #### VARIABLES AND WORKING DIRECTORY ####
@@ -38,6 +39,9 @@ source(file.path("..","ordination_functions.R"))
 # Phyloseq object
 phy_gene_f <- readRDS(file.path(outdir, "data", "phy_gene_f.RDS"))
 phy_gene_f_clr <- readRDS(file.path(outdir, "data", "phy_gene_f_clr.RDS"))
+
+gene_str <- read.table(file.path(datadir, "gene_abundance_stratified_modified.tsv"),
+                      quote = "", comment.char = "", header = TRUE, sep = "\t")
 
 ###############################
 #### EXTRACT DATA AND PLOT ####
@@ -108,3 +112,42 @@ p <- ggplot(nitrate_reduc_filt, aes(x = Common.name, y = Abundance, fill = categ
     labs(y = "CLR abundance", x = "", fill = "", colour = "")
 
 ggsave(p, filename = file.path(subdir, "nitrate_reduction_genes.png"), width = 4, height = 8)
+
+# Plot contributions of different taxa
+nitrate_abund_str <- gene_str %>% filter(gene_id %in% nitrate_reduc_kos & Sample %in% phy_gene_f@sam_data$Ext.ID) %>%
+    select(Sample, gene_id, genus, mapped_reads) %>% rename(KO = gene_id, Ext.ID = Sample) %>%
+    left_join(select(rownames_to_column(data.frame(phy_gene_f@sam_data), "Sample"), c(Sample, Ext.ID))) %>%
+    left_join(select(nitrate_reduc_filt, Species, Sample, KO, gene_code)) %>%
+    filter(!is.na(genus))
+
+write.csv(nitrate_abund_str, file.path(subdir, "nitrate_reduction_gene_stratified.csv"), row.names = FALSE)
+
+# Keep only genes with significant comparison and the same species pairs as in the previous plot
+signif_genes <- wilcox_results %>% filter(signif == "*" | signif == "***") %>% pull(gene_code) %>% unique()
+nitrate_abund_signif <- nitrate_abund_str %>% filter(Sample %in% nitrate_reduc_filt$Sample & gene_code %in% signif_genes) %>%
+    mutate(Species = factor(Species, levels = unique(nitrate_reduc_filt$Species)))
+
+# Identify top contributing taxa
+top_taxa <- nitrate_abund_signif %>%
+    group_by(genus) %>% filter(genus != "no support") %>%
+    summarise(total_mapped_reads = sum(mapped_reads), .groups = "drop") %>%
+    slice_max(order_by = total_mapped_reads, n = 8)
+
+nitrate_abund_grouped <- nitrate_abund_signif %>%
+    mutate(genus_grouped = factor(ifelse(genus %in% top_taxa$genus, genus, "Other"), levels = c(top_taxa$genus, "Other"))) %>%
+    group_by(Sample, Species, gene_code, genus_grouped) %>%
+    summarise(total_mapped_reads = sum(mapped_reads), .groups = "drop") %>%
+    group_by(Species, gene_code) %>%
+    # get relative abundances
+    mutate(total_mapped_reads = total_mapped_reads / sum(total_mapped_reads) * 100)
+
+p <- ggplot(nitrate_abund_grouped, aes(x = gene_code, y = total_mapped_reads, fill = genus_grouped)) +
+    geom_bar(stat = "identity") +
+    scale_fill_manual(values = c("#EC8904", "#9DDE04", "#0C5B98", "#B80375", "#ECDE04", "#EC2C04", "#560F9F", "#03AB42", "grey"), name = "") +
+    facet_grid(rows = vars(Species)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
+            strip.text.y = element_text(angle = 0),
+            legend.position = "top", legend.direction = "horizontal") +
+    labs(x = "", y = "Total mapped reads", fill = "Genus")
+
+ggsave(p, filename = file.path(subdir, "nitrate_reduction_gene_stratified.png"), width = 8, height = 8)
