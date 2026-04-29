@@ -49,9 +49,11 @@ gene_str <- read.table(file.path(datadir, "gene_abundance_stratified_modified.ts
 
 # Genes needed to convert nitrate to nitrite, and nitrite to nitric oxide
 
-nitrate_reduc_kos <- c("narG"="K00370", "narH"="K00371", "narI"="K00374", "narX"="K07673", "narJ" = "K00373",
-                     "napA"="K02567", "napB"="K02568", 
-                     "nirK"="K00368", "nirS"="K15864")
+nitrate_reduc_kos <- c("narX" = "K07673", "narG, narZ, nxrA" = "K00370", "narH, narY, nxrB" = "K00371", "narI, narV"="K00374", "narJ, narW" = "K00373",
+                     "napA"="K02567", "napB"="K02568", "napD" = "K02570", "napE" = "K02571",  "napF" = "K02572"
+                     #"modA" = "K02020", "mogA" = "K03831", "moaB" = "K03638", "moaE" = "K03635", "moeA" = "K03750", "moeB" = "K21029", "moaA" = "K03639"
+                     #"nirK"="K00368", "nirS"="K15864"
+                     )
 
 nitrate_reduc_abund <- phy_gene_f_clr %>% prune_taxa(nitrate_reduc_kos, .) %>%
       psmelt %>% select(Sample, OTU, Abundance, Species, Common.name, diet.general, Locality, gene_name, module) %>%
@@ -61,6 +63,8 @@ nitrate_reduc_abund$gene_code <- factor(names(nitrate_reduc_kos)[match(nitrate_r
                                         level = names(nitrate_reduc_kos))
 
 write.csv(nitrate_reduc_abund, file.path(subdir, "nitrate_reduction_gene_abundance.csv"), row.names = FALSE)
+
+nitrate_reduc_abund$label <- paste(nitrate_reduc_abund$KO, nitrate_reduc_abund$gene_code, sep="\n")
 
 # Keep specific species pair for hypothesis testing
 high_low_pairs <- c("Marmot", "Paca", "Reticulated giraffe", "Okapi", "Eastern gorilla", "Western gorilla")
@@ -77,15 +81,14 @@ nitrate_reduc_filt <-
                              Common.name %in% c("Eastern gorilla", "Western gorilla") ~ "Gorillas")) %>%
     mutate(category = factor(category, levels = c("Baseline", "Altitude-adapted", "Hypertension-adapted")),
            clade = factor(clade, levels = c("Gorillas", "Rodents", "Giraffids"))) %>%
-    arrange(category, clade) %>%
-    mutate(Common.name = factor(gsub(" ", "\n", Common.name), levels = unique(gsub(" ", "\n", Common.name))))
+    arrange(category, clade)
 
 sample_n <- nitrate_reduc_filt %>% select(Sample, Common.name, category) %>% distinct() %>%
             group_by(Common.name, category) %>% summarise(n = n())
 
 # Perform one-sided Wilcoxon test for each gene_code and clade
 wilcox_results <- nitrate_reduc_filt %>%
-    group_by(gene_code, clade) %>%
+    group_by(label, clade) %>%
     arrange(category) %>%
     summarise(
         W = wilcox.test(Abundance ~ category, alternative = "less")$statistic,
@@ -106,12 +109,12 @@ p <- ggplot(nitrate_reduc_filt, aes(x = Common.name, y = Abundance, fill = categ
     geom_text(data = wilcox_results, aes(x = 1.5, y = 10, label = signif), size = 6, colour = "#FF9900", inherit.aes = FALSE) +
     scale_fill_manual(values = c("Altitude-adapted" = "#2A4D6E", "Hypertension-adapted" = "#AA4639", "Baseline" = "grey70")) +
     scale_color_manual(values = c("Altitude-adapted" = "#133453", "Hypertension-adapted" = "#802115", "Baseline" = "grey50")) +
-    facet_grid(cols = vars(clade), rows = vars(gene_code), scales = "free") +
+    facet_grid(cols = vars(clade), rows = vars(label), scales = "free") +
     scale_y_continuous(breaks = c(0, 10)) +
-    theme(legend.position = "top", legend.direction = "vertical", axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), strip.text.y = element_text(angle = 0)) +
+    theme(legend.position = "top", legend.direction = "vertical", axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), strip.text.y = element_text(angle = 0, size = 8)) +
     labs(y = "CLR abundance", x = "", fill = "", colour = "")
 
-ggsave(p, filename = file.path(subdir, "nitrate_reduction_genes.png"), width = 4, height = 8)
+ggsave(p, filename = file.path(subdir, "nitrate_reduction_genes.png"), width = 4, height = 9)
 
 # Plot contributions of different taxa
 nitrate_abund_str <- gene_str %>% filter(gene_id %in% nitrate_reduc_kos & Sample %in% phy_gene_f@sam_data$Ext.ID) %>%
@@ -150,4 +153,4 @@ p <- ggplot(nitrate_abund_grouped, aes(x = gene_code, y = total_mapped_reads, fi
             legend.position = "top", legend.direction = "horizontal") +
     labs(x = "", y = "Total mapped reads", fill = "Genus")
 
-ggsave(p, filename = file.path(subdir, "nitrate_reduction_gene_stratified.png"), width = 8, height = 8)
+ggsave(p, filename = file.path(subdir, "nitrate_reduction_gene_stratified.png"), width = 10, height = 8)
