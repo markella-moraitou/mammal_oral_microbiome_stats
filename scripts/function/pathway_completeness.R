@@ -166,7 +166,7 @@ if (file.exists(file.path(subdir, "pathway_info.csv"))) {
   })
   compl_df <- data.frame(path = unique_pathways,
                          completeness_in_dataset = completeness,
-                         abundance = abundance)
+                          mean_reads = mean_reads)
   # Add to pathway info
   path_info_df <- path_info_df %>%
                     left_join(compl_df, by = "path")
@@ -508,7 +508,7 @@ sam <- sample_data(data.frame(phy_gene_f@sam_data))
 
 phy_pathway <- phyloseq(otu, tax, sam)
 
-# Keep pathways at least 10% complete in the dataset
+# Keep pathways at least 20% complete in the dataset
 compl_pathways <- path_info_filt$path[which(path_info_filt$mean_completeness > 0.2)]
 
 phy_pathway <- prune_taxa(taxa_names(phy_pathway) %in% compl_pathways, phy_pathway)

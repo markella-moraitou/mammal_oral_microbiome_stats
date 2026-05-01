@@ -455,7 +455,7 @@ p_r <- ggplot(data = decom_tbl, aes(x = oral_contam_ratio, fill = oral_contam_ra
 
 # Taxa sums per sample
 content <- data.frame(total_abundance = sample_sums(phy_sp),
-                      new_name = sample_names(phy_sp_clr),
+                      new_name = factor(sample_names(phy_sp_clr), levels = sample_levels),
                       Order_grouped = phy_sp@sam_data$Order_grouped)
 
 p_c <- ggplot(content, aes(x = total_abundance, y = new_name)) +

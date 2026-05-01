@@ -61,11 +61,11 @@ phylopics <- read.csv(file.path(indir, "palettes", "phylopics.csv"), stringsAsFa
 meta <- rbind(bac_meta, ar_meta)
 meta_tips <- meta %>% filter(!is.na(bin))
 
-meta_tips <- meta_tips %>% mutate(phylum_grouped = case_when(phylum %in% names(phylum_palette) ~ phylum,
+meta_tips <- meta_tips %>% mutate(phylum_grouped = case_when(phylum %in% c(names(phylum_palette), "Patescibacteria") ~ phylum,
                                                             domain == "Bacteria" ~ "Other Bacteria",
                                                             domain == "Archaea" ~ "Other Archaea"))
 
-meta_tips$phylum_grouped <- factor(meta_tips$phylum_grouped, levels = names(phylum_palette))
+meta_tips$phylum_grouped <- factor(meta_tips$phylum_grouped, levels = c(names(phylum_palette), "Patescibacteria"))
 
 codiv_results <- read.csv(file.path(outdir, "codiversification", "bac_cod_results.csv")) %>%
       rbind(read.csv(file.path(outdir, "codiversification", "ar_cod_results.csv")))
@@ -96,11 +96,15 @@ GIFTs_elements_long <-
   # Turn function into factor
   arrange(Domain, Function) %>% mutate(Function = factor(Function, levels = unique(Function)))
 
+# Plot every 5 label to avoid overcrowding
+GIFTs_elements_long <- GIFTs_elements_long %>%
+      mutate(label_plot = ifelse(row_number() %% 5 == 0, label, ""))
+
 p <- ggplot(GIFTs_elements_long, aes(y=label, x=Element)) +
   geom_tile(aes(fill=Completeness)) +
   scale_fill_viridis_c() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5),
-        axis.text.y = element_blank(),
+        axis.text.y = element_text(size = 6),
         strip.text.y = element_text(angle = 0),
         strip.text.x = element_text(angle = 90)) +
   labs(y="Sample", x="Compound", fill="Completeness") +
@@ -109,8 +113,8 @@ p <- ggplot(GIFTs_elements_long, aes(y=label, x=Element)) +
                 gsub(Function, pattern = " biosynthesis", replacement = "\nbiosynthesis"),
                 pattern = " degradation", replacement = "\ndegradation")),
              scales = "free", space = "free")
-  
-ggsave(p, filename = file.path(subdir, "GIFTs_elements.png"), width = 25, height = 20)
+
+ggsave(p, filename = file.path(subdir, "GIFTs_elements.png"), width = 25, height = 25)
 
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
@@ -220,7 +224,7 @@ ggsave(p, file=file.path(subdir, "ar_function_tree.png"), width = 15, height = 1
 #####################
 
 # Only for HQ bins
-hq_meta <- meta_tips %>% filter(Completeness >= 90 & Contamination <= 5)
+hq_meta <- meta_tips %>% filter((Completeness >= 90 & Contamination <= 5))
 
 GIFTs_elements <- GIFTs_elements[hq_meta$bin, ]
 
@@ -264,7 +268,8 @@ p <- p +
                arrow = arrow(length = unit(0.2, "cm")), color = "black", alpha = 0.8) +
   geom_text(inherit.aes = FALSE, data = arrows, aes(x = PC1, y = PC2 , label = label,
             vjust = ifelse(PC2 < 0, 1, 0), hjust = ifelse(PC1 < 0, 1, 0)),
-            size = 3, color = "black", alpha = 0.8)
+            size = 3, color = "black", alpha = 0.8) +
+  xlim(-1, 1)
 
 ggsave(p, file=file.path(subdir, "GIFTs_PCA_bins.png"), width = 10, height = 10)
 
@@ -319,9 +324,11 @@ for (node in cod_nodes) {
 
 plot_list <- list()
 
+meta_tips_codiv <- meta_tips %>% filter((Completeness >= 90 & Contamination <= 5) | (phylum == "Patescibacteria" & Contamination <= 5))
+
 # Subset to each family and run PCA
 for (clade in names(cod_clades)) {
-  filt_meta <- hq_meta %>% filter(label %in% cod_clades[[clade]])
+  filt_meta <- meta_tips_codiv %>% filter(label %in% cod_clades[[clade]])
   filt_gifts <- GIFTs_elements[filt_meta$bin, ]
   ord_clade <- pca(filt_gifts)
   ord_clade_df <- scores(ord_clade)$sites %>% data.frame %>% rownames_to_column("bin") %>% left_join(filt_meta, by=c("bin"="bin"))
@@ -355,11 +362,11 @@ ggsave(p, file=file.path(subdir, "GIFTs_PCA_codiversifying.png"), width = 15, he
 ####################
 
 # Plot heatmaps of GIFTs on trees of codiversifying clades
-hq_meta$uid <- phylopics$uid[match(hq_meta$host_species, phylopics$Species)]
+meta_tips_codiv$uid <- phylopics$uid[match(meta_tips_codiv$host_species, phylopics$Species)]
 
 # Subset to each family and run PCA
 for (clade in names(cod_clades)) {
-  filt_meta <- hq_meta %>% filter(label %in% cod_clades[[clade]])
+  filt_meta <- meta_tips_codiv %>% filter(label %in% cod_clades[[clade]])
   
   # Keep GIFTs for degradation or biosynthesis that vary across this clade
   filt_degr <- gift_elem_degradation %>% filter(label %in% filt_meta$label) %>% filter(Code_element %in% colnames(GIFTs_elements)) %>%
