@@ -67,17 +67,17 @@ write.csv(nitrate_reduc_abund, file.path(subdir, "nitrate_reduction_gene_abundan
 nitrate_reduc_abund$label <- paste(nitrate_reduc_abund$KO, nitrate_reduc_abund$gene_code, sep="\n")
 
 # Keep specific species pair for hypothesis testing
-high_low_pairs <- c("Marmot", "Paca", "Reticulated giraffe", "Okapi", "Eastern gorilla", "Western gorilla")
+high_low_pairs <- c("Alpine marmot", "Lowland paca", "Giraffe", "Okapi", "Eastern gorilla", "Western gorilla")
 
 nitrate_reduc_filt <-
     nitrate_reduc_abund %>% filter(Common.name %in% high_low_pairs) %>%
     # Out of Eastern gorillas, keep only mountain gorillas
     filter(Common.name != "Eastern gorilla" | Locality %in% c("Mount Mikeno", "Virunga Massif")) %>%
-    mutate(category = case_when(Common.name %in% c("Marmot", "Eastern gorilla") ~ "Altitude-adapted",
-                                Common.name == "Reticulated giraffe" ~ "Hypertension-adapted",
-                                Common.name %in% c("Paca", "Okapi", "Western gorilla") ~ "Baseline"),
-           clade = case_when(Common.name %in% c("Marmot", "Paca") ~ "Rodents",
-                             Common.name %in% c("Reticulated giraffe", "Okapi") ~ "Giraffids",
+    mutate(category = case_when(Common.name %in% c("Alpine marmot", "Eastern gorilla") ~ "Altitude-adapted",
+                                Common.name == "Giraffe" ~ "Hypertension-adapted",
+                                Common.name %in% c("Lowland paca", "Okapi", "Western gorilla") ~ "Baseline"),
+           clade = case_when(Common.name %in% c("Alpine marmot", "Lowland paca") ~ "Rodents",
+                             Common.name %in% c("Giraffe", "Okapi") ~ "Giraffids",
                              Common.name %in% c("Eastern gorilla", "Western gorilla") ~ "Gorillas")) %>%
     mutate(category = factor(category, levels = c("Baseline", "Altitude-adapted", "Hypertension-adapted")),
            clade = factor(clade, levels = c("Gorillas", "Rodents", "Giraffids"))) %>%

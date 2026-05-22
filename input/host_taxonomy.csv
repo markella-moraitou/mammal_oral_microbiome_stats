@@ -1,36 +1,36 @@
 tax.id,museum.species,species,genus,subfamily,family,infraorder,suborder,order,superorder,Common.name
 30589,Alouatta palliata,Alouatta palliata,Alouatta,Alouattinae,Atelidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Mantled howler monkey
-9838,Camelus dromedarius,Camelus dromedarius,Camelus,NA,Camelidae,NA,Tylopoda,Artiodactyla,Laurasiatheria,Dromedary camel
+9838,Camelus dromedarius,Camelus dromedarius,Camelus,NA,Camelidae,NA,Tylopoda,Artiodactyla,Laurasiatheria,Arabian camel
 9858,Capreolus capreolus,Capreolus capreolus,Capreolus,Odocoileinae,Cervidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Roe deer
 50347,Cephalophus silvicultor,Cephalophus silvicultor,Cephalophus,Cephalophinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Yellow-backed duiker
-9807,Ceratotherium simum,Ceratotherium simum,Ceratotherium,NA,Rhinocerotidae,NA,NA,Perissodactyla,Laurasiatheria,White rhino
-108852,Cuniculus paca,Cuniculus paca,Cuniculus,NA,Cuniculidae,NA,Hystricomorpha,Rodentia,Euarchontoglires,Paca
-9805,Diceros bicornis,Diceros bicornis,Diceros,NA,Rhinocerotidae,NA,NA,Perissodactyla,Laurasiatheria,Black rhino
+9807,Ceratotherium simum,Ceratotherium simum,Ceratotherium,NA,Rhinocerotidae,NA,NA,Perissodactyla,Laurasiatheria,White rhinoceros
+108852,Cuniculus paca,Cuniculus paca,Cuniculus,NA,Cuniculidae,NA,Hystricomorpha,Rodentia,Euarchontoglires,Lowland paca
+9805,Diceros bicornis,Diceros bicornis,Diceros,NA,Rhinocerotidae,NA,NA,Perissodactyla,Laurasiatheria,Black rhinoceros
 29137,Dugong dugon,Dugong dugon,Dugong,NA,Dugongidae,NA,NA,Sirenia,Afrotheria,Dugong
 89252,Equus burchellii,Equus quagga,Equus,NA,Equidae,NA,NA,Perissodactyla,Laurasiatheria,Plains zebra
-9796,Equus caballus,Equus caballus,Equus,NA,Equidae,NA,NA,Perissodactyla,Laurasiatheria,Horse
-9894,Giraffa camelopardalis,Giraffa camelopardalis,Giraffa,NA,Giraffidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Reticulated giraffe
+9796,Equus caballus,Equus caballus,Equus,NA,Equidae,NA,NA,Perissodactyla,Laurasiatheria,Domestic horse
+9894,Giraffa camelopardalis,Giraffa camelopardalis,Giraffa,NA,Giraffidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Giraffe
 499232,Gorilla beringei,Gorilla beringei,Gorilla,Homininae,Hominidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Eastern gorilla
 9593,Gorilla gorilla,Gorilla gorilla,Gorilla,Homininae,Hominidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Western gorilla
-9833,Hippopotamus amphibius,Hippopotamus amphibius,Hippopotamus,NA,Hippopotamidae,Ancodonta,Whippomorpha,Artiodactyla,Laurasiatheria,Hippo
+9833,Hippopotamus amphibius,Hippopotamus amphibius,Hippopotamus,NA,Hippopotamidae,Ancodonta,Whippomorpha,Artiodactyla,Laurasiatheria,Hippopotamus
 9785,Loxodonta africana,Loxodonta africana,Loxodonta,NA,Elephantidae,NA,NA,Proboscidea,Afrotheria,African elephant
 9317,Macropus giganteus,Macropus giganteus,Macropus,NA,Macropodidae,NA,NA,Diprotodontia,NA,Eastern grey kangaroo
-9993,Marmota marmota,Marmota marmota,Marmota,Xerinae,Sciuridae,NA,Sciuromorpha,Rodentia,Euarchontoglires,Marmot
+9993,Marmota marmota,Marmota marmota,Marmota,Xerinae,Sciuridae,NA,Sciuromorpha,Rodentia,Euarchontoglires,Alpine marmot
 9662,Meles meles,Meles meles,Meles,Melinae,Mustelidae,NA,Caniformia,Carnivora,Laurasiatheria,European badger
 9888,Muntiacus muntjak,Muntiacus muntjak,Muntiacus,Muntiacinae,Cervidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Muntjak
 86973,Okapia johnstoni,Okapia johnstoni,Okapia,NA,Giraffidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Okapi
 9733,Orcinus orca,Orcinus orca,Orcinus,NA,Delphinidae,Cetacea,Whippomorpha,Artiodactyla,Laurasiatheria,Orca
 161932,Otaria byronia,Otaria flavescens,Otaria,NA,Otariidae,NA,Caniformia,Carnivora,Laurasiatheria,South American sea lion
 30527,Ovis ammon,Ovis ammon,Ovis,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Argali
-9940,Ovis aries,Ovis aries,Ovis,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Sheep
+9940,Ovis aries,Ovis aries,Ovis,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Domestic sheep
 9598,Pan troglodytes,Pan troglodytes,Pan,Homininae,Hominidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Chimpanzee
 9555,Papio anubis,Papio anubis,Papio,Cercopithecinae,Cercopithecidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Olive baboon
 591938,Piliocolobus foai,Piliocolobus foai,Piliocolobus,Colobinae,Cercopithecidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Central African red colobus
 9600,Pongo pygmaeus,Pongo pygmaeus,Pongo,Ponginae,Hominidae,Simiiformes,Haplorrhini,Primates,Euarchontoglires,Bornean orangutan
 9870,Rangifer tarandus,Rangifer tarandus,Rangifer,Odocoileinae,Cervidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Reindeer
 34869,Rupicapra rupicapra,Rupicapra rupicapra,Rupicapra,Caprinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,Chamois
-9823,Sus scrofa,Sus scrofa,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Wild boar
-9825,Sus scrofa domesticus,Sus domesticus,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Pig
+9823,Sus scrofa,Sus scrofa,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Eurasian wild pig
+9825,Sus scrofa domesticus,Sus domesticus,Sus,NA,Suidae,NA,Suina,Artiodactyla,Laurasiatheria,Domestic pig
 9970,Syncerus caffer,Syncerus caffer,Syncerus,Bovinae,Bovidae,Pecora,Ruminantia,Artiodactyla,Laurasiatheria,African buffalo
-9802,Tapirus indicus,Acrocodia indica,Tapirus,NA,Tapiridae,NA,NA,Perissodactyla,Laurasiatheria,Malayan tapir
+9802,Tapirus indicus,Acrocodia indica,Acrocodia,NA,Tapiridae,NA,NA,Perissodactyla,Laurasiatheria,Malayan tapir
 9644,Ursus arctos,Ursus arctos,Ursus,NA,Ursidae,NA,Caniformia,Carnivora,Laurasiatheria,Brown bear

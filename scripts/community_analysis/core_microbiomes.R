@@ -493,8 +493,9 @@ orca_core_comparison <- core_genera %>%
         summarise(Carnivora_taxa = sum(core_taxa %in% carni_core)) %>%
         ungroup() %>%
         mutate(Common.name = ifelse(host_species == "Otaria flavescens", "Sea lion",
-                                 ifelse(host_species == "Meles meles", "Badger", Common.name))) %>%
-        mutate(Common.name = factor(Common.name, levels = c("Roe deer", "Hippo", "Wild boar", "Orca", "Sea lion", "Badger")))
+                                 ifelse(host_species == "Meles meles", "Badger", 
+                                        ifelse(host_species == "Sus scrofa", "Wild pig", Common.name)))) %>%
+        mutate(Common.name = factor(Common.name, levels = c("Roe deer", "Hippopotamus", "Wild pig", "Orca", "Sea lion", "Badger")))
 
 write.csv(orca_core_comparison, file = file.path(subdir, "orca_core_comparison.csv"), quote = FALSE, row.names = FALSE)
 
