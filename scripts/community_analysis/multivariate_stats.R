@@ -20,6 +20,7 @@ library(ggplot2)
 library(ggnewscale)
 library(ggtree)
 library(ggtreeExtra)
+library(ggrepel)
 library(vegan)
 library(microbiomeutilities)
 library(cowplot)
@@ -251,9 +252,8 @@ p_fruit <- p %<+% tree_phylopics +
   geom_phylopic(aes(uuid=uid, fill = diet.general), width = 8, position=position_nudge(x=85)) +
   scale_fill_manual(values = diet_palette) +
   new_scale_colour() +
-  geom_text(aes(label = species_lab, colour = habitat, angle = text_angle, hjust = ifelse(text_angle > -90, 1, 0)),
-            size = 3.5, position = position_nudge(x=100)) +
-  scale_color_manual(values = habitat_palette)
+  geom_text(aes(label = species_lab, angle = text_angle, hjust = ifelse(text_angle > -90, 1, 0)),
+            size = 3.5, position = position_nudge(x=100))
 
 ggsave(file.path(subdir, "phy_sp_f_composition_tree.png"), p_fruit, width = 10, height = 5)
 
@@ -277,17 +277,17 @@ ord <- ord_calc(phy_sp_f_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_all_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "PCA_all_screeplot.png"), p, width=2, height=2)
 
 # Color by order
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.general", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_all_clr_order_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_all_clr_order_1_2.png"), p, width=10, height=4)
 
 # Color by diet
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="diet.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_all_clr_diet_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_all_clr_diet_1_2.png"), p, width=10, height=4)
  
 #### RDA ####
 
@@ -299,11 +299,13 @@ phy_sp_f_clr <- phy_sp_f_clr %>%
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
                   ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"))
+                  marine = (habitat.general == "Marine"),
+                  Animalivory = Animal,
+                  Frugivory = Fruit)
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
-                    "ruminant", "marine", "Fruit", "Animal")
+                    "ruminant", "marine", "Frugivory", "Animalivory")
 
 # Ordinate using all data
 ord <- ord_calc(phy_sp_f_clr, constraints = species_traits, method = "RDA")
@@ -316,23 +318,23 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_all_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_all_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.png"), p, width=10, height=4)
 
 # Colour by order
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p, width=10, height=4)
 
 ## TAXA PLOT
 p <- taxa_plot(ord, phy_sp_f_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_all_clr_taxa_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_all_clr_taxa_1_2.png"), p, width=10, height=4)
 
 write.csv(taxa_plot(ord, phy_sp_f_clr)[["data"]], file = file.path(subdir, "RDA_all_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
@@ -373,17 +375,17 @@ ord <- ord_calc(phy_deep_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_deep_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "PCA_deep_screeplot.png"), p, width=2, height=2)
 
 # Color by order
 p <- custom_ord_plot(phy_deep_clr, ord, colour="Order_grouped", shape="diet.general", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_deep_clr_order_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_deep_clr_order_1_2.png"), p, width=10, height=4)
 
 # Color by diet
 p <- custom_ord_plot(phy_deep_clr, ord, colour="diet.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_deep_clr_diet_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_deep_clr_diet_1_2.png"), p, width=10, height=4)
  
 #### RDA ####
 
@@ -412,23 +414,23 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_deep_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_deep_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_deep_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_deep_clr_diet_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_deep_clr_diet_1_2.png"), p, width=10, height=4)
 
 # Colour by order
 p <- custom_ord_plot(phy_deep_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p, width=10, height=4)
 
 ## TAXA PLOT
 p <- taxa_plot(ord, phy_deep_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_deep_clr_taxa_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_deep_clr_taxa_1_2.png"), p, width=10, height=4)
 write.csv(taxa_plot(ord, phy_deep_clr)[["data"]], file = file.path(subdir, "RDA_deep_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 ## RDA axis violin plots
@@ -444,7 +446,7 @@ p <- ggplot(rda_res, aes(y = Order, x = Value, fill = diet.general, colour = die
       facet_grid(cols = vars(Axis), scales = "free") +
       theme(legend.position = "none", axis.title = element_blank())
 
-ggsave(file.path(subdir, "RDA_deep_clr_axis_comparison.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_deep_clr_axis_comparison.png"), p, width=10, height=4)
 
 ## Test
 
@@ -488,12 +490,12 @@ ord <- ord_calc(phy_artio_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_artio_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "PCA_artio_screeplot.png"), p, width=2, height=2)
 
 # Color by diet
 p <- custom_ord_plot(phy_artio_clr, ord, colour="diet.general", shape="digestion", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_artio_clr_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_artio_clr_1_2.png"), p, width=10, height=4)
 
 #### RDA ####
 
@@ -518,18 +520,18 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_artio_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_artio_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_artio_clr, ord, colour="diet.general", shape="digestion", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_artio_clr_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_artio_clr_1_2.png"), p, width=10, height=4)
 
 ## TAXA PLOT 
 p <- taxa_plot(ord, phy_artio_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_artio_clr_taxa_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_artio_clr_taxa_1_2.png"), p, width=10, height=4)
 write.csv(taxa_plot(ord, phy_artio_clr)[["data"]], file = file.path(subdir, "RDA_artio_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
@@ -567,12 +569,12 @@ ord <- ord_calc(phy_carni_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_carni_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "PCA_carni_screeplot.png"), p, width=2, height=2)
 
 # Color by diet
 p <- custom_ord_plot(phy_carni_clr, ord, colour="habitat.general", shape="Common.name", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_carni_clr_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "PCA_carni_clr_1_2.png"), p, width=10, height=4)
 
 #### RDA ####
 
@@ -595,18 +597,18 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_carni_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_carni_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_carni_clr, ord, colour="habitat.general", shape="Common.name", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_carni_clr_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_carni_clr_1_2.png"), p, width=10, height=4)
 
 ## TAXA PLOT 
 p <- taxa_plot(ord, phy_carni_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_carni_clr_taxa_1_2.png"), p, width=5, height=5)
+ggsave(file.path(subdir, "RDA_carni_clr_taxa_1_2.png"), p, width=10, height=4)
 write.csv(taxa_plot(ord, phy_carni_clr)[["data"]], file = file.path(subdir, "RDA_carni_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
@@ -643,12 +645,12 @@ ord <- ord_calc(phy_prim_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=8, height=6)
+ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=2, height=2)
 
 # Color by diet
 p <- custom_ord_plot(phy_prim_clr, ord, colour="diet.general", shape="Common.name", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_prim_clr_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "PCA_prim_clr_1_2.png"), p, width=10, height=4)
 
 #### RDA ####
 
@@ -666,14 +668,14 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_prim_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_prim_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_prim_clr, ord, colour="diet.general", shape="Common.name", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_prim_clr_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "RDA_prim_clr_1_2.png"), p, width=10, height=4)
 
 p <- ord_plot(ord, colour="project_name", shape="Common.name") +
     scale_shape_manual(values = species_shape_scale, name = "Diet category") +
@@ -682,11 +684,12 @@ p <- ord_plot(ord, colour="project_name", shape="Common.name") +
     guides(colour = guide_legend(nrow = 2, byrow = TRUE),
            shape = guide_legend(nrow = 4, byrow = TRUE))
 
-ggsave(file.path(subdir, "RDA_prim_clr_1_2_study.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "RDA_prim_clr_1_2_study.png"), p, width=10, height=4)
 
 ## TAXA PLOT 
 p <- taxa_plot(ord, phy_prim_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_prim_clr_taxa_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "RDA_prim_clr_taxa_1_2.png"), p, width=10, height=4)
+
 write.csv(taxa_plot(ord, phy_prim_clr)[["data"]], file = file.path(subdir, "RDA_prim_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
@@ -722,12 +725,12 @@ ord <- ord_calc(phy_habitat_clr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=8, height=6)
+ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=2, height=2)
 
 # Color by diet
 p <- custom_ord_plot(phy_habitat_clr, ord, colour="habitat.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_habitat_clr_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "PCA_habitat_clr_1_2.png"), p, width=10, height=4)
 
 #### RDA ####
 # Recode order and habitat as TRUE and FALSE
@@ -752,18 +755,19 @@ vif.cca(ord_step)
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(paste0("RDA", 1:length(species_traits)))
 
-ggsave(file.path(subdir, "RDA_habitat_screeplot.png"), p, width=3, height=3)
+ggsave(file.path(subdir, "RDA_habitat_screeplot.png"), p, width=2, height=2)
 
 ## SAMPLE PLOTS
 
 # Color by habitat
 p <- custom_ord_plot(phy_habitat_clr, ord, colour="habitat.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_habitat_clr_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "RDA_habitat_clr_1_2.png"), p, width=10, height=4)
 
 ## TAXA PLOT 
 p <- taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["plot"]]
-ggsave(file.path(subdir, "RDA_habitat_clr_taxa_1_2.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "RDA_habitat_clr_taxa_1_2.png"), p, width=10, height=4)
+
 write.csv(taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["data"]], file = file.path(subdir, "RDA_habitat_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
 
 #### PERMANOVA ####
@@ -793,17 +797,19 @@ write.csv(as.data.frame(perm), file = file.path(subdir, "permanova_habitat_clr_o
 ##########################
 
 phylopics$Common.name <- phy_sp_f@sam_data$Common.name[match(phylopics$Species, as.vector(phy_sp_f@sam_data$Species))]
+phylopics$diet.general <- phy_sp_f@sam_data$diet.general[match(phylopics$Species, as.vector(phy_sp_f@sam_data$Species))]
 
-p <- ggplot(phylopics[!is.na(phylopics$Common.name),], aes(y = Common.name, x = 1, colour = Species)) +
+p <- ggplot(phylopics[!is.na(phylopics$Common.name),], aes(y = Common.name, x = 1, colour = diet.general)) +
     geom_phylopic(aes(uuid = uid), height = 0.8) +
-    scale_color_manual(values = species_palette, name = "Species") +
+    scale_color_manual(values = diet_palette, name = "Species") +
+    scale_y_discrete(limits=rev) +
     theme_void() + theme(axis.title = element_blank(), axis.text.x = element_blank(),
                          axis.text.y = element_text(size = 5, hjust = 1),
                          legend.position = "none",
                          plot.background = element_rect(fill = "transparent", color = "transparent"),
                          panel.background = element_rect(fill = "transparent", color = "transparent"))
 
-ggsave(file.path(subdir, "phylopics_legend.png"), p, width=1.5, height=4)
+ggsave(file.path(subdir, "phylopics_legend.png"), p, width=1.2, height=4)
 
 ######################################
 #### PCA ORDINATION ON PHILR DATA ####
@@ -816,7 +822,7 @@ ord <- ord_calc(phy_sp_philr, method = "PCA")
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
             xlim(c("PC1", "PC2", "PC3", "PC4", "PC5", "PC6", "PC7", "PC8", "PC9", "PC10"))
 
-ggsave(file.path(subdir, "screeplot_all_philr.png"), p, width=8, height=6)
+ggsave(file.path(subdir, "screeplot_all_philr.png"), p, width=2, height=2)
 
 # Color by order
 p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
@@ -827,7 +833,7 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", alpha = 0.5) +
   geom_phylopic(data = centroids(ord@ord, phy_sp_philr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_philr)$uid, width = 0.2, alpha = 0.8)
 
 # Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 20)
+p_l <- loadings_plot(ord@ord, axes = c(1, 2), top_taxa = 20, shorten_names = FALSE)
 p <- plot_grid(p + theme(legend.position = "right"),
                p_l + theme(legend.position = "right"),
                nrow = 2, rel_heights = c(4, 3))
@@ -843,7 +849,7 @@ p <- ord_plot(ord, colour="Order_grouped", shape="diet.general", axes = c(3, 4))
   geom_phylopic(data = centroids(ord@ord, phy_sp_philr), aes(colour = Order_grouped), uuid = centroids(ord@ord, phy_sp_philr)$uid, width = 0.2, alpha = 0.8)
 
 # Plot loadings alongside
-p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 20)
+p_l <- loadings_plot(ord@ord, axes = c(3, 4), top_taxa = 20, shorten_names = FALSE)
 p <- plot_grid(p + theme(legend.position = "right"),
                p_l + theme(legend.position = "right"),
                nrow = 2, rel_heights = c(4, 3))

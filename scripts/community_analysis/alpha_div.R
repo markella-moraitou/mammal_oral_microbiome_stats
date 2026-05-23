@@ -179,8 +179,7 @@ p <- ggplot(rare_results_filt) +
   facet_grid(~ Order_grouped) +
   theme(legend.position = "none") +
   xlab("Number of sequences sampled") +
-  ylab("Observed species richness") +
-  theme(legend.position = "none")
+  ylab("Observed species richness")
 
 ggsave(file.path(subdir, "rarefaction_curves_raw.png"), p, width=8, height=8)
 
@@ -226,12 +225,12 @@ order_labels <- c("Rodentia" = "Rod.", "Carnivora" = "Carniv.", "Perissodactyla"
 # Filtered
 p <- ggplot(alpha_div, aes(x=Species, y=filt)) +
   geom_boxplot(aes(fill=diet.general)) +
-  theme(legend.position = "none") +
   scale_fill_manual(values=diet_palette, name = "Species") +
   scale_x_discrete(labels = setNames(phy_sp_f@sam_data$Common.name, phy_sp_f@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
-  theme(legend.position = "none", axis.title.y = element_blank()) +
+  theme(legend.position = "bottom", axis.title.y = element_blank()) +
+  guides(fill = guide_legend(ncol = 2)) +
   ylab("Observed species richness") +
   coord_flip()
 
@@ -240,12 +239,12 @@ ggsave(file.path(subdir, "alpha_diversity_filt.png"), p, width=6, height=8)
 # Filtered & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=filt_rarefied)) +
   geom_boxplot(aes(fill=diet.general)) +
-  theme(legend.position = "none") +
   scale_fill_manual(values=diet_palette, name = "Species") +
   scale_x_discrete(labels = setNames(phy_sp_f@sam_data$Common.name, phy_sp_f@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
-  theme(legend.position = "none", axis.title.y = element_blank()) +
+  theme(legend.position = "bottom", axis.title.y = element_blank()) +
+  guides(fill = guide_legend(ncol = 2)) +
   ylab("Observed species richness\n(after rarefaction)") +
   coord_flip()
 
@@ -254,12 +253,12 @@ ggsave(file.path(subdir, "alpha_diversity_filt_rarefied.png"), p, width=6, heigh
 # Raw
 p <- ggplot(alpha_div, aes(x=Species, y=raw)) +
   geom_boxplot(aes(fill=diet.general)) +
-  theme(legend.position = "none") +
   scale_fill_manual(values=diet_palette, name = "Species") +
   scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
-  theme(legend.position = "none", axis.title.y = element_blank()) +
+  theme(legend.position = "bottom", axis.title.y = element_blank()) +
+  guides(fill = guide_legend(ncol = 2)) +
   ylab("Observed species richness") +
   coord_flip()
 
@@ -268,13 +267,13 @@ ggsave(file.path(subdir, "alpha_diversity_raw.png"), p, width=6, height=8)
 # Raw & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=raw_rarefied)) +
   geom_boxplot(aes(fill=diet.general)) +
-  theme(legend.position = "none") +
   scale_fill_manual(values=diet_palette, name = "Species") +
   scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
-  theme(legend.position = "none", axis.title.y = element_blank()) +
+  theme(legend.position = "bottom", axis.title.y = element_blank()) +
   ylab("Observed species richness\n(after rarefaction)") +
+  guides(fill = guide_legend(ncol = 2)) +
   coord_flip()
 
 ggsave(file.path(subdir, "alpha_diversity_raw_rarefied.png"), p, width=6, height=8)
@@ -513,11 +512,11 @@ p <- ggplot(alpha_lat, aes(x=abs(latitude), y=filt_rarefied, colour = Order_grou
   facet_grid(diet.general ~ ., scales = "fixed", space = "fixed") +
   geom_smooth(method = "lm", aes(colour = NULL), colour = "black",
               linewidth = 0.5, linetype = "dotted") +
-  theme(legend.position = "bottom") +
+  theme(legend.position = "bottom", strip.text.y = element_text(angle = 0)) +
   xlab("Absolute latitude") + ylab("Species richness") +
   guides(colour = guide_legend(ncol = 3))
 
-ggsave(file.path(subdir, "latitude_est.png"), p, width=6, height=6)
+ggsave(file.path(subdir, "latitude_est.png"), p, width=6, height=5)
 
 # Test
 model <- lmer(filt_rarefied ~ abs(latitude) + (1|Species), data = alpha_lat)

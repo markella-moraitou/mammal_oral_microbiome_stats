@@ -426,17 +426,17 @@ ggsave(p, filename = file.path(subdir, "all_diffabund_coeff_correlation.png"), w
 
 res_labels <- all_res %>%
             # Keep significant results only in either method (after p-value adjustment)
-            filter(padj_t < 0.05 | padj_b < 0.05) %>%
+            filter(padj_t < 0.05 | pval_b < 0.05) %>%
             # label association (positive and negative)
             mutate(assoc = case_when(coefficient_t < 0 & coefficient_b < 0 ~ paste0(term, "-"),
                                      coefficient_t > 0 & coefficient_b > 0 ~ paste0(term, "+"),
                                      coefficient_t < 0 & coefficient_b > 0 ~ paste0(term, "mixed-+"),
                                      coefficient_t > 0 & coefficient_b < 0 ~ paste0(term, "mixed+-")),
-                   signif = case_when(padj_t < 0.05 & padj_b < 0.05 ~ "both padj < 0.05",
+                   signif = case_when(padj_t < 0.05 & pval_b < 0.05 ~ "both padj < 0.05",
                                       padj_t < 0.05 & pval_b < 0.05 ~ "padj_t < 0.05, pval_b < 0.05",
                                       padj_t < 0.05 ~ "padj_t < 0.05, pval_b ns",
-                                      pval_t < 0.05 & padj_b < 0.05 ~ "pval_t < 0.05, padj_b < 0.05",
-                                      pval_t >= 0.05 ~ "pval_t ns, padj_b < 0.05",
+                                      pval_t < 0.05 & pval_b < 0.05 ~ "pval_t < 0.05, pval_b < 0.05",
+                                      pval_t >= 0.05 ~ "pval_t ns, pval_b < 0.05",
                                       # if an OTU doesn't come up as significant in either method (after adjusting), remove
                                       TRUE ~ "remove")) %>% 
             filter(signif != "remove") %>%
@@ -467,11 +467,11 @@ p <- ggplot(abundances, aes(x = Common.name, y = Abundance, colour = Order, fill
     geom_boxplot(alpha = 0.8, size = 0.5) +
     scale_colour_manual(values = order_palette2, name = "Order") +
     scale_fill_manual(values = diet_palette, name = "Diet") +
-    facet_wrap(~ paste(as.character(OTU), label, sep = "\n"), ncol = 3, scales = "free_y") +
+    facet_wrap(~ paste(as.character(OTU), label, sep = "\n"), ncol = 6, scales = "free_y") +
     theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8),
           axis.title.x = element_blank(),
           strip.text.x = element_text(size = 8),
           legend.position = "bottom") + ylab("CLR-transformed abundances") +
     guides(fill=guide_legend(nrow=2,byrow=TRUE))
 
-ggsave(p, filename = file.path(subdir, "all_diffabund_abundances.png"), width = 12, height = 20)
+ggsave(p, filename = file.path(subdir, "all_diffabund_abundances.png"), width = 20, height = 20)

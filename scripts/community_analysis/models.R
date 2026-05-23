@@ -328,7 +328,7 @@ mrm_results_nospecies_df <- bind_rows(mrm_results_nospecies) %>% dplyr::filter(V
                                             "jaccard" = "Jaccard",
                                             "aitchison" = "Aitchison",
                                             "philr" = "Philr"),
-                                            levels = c("Jaccard", "Aitchison", "Philr"))) %>%
+                                            levels = c("Aitchison", "Philr", "Jaccard"))) %>%
                     mutate(Taxonomic_level = factor(Taxonomic_level, levels = c("species", "genus", "family", "order", "class", "phylum"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_sp_f" = "Entire dataset",
@@ -383,7 +383,7 @@ mrm_results_species_df <- bind_rows(mrm_results_species) %>% dplyr::filter(Varia
                                             "jaccard" = "Jaccard",
                                             "aitchison" = "Aitchison",
                                             "philr" = "Philr"),
-                                            levels = c("Jaccard", "Aitchison", "Philr"))) %>%
+                                            levels = c("Aitchison", "Philr", "Jaccard"))) %>%
                     mutate(Taxonomic_level = factor(Taxonomic_level, levels = c("species", "genus", "family", "order", "class", "phylum"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_sp_f" = "Entire dataset",

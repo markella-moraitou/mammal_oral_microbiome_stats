@@ -248,12 +248,12 @@ for (i in 1:n_perm) {
 #### Plot ####
 
 p <- ggplot(data = perm_results, aes(y = n_core_taxa, x = host_order)) +
-        geom_boxplot(aes(fill = host_order)) +
-        scale_fill_manual(values = order_palette, guide = "none") +
-        geom_point(data = core_genera_per_order_summary, aes(y = n_core_taxa, x = host_order),
-                color = "red", size = 3, shape = 18) +
+        geom_boxplot(fill = "white", colour = "grey") +
+        geom_point(data = core_genera_per_order_summary, aes(y = n_core_taxa, x = host_order, color = host_order),
+                  size = 4, shape = 18) +
+        scale_colour_manual(values = order_palette, guide = "none") +
         xlab("") + ylab("Number of core genera") +
-        theme(axis.text.x = element_text(hjust = 1))
+        theme(axis.text.x = element_text(hjust = 1), legend.position = "none")
 
 ggsave(p, file = file.path(subdir, "core_size_permutations.png"), width = 3, height = 5)
 
@@ -444,7 +444,7 @@ mamm_core_abund <- mamm_core_abund_all %>%
         # Keep only the same orders we use for the PCA
         filter(Order %in% core_genera_per_order$host_order) %>%
         # Get taxa that are the mammalian core taxa
-        filter(OTU %in% unique(unlist(core_taxa))) %>%
+        filter(genus %in% unique(unlist(core_taxa))) %>%
         # Shorten "Perissodactyla" for plotting
         mutate(Order = recode(Order, "Perissodactyla" = "Periss.", "Carnivora" = "Carn."))
 

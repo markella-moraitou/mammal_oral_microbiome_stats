@@ -399,6 +399,8 @@ descending_r <- descending_r %>%
 
 bac_meta_plot <- left_join(bac_meta_plot, descending_r, by="label")
 
+write.csv(bac_meta_plot, file=file.path(subdir, "bac_meta_plot.csv"), row.names=FALSE, quote=FALSE)
+
 # Colour by order and habitat
 bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5, aes(colour = desc_r)) %<+% bac_meta_plot +
   scale_colour_gradient2(low = "yellow", mid = "orange", high = "red", midpoint = median(bac_meta_plot$r, na.rm = TRUE), na.value = "grey", name = "r coefficient") +
@@ -505,8 +507,7 @@ p <- ggplot(data = codiv_tips_df, aes(x = codiversifying)) +
   geom_bar(aes(fill = multiple_habitats)) +
   scale_fill_manual(values = c("FALSE" = "lightblue", "TRUE" = "darkblue"), labels = c("FALSE" = "single habitat", "TRUE" = "multiple habitats"), name = "") +
   facet_grid(cols = vars(habitat), scales = "free_y") +
-  theme(strip.text = element_text(size = 10), legend.position = "top", legend.title = element_blank(),
-     axis.title.y = element_blank())
+  theme(strip.text = element_text(size = 10), legend.position = "top", legend.title = element_blank())
 
 ggsave(plot=p, filename=file.path(subdir, "codiv_per_habitat.png"), width=3.5, height=2.5)
 
@@ -515,7 +516,6 @@ p <- ggplot(data = unique(select(codiv_tips_df, c(label, phylum, codiversifying)
   geom_bar(aes(fill = phylum)) +
   scale_fill_manual(values = phylum_palette, na.value = "grey", name = "Phylum") +
   facet_grid(cols = vars(phylum), scale = "free_y") +
-  theme(strip.text = element_text(angle = 90, size = 10), legend.position = "none",
-        axis.title.y = element_blank())
+  theme(strip.text = element_text(angle = 90, size = 10), legend.position = "none")
 
 ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=3.5, height=3)

@@ -265,7 +265,7 @@ mrm_results_nospecies_df <- bind_rows(mrm_results_nospecies) %>% dplyr::filter(V
                     mutate(Distance = factor(recode(Distance,
                                             "jaccard" = "Jaccard",
                                             "aitchison" = "Euclidean/Aitchison"),
-                                            levels = c("Jaccard", "Euclidean/Aitchison"))) %>%
+                                            levels = c("Euclidean/Aitchison", "Jaccard"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_gene_f" = "Genes",
                                             "phy_pathway" = "KEGG Pathways",
@@ -316,7 +316,7 @@ mrm_results_species_df <- bind_rows(mrm_results_species) %>% dplyr::filter(Varia
                     mutate(Distance = factor(recode(Distance,
                                             "jaccard" = "Jaccard",
                                             "aitchison" = "Euclidean/Aitchison"),
-                                            levels = c("Jaccard", "Euclidean/Aitchison"))) %>%
+                                            levels = c("Euclidean/Aitchison", "Jaccard"))) %>%
                     mutate(Dataset = factor(recode(Dataset,
                                             "phy_gene_f" = "Genes",
                                             "phy_pathway" = "KEGG Pathways",

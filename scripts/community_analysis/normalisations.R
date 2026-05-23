@@ -13,6 +13,7 @@ library(tidyr)
 library(tibble)
 library(readr)
 library(ape)
+library(phytools)
 library(ggtree)
 library(ggtreeExtra)
 library(microbiome)
@@ -59,25 +60,50 @@ bac_meta_f <- bac_meta %>% filter(X1 %in% bac_tree$tip.label)
 
 # Split taxonomy column
 bac_meta_f <- bac_meta_f %>% separate(X2, into = c("d", "p", "c", "o", "f", "g", "s"), sep = ";") %>%
-  mutate(s = str_remove(s, "s__"))
+  mutate(species = str_remove(s, "s__"))
 
 # Filter metadata to only include taxa in phyloseq object
 bac_taxa <- data.frame(taxa_names = taxa_names(subset_taxa(phy_sp_f, superkingdom != "Archaea")))
 bac_taxa$fix_names <- str_remove(bac_taxa$taxa_names, "\\*")
 
 cat('Taxa that are not found in the bac120_taxonomy_r220 table:\n')
-bac_taxa[!bac_taxa$fix_names %in% bac_meta_f$s]
+bac_taxa[!bac_taxa$fix_names %in% bac_meta_f$species]
 
 # Extract tip labels from the species in the dataset
-bac_meta_f <- filter(bac_meta_f, s %in% bac_taxa$fix_names) %>% select(X1, p, s) %>% ungroup()
+bac_meta_f <- filter(bac_meta_f, species %in% bac_taxa$fix_names) %>% ungroup()
 
 # Add phyname
-bac_meta_f$phyname <- bac_taxa$taxa_names[match(bac_meta_f$s, bac_taxa$fix_names)]
+bac_meta_f$phyname <- bac_taxa$taxa_names[match(bac_meta_f$species, bac_taxa$fix_names)]
 
 # Subset tree
-tree <- drop.tip(bac_tree, setdiff(bac_tree$tip.label, bac_meta_f$X1))
-tree$tip.label <- bac_meta_f$phyname[match(tree$tip.label, bac_meta_f$X1)]
-tree$node.label <- paste0("N", 1:tree$Nnode) # Not very informative for now
+bac_tree$tip.label <- bac_meta_f$phyname[match(bac_tree$tip.label, bac_meta_f$X1)]
+tree <- drop.tip(bac_tree, setdiff(bac_tree$tip.label, bac_meta_f$phyname))
+
+#### Give nodes more informative names ####
+
+get_node_labels <- function(tree, metadata) {
+    node_labels <- data.frame(node=integer(), old_label = character(), new_label=character())
+    for (i in 1:tree$Nnode + Ntip(tree)) {
+        # Keep old labels when present
+        old_label <- tree$node.label[i-Ntip(tree)]
+        if (grepl("__", old_label)) {
+          new_label <- old_label
+        } else {
+          # Get the descendants of this node
+          desc <- tree$tip.label[getDescendants(tree, i)]
+          new_label <- metadata %>% filter(phyname %in% desc) %>%
+                      select(s:d) %>% select_if(~ !all(is.na(.))) %>%
+                      pivot_longer(cols=everything(), names_to="rank", values_to="taxon") %>% group_by(rank) %>%
+                      mutate(unique_values = n_distinct(taxon)) %>% filter(unique_values == 1) %>% pull(taxon) %>% head(1)
+        }
+        node_labels <- rbind(node_labels, data.frame(node=i, old_label=old_label, new_label=new_label))
+    }
+    node_labels$new_label <- make.unique(node_labels$new_label) %>% str_replace_all(" ", "_") %>% str_remove_all("'")
+    tree$node.label <- node_labels$new_label[match(1:tree$Nnode + Ntip(tree), node_labels$node)]
+    return(tree)
+}
+
+tree <- get_node_labels(tree, bac_meta_f)
 
 write.tree(tree, file = file.path(phydir, "phy_tree.tree"))
 
@@ -167,7 +193,7 @@ for (obj in c("phy_habitat", "phy_artio", "phy_carni", "phy_prim", "phy_deep",
 ###################
 
 # Plot microbial tree and colour tips by phylum
-tree_meta <- bac_meta_f %>% filter(s %in% tree$tip.label) %>% rename(tip.label = s) %>%
+tree_meta <- bac_meta_f %>% filter(s %in% tree$tip.label) %>% rename(tip.label = species) %>%
   mutate(p = str_remove(p, "p__")) %>% select(tip.label, p)
 
 p <- ggtree(tree)  %<+% tree_meta +

@@ -27,37 +27,36 @@ loadings_plot <- function(ordination, axes, top_taxa = 20, shorten_names = TRUE)
   # Get half of top taxa for each axis
   loadings_filt <- rbind(slice_max(loadings, order_by = abs(!!sym(axes_names[1])), n = ceiling(top_taxa/2)),
                          slice_max(loadings, order_by = abs(!!sym(axes_names[2])), n = floor(top_taxa/2) )) %>% 
-    rownames_to_column("taxon") %>%
-    # Get labels for plotting
-    mutate(genus = gsub(" .*", "", taxon))
+    rownames_to_column("taxon")
   if (shorten_names) {
     loadings_filt <- loadings_filt %>%
-      # Create labels for taxa by keeping only first letter of genus
-      mutate(label = gsub("([A-Z])[a-z]+", "\\1.", taxon))
+      mutate(label = gsub("([A-Z])[a-z]+", "\\1.", taxon)) %>%
+      # Get group
+      mutate(group = gsub(" .*", "", taxon))
   } else {
     loadings_filt$label <- loadings_filt$taxon
+    loadings_filt$group <- str_remove(loadings_filt$taxon, "\\.[0-9]+$") %>% str_remove(., "^.*:")
   }
   loadings_filt <- loadings_filt %>%
     # Arrange by first axis
-    arrange(desc(!!sym(axes_names[1]))) %>% mutate(label = factor(label, levels = label))
-  # Keep top 8 genera and group the rest as "Other"
-  top_genera <- table(loadings_filt$genus) %>% sort(decreasing = TRUE) %>% names() %>% head(8)
-  loadings_filt <- loadings_filt %>% mutate(genus = ifelse(genus %in% top_genera, genus, "Other"))
-  # Get genus palette
-  genera <- loadings_filt %>% filter(genus != "Other") %>% pull(genus) %>% unique
-  genus_palette <- setNames(wes_palette("Darjeeling1", length(genera), type = "continuous"), genera)
-  genus_palette["Other"] <- "grey"
-  # Set genus as factor
-  loadings_filt$genus <- factor(loadings_filt$genus, levels = names(genus_palette))
+    arrange(desc(!!sym(axes_names[1]))) %>% mutate(label = factor(label, levels = unique(label)))
+  # Keep top 8 groups and group the rest as "Other"
+  top_groups <- table(loadings_filt$group) %>% sort(decreasing = TRUE) %>% names() %>% head(8)
+  loadings_filt <- loadings_filt %>% mutate(group = ifelse(group %in% top_groups, group, "Other"))
+  # Get group palette
+  groups <- loadings_filt %>% filter(group != "Other") %>% pull(group) %>% unique
+  group_palette <- setNames(wes_palette("Darjeeling1", length(groups), type = "continuous"), groups)
+  group_palette["Other"] <- "grey"
+  # Set group as factor
+  loadings_filt$group <- factor(loadings_filt$group, levels = names(group_palette))
   # Melt and plot
   loadings_melt <- pivot_longer(loadings_filt, cols = starts_with("PC"), names_to = "PC", values_to = "loading")
-  p <- ggplot(loadings_melt, aes(y = label, x = loading, fill = genus)) +
+  p <- ggplot(loadings_melt, aes(y = label, x = loading, fill = group)) +
         geom_bar(stat = "identity", colour = "black") +
         facet_grid(~PC, scales = "free_y", space = "free_y", switch = "y") +
         geom_vline(xintercept = 0, linetype = "dotted", size = 1) +
-        scale_fill_manual(values = genus_palette, name = "Genus") +
-        theme(axis.text.y = element_text(face = "italic", family = "serif", size = 8),
-              axis.ticks = element_blank(), axis.title = element_blank(),
+        scale_fill_manual(values = group_palette, name = "") +
+        theme(axis.ticks = element_blank(), axis.title = element_blank(),
               panel.grid = element_blank(),
               strip.background = element_rect(colour = "white"),
               legend.position = "left")
@@ -150,52 +149,52 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   centroids <- centroids(ordination@ord, phyloseq)
   # Calculate width for phylopics
   x_axis_range <- diff(range(vegan::scores(ordination@ord, choices = 1, display = "sites")))
-  phylopic_width <- round(0.05 * x_axis_range, digits = 2)
+  phylopic_width <- diff(range(vegan::scores(ord@ord, display="sites", choices=1)[,1]))/25
   # Plot
   p <- ord_plot(ordination, auto_caption = NA, plot_samples = FALSE,
-                constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 3),
+                constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 4),
                 constraint_vec_style = vec_constraint(colour = "grey20", alpha = 0.5)) +
     custom_theme() +
     geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 1.5) +
-    geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "transparent", alpha = 0.8, uuid = centroids$uid, width = phylopic_width)
+    geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "black", alpha = 0.8, uuid = centroids$uid, width = phylopic_width)
   # Add the correct scales
   if (colour_var == "Order_grouped") {
     p <- p +
         scale_colour_manual(values=order_palette, name = "Host order") +
         scale_fill_manual(values=order_palette, name = "Host order") +
-        guides(colour = guide_legend(ncol = 2))
+        guides(colour = guide_legend(ncol = 2, byrow = TRUE, override.aes = list(size = 3)))
   } else if (colour_var == "diet.general") {
     p <- p +
         scale_colour_manual(values=diet_palette, name = "Host diet") +
         scale_fill_manual(values=diet_palette, name = "Host diet") +
-        guides(colour = guide_legend(ncol = 1))
+        guides(colour = guide_legend(ncol = 2, override.aes = list(size = 3)))
   } else if (colour_var == "habitat.general") {
     p <- p +
         scale_colour_manual(values=habitat_palette, name = "Habitat") +
         scale_fill_manual(values=habitat_palette, name = "Habitat") +
-        guides(colour = guide_legend(ncol = 1))
+        guides(colour = guide_legend(ncol = 2, override.aes = list(size = 3)))
   }
   if (shape_var == "diet.general") {
     p <- p +
         scale_shape_manual(values=diet_shape_scale, name = "Host diet") +
-        guides(shape = guide_legend(ncol = 1))
+        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
   } else if (shape_var == "Order_grouped") {
     p <- p +
         scale_shape_manual(values=order_shape_scale, name = "Host order") +
-        guides(shape = guide_legend(ncol = 2))
+        guides(shape = guide_legend(ncol = 2, byrow = TRUE, override.aes = list(size = 3)))
   } else if (shape_var == "Common.name") {
     p <- p +
         scale_shape_manual(values=species_shape_scale, name = "Species") +
-        guides(shape = guide_legend(ncol = 2))
+        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
   }
   else if (shape_var == "digestion") {
     p <- p +
         scale_shape_manual(values=digestion_shape_scale, name = "Host digestion") +
-        guides(shape = guide_legend(ncol = 2))
+        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
   }
   # Add more layers
   p <- p +
-    theme(legend.position = "bottom", legend.direction = "vertical", legend.text = element_text(size = 8), legend.title = element_text(size = 9))
+    theme(legend.position = "left", legend.direction = "vertical")
   # If PCA, add taxon arrows
   if (type == "PCA") {
       #### Get arrows ####
@@ -215,11 +214,10 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
                     select(contains(c("1", "2")), phylum_grouped)
     # PLOT
     p <- p +
-      guides(colour = guide_legend(ncol = 1)) +
       new_scale_colour() +
       geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*arrows_scaling, yend = PC2*arrows_scaling, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
       scale_color_manual(values = phylum_palette, name = "Phylum") +
-      guides(shape = guide_legend(ncol = 1))
+      guides(color = guide_legend(ncol = 2, override.aes = list(linewidth = 2)))
   }
   # If RDA add marginals
   if (type == "RDA") {
@@ -245,14 +243,17 @@ taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
               mutate(linetype = ifelse(species %in% top_taxa, "solid", "dashed"))  
   set.seed(245)
   p <- ggplot(taxa_rda, aes(x = 0, y = 0, xend = RDA1, yend = RDA2, colour = phylum_grouped)) +
-    geom_segment(linewidth = 0.5, alpha = 0.8, aes(linetype = linetype)) +
+    geom_point(aes(x = RDA1, y = RDA2), size = 0, alpha = 0) +
+    geom_segment(linewidth = 1, alpha = 0.8, aes(linetype = linetype)) +
     scale_linetype_identity() +
     scale_color_manual(values = phylum_palette, name = "Phylum") +
-    geom_label(aes(label = label, x = RDA1, y = RDA2),
-              size = 2, alpha = 0.5, vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0)) +
+    geom_label_repel(aes(label = label, x = RDA1, y = RDA2), size = 5, alpha = 0.7, box.padding = 0, label.padding = 0,
+                    force = 0.8, force_pull = 1, direction = "y", min.segment.length = 0, label.size = 0,
+                    vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0), hjust = ifelse(taxa_rda$RDA1 < 0, 1, 0)) +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 8)) +
-    guides(colour = guide_legend(ncol = 2)) +
+    theme(legend.position = "left", legend.title = element_blank()) +
+    guides(colour = guide_legend(ncol = 1, override.aes = list(linewidth = 2))) +
     xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
+  p <- ggMarginal(p, type="boxplot", groupColour = TRUE, groupFill = TRUE, size=5)
   return(list(plot = p, data = taxa_rda))
 }

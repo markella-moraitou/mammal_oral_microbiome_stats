@@ -75,7 +75,7 @@ labels <- ord$x %>% as.data.frame %>% mutate(label = case_when(PC1 > 10 ~ rownam
 
 # Plot
 pca <- ggplot(aes(x = PC1, y = PC2, colour=lint_diet_data$diet.general), data = data.frame(ord$x)) +
-  geom_phylopic(aes(uuid = pics), width = 5, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
+  geom_phylopic(aes(uuid = pics), width = 9, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
   scale_colour_manual(values = diet_palette, name = "") +
   xlab(paste("PC1 -", var_explained[1], "%")) +
   ylab(paste("PC2 -", var_explained[2], "%")) +
@@ -116,7 +116,7 @@ pics <- phylopics$uid[match(rownames(ord$x), phylopics$Species)]
 
 # Plot
 pca <- ggplot(aes(x = PC1, y = PC2, colour=elton_diet_data$diet.general), data = data.frame(ord$x)) +
-  geom_phylopic(aes(uuid = pics), width = 6, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
+  geom_phylopic(aes(uuid = pics), width = 9, position = position_jitter(width = 2, height = 2), alpha = 0.8) +
   scale_colour_manual(values = diet_palette, name = "") +
   xlab(paste("PC1 -", var_explained[1], "%")) +
   ylab(paste("PC2 -", var_explained[2], "%")) +
