@@ -25,6 +25,7 @@ library(vegan)
 library(microbiomeutilities)
 library(cowplot)
 library(ggExtra)
+library(gridExtra)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -205,8 +206,6 @@ host_traits <- data.frame(tip = sample_tree$tip.label,
                           Species = phy_sp_f@sam_data[sample_tree$tip.label, "Species"],
                           Common.name = phy_sp_f@sam_data[sample_tree$tip.label, "Common.name"],
                           diet.general = phy_sp_f@sam_data[sample_tree$tip.label, "diet.general"],
-                          PlantO = phy_sp_f@sam_data[sample_tree$tip.label, "PlantO"],
-                          Animal = phy_sp_f@sam_data[sample_tree$tip.label, "Animal"],
                           habitat.general = phy_sp_f@sam_data[sample_tree$tip.label, "habitat.general"])
 
 # Add order trait to nodes
@@ -282,12 +281,12 @@ ggsave(file.path(subdir, "PCA_all_screeplot.png"), p, width=2, height=2)
 # Color by order
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.general", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_all_clr_order_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_all_clr_order_1_2.png"), p, width=8, height=8)
 
 # Color by diet
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="diet.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_all_clr_diet_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_all_clr_diet_1_2.png"), p, width=8, height=8)
  
 #### RDA ####
 
@@ -298,14 +297,12 @@ phy_sp_f_clr <- phy_sp_f_clr %>%
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  Animalivory = Animal,
-                  Frugivory = Fruit)
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
-                    "ruminant", "marine", "Frugivory", "Animalivory")
+                    "Ruminant", "Marine", "Frugivory", "Animalivory")
 
 # Ordinate using all data
 ord <- ord_calc(phy_sp_f_clr, constraints = species_traits, method = "RDA")
@@ -320,23 +317,26 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_all_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT
+p_taxa <- taxa_plot(ord, phy_sp_f_clr)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_sp_f_clr)[["data"]], file = file.path(subdir, "RDA_all_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
+
+ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.png"), p_combined, width=8, height=10)
 
 # Colour by order
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-## TAXA PLOT
-p <- taxa_plot(ord, phy_sp_f_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_all_clr_taxa_1_2.png"), p, width=10, height=4)
-
-write.csv(taxa_plot(ord, phy_sp_f_clr)[["data"]], file = file.path(subdir, "RDA_all_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 
@@ -380,12 +380,12 @@ ggsave(file.path(subdir, "PCA_deep_screeplot.png"), p, width=2, height=2)
 # Color by order
 p <- custom_ord_plot(phy_deep_clr, ord, colour="Order_grouped", shape="diet.general", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_deep_clr_order_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_deep_clr_order_1_2.png"), p, width=8, height=8)
 
 # Color by diet
 p <- custom_ord_plot(phy_deep_clr, ord, colour="diet.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_deep_clr_diet_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_deep_clr_diet_1_2.png"), p, width=8, height=8)
  
 #### RDA ####
 
@@ -396,12 +396,12 @@ phy_deep_clr <- phy_deep_clr %>%
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"))
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
-                    "ruminant", "marine", "Fruit", "Animal")
+                    "Ruminant", "Marine", "Frugivory", "Animalivory")
 
 # Ordinate using all data
 ord <- ord_calc(phy_deep_clr, constraints = species_traits, method = "RDA")
@@ -416,22 +416,26 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_deep_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT
+p_taxa <- taxa_plot(ord, phy_deep_clr)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_deep_clr)[["data"]], file = file.path(subdir, "RDA_deep_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_deep_clr, ord, colour="diet.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_deep_clr_diet_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
+
+ggsave(file.path(subdir, "RDA_deep_clr_diet_1_2.png"), p_combined, width=8, height=10)
 
 # Colour by order
 p <- custom_ord_plot(phy_deep_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-## TAXA PLOT
-p <- taxa_plot(ord, phy_deep_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_deep_clr_taxa_1_2.png"), p, width=10, height=4)
-write.csv(taxa_plot(ord, phy_deep_clr)[["data"]], file = file.path(subdir, "RDA_deep_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_deep_clr_order_1_2.png"), p_combined, width=8, height=10)
 
 ## RDA axis violin plots
 
@@ -495,19 +499,19 @@ ggsave(file.path(subdir, "PCA_artio_screeplot.png"), p, width=2, height=2)
 # Color by diet
 p <- custom_ord_plot(phy_artio_clr, ord, colour="diet.general", shape="digestion", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_artio_clr_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_artio_clr_1_2.png"), p, width=8, height=8)
 
 #### RDA ####
 
 # Recode order and habitat as TRUE and FALSE
 # Also scale protein, fiber and carbohydrate content
 phy_artio_clr <- phy_artio_clr %>%
-        ps_mutate(ruminant = (digestion == "Ruminant"),
-                  pseudoruminant = (digestion == "Pseudoruminant"),
-                  marine = (habitat.general == "Marine"))
+        ps_mutate(Ruminant = (digestion == "Ruminant"),
+                  Pseudoruminant = (digestion == "Pseudoruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
-species_traits <- c("ruminant", "pseudoruminant", "marine")
+species_traits <- c("Ruminant", "Pseudoruminant", "Marine")
 
 # Ordinate using all data
 ord <- ord_calc(phy_artio_clr, constraints = species_traits, method = "RDA")
@@ -522,17 +526,19 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_artio_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT 
+p_taxa <- taxa_plot(ord, phy_artio_clr)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_artio_clr)[["data"]], file = file.path(subdir, "RDA_artio_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_artio_clr, ord, colour="diet.general", shape="digestion", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_artio_clr_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-## TAXA PLOT 
-p <- taxa_plot(ord, phy_artio_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_artio_clr_taxa_1_2.png"), p, width=10, height=4)
-write.csv(taxa_plot(ord, phy_artio_clr)[["data"]], file = file.path(subdir, "RDA_artio_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_artio_clr_1_2.png"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 
@@ -574,17 +580,17 @@ ggsave(file.path(subdir, "PCA_carni_screeplot.png"), p, width=2, height=2)
 # Color by diet
 p <- custom_ord_plot(phy_carni_clr, ord, colour="habitat.general", shape="Common.name", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_carni_clr_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_carni_clr_1_2.png"), p, width=8, height=8)
 
 #### RDA ####
 
 # Recode order and habitat as TRUE and FALSE
 # Also scale protein, fiber and carbohydrate content
 phy_carni_clr <- phy_carni_clr %>%
-        ps_mutate(marine = (habitat.general == "Marine"))
+        ps_mutate(Marine = (habitat.general == "Marine"))
 
 # Species traits to use as constraints
-species_traits <- c("marine", "Animal")
+species_traits <- c("Marine", "Animalivory")
 
 # Ordinate using all data
 ord <- ord_calc(phy_carni_clr, constraints = species_traits, method = "RDA")
@@ -599,17 +605,19 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_carni_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT 
+p_taxa <- taxa_plot(ord, phy_carni_clr)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_carni_clr)[["data"]], file = file.path(subdir, "RDA_carni_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_carni_clr, ord, colour="habitat.general", shape="Common.name", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_carni_clr_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-## TAXA PLOT 
-p <- taxa_plot(ord, phy_carni_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_carni_clr_taxa_1_2.png"), p, width=10, height=4)
-write.csv(taxa_plot(ord, phy_carni_clr)[["data"]], file = file.path(subdir, "RDA_carni_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_carni_clr_1_2.png"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 
@@ -650,12 +658,14 @@ ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=2, height=2)
 # Color by diet
 p <- custom_ord_plot(phy_prim_clr, ord, colour="diet.general", shape="Common.name", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_prim_clr_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_prim_clr_1_2.png"), p, width=8, height=8)
 
 #### RDA ####
+phy_prim_clr <- phy_prim_clr %>%
+        ps_mutate(Herbivory = PlantO)
 
 # Species traits to use as constraints
-species_traits <- c("PlantO", "Animal")
+species_traits <- c("Herbivory", "Animalivory")
 
 # Ordinate using all data
 ord <- ord_calc(phy_prim_clr, constraints = species_traits, method = "RDA")
@@ -670,27 +680,26 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_prim_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT 
+p_taxa <- taxa_plot(ord, phy_prim_clr)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_prim_clr)[["data"]], file = file.path(subdir, "RDA_prim_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by diet
 p <- custom_ord_plot(phy_prim_clr, ord, colour="diet.general", shape="Common.name", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_prim_clr_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-p <- ord_plot(ord, colour="project_name", shape="Common.name") +
-    scale_shape_manual(values = species_shape_scale, name = "Diet category") +
-    theme(plot.background = element_rect(fill = "white", color = NA),
-          legend.position = "bottom", legend.title = element_blank(), legend.text = element_text(size = 8)) +
-    guides(colour = guide_legend(nrow = 2, byrow = TRUE),
-           shape = guide_legend(nrow = 4, byrow = TRUE))
+ggsave(file.path(subdir, "RDA_prim_clr_1_2.png"), p_combined, width=8, height=10)
 
-ggsave(file.path(subdir, "RDA_prim_clr_1_2_study.png"), p, width=10, height=4)
+# Colour by study
+p <- p + geom_point(colour = "project_name",  size = 1.5)
 
-## TAXA PLOT 
-p <- taxa_plot(ord, phy_prim_clr)[["plot"]]
-ggsave(file.path(subdir, "RDA_prim_clr_taxa_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-write.csv(taxa_plot(ord, phy_prim_clr)[["data"]], file = file.path(subdir, "RDA_prim_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_prim_clr_1_2_study.png"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 
@@ -730,19 +739,19 @@ ggsave(file.path(subdir, "PCA_prim_screeplot.png"), p, width=2, height=2)
 # Color by diet
 p <- custom_ord_plot(phy_habitat_clr, ord, colour="habitat.general", shape="Order_grouped", arrows_scaling = 1, type = "PCA")
 
-ggsave(file.path(subdir, "PCA_habitat_clr_1_2.png"), p, width=10, height=4)
+ggsave(file.path(subdir, "PCA_habitat_clr_1_2.png"), p, width=8, height=8)
 
 #### RDA ####
 # Recode order and habitat as TRUE and FALSE
 phy_habitat_clr <- phy_habitat_clr %>%
-        ps_mutate(marine = (habitat.general == "Marine"),
+        ps_mutate(Marine = (habitat.general == "Marine"),
                   Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
                   Order_grouped = case_when(Order %in% c("Proboscidea", "Sirenia") ~ "Proboscidea_Sirenia",
                                         TRUE ~ Order_grouped))
 
 # Species traits to use as constraints
-species_traits <- c("marine", "Artiodactyla", "Carnivora")
+species_traits <- c("Marine", "Artiodactyla", "Carnivora")
 
 # Ordinate using all data
 ord <- ord_calc(phy_habitat_clr, constraints = species_traits, method = "RDA")
@@ -757,18 +766,19 @@ p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
 
 ggsave(file.path(subdir, "RDA_habitat_screeplot.png"), p, width=2, height=2)
 
+## TAXA PLOT 
+p_taxa <- taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["plot"]]
+
+write.csv(taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["data"]], file = file.path(subdir, "RDA_habitat_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+
 ## SAMPLE PLOTS
 
 # Color by habitat
 p <- custom_ord_plot(phy_habitat_clr, ord, colour="habitat.general", shape="Order_grouped", type = "RDA")
 
-ggsave(file.path(subdir, "RDA_habitat_clr_1_2.png"), p, width=10, height=4)
+p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
-## TAXA PLOT 
-p <- taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["plot"]]
-ggsave(file.path(subdir, "RDA_habitat_clr_taxa_1_2.png"), p, width=10, height=4)
-
-write.csv(taxa_plot(ord, phy_habitat_clr, ntaxa = 10)[["data"]], file = file.path(subdir, "RDA_habitat_clr_taxa_scores.csv"), row.names = FALSE, quote = TRUE)
+ggsave(file.path(subdir, "RDA_habitat_clr_1_2.png"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 

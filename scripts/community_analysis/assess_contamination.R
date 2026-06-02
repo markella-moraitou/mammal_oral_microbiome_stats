@@ -197,8 +197,9 @@ abundance_df <-
 
 # Plot
 p_ma <- ggplot(abundance_df, aes(x = mean_abundance, y = OTU)) +
-  geom_point(shape = 21) +
-  scale_x_log10() + xlab("mean abundance\nin samples") +
+  geom_bar(stat = "identity") +
+  #scale_x_log10(limits = c(min(abundance_df$mean_abundance), NA)) +
+  xlab("mean\nabundance\nin samples") +
   # Add threshold line
   geom_hline(yintercept = ythresh, linetype = "dashed") +
   theme(legend.position="top", axis.text.y = element_blank(), axis.ticks.y = element_blank(),
@@ -249,6 +250,7 @@ p_h <- habitats %>%
       theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.text.x = element_text(hjust = 1),
         axis.title.y = element_blank(), legend.title = element_text(hjust = 0.5),
         legend.key.width = unit(1, "cm"), legend.position = "top") +
+      xlab("habitat\nassociations") +
       guides(size = guide_legend(title = "proportion of reports", title.position = "top", direction = "horizontal"), 
              fill = "none",
              colour = "none")
@@ -276,7 +278,8 @@ p_d <- ggplot(damage_df, aes(x = median + 0.01, y = OTU)) +
   scale_x_continuous(trans = "log10") +
   scale_colour_viridis_c(option = "turbo", trans = "log10", name = "damage_model_pmax") +
   xlab("\ndamage patterns") +
-  theme(legend.position="top", legend.text = element_text(angle = 90), legend.title = element_blank(),
+  theme(legend.position="top", legend.text = element_text(angle = 90),
+        legend.title = element_blank(),
         axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), axis.title.x.top = element_text())
 
@@ -429,12 +432,12 @@ p_d <-
   scale_fill_manual(values = source_palette, name = "",
                     labels = c("human oral", "terrestrial oral", "marine oral", "rumen", "sediment/soil", "skin", "unknown")) +
   scale_x_continuous(expand = c(0,0)) + 
-  theme(legend.position = "top",
+  guides(fill = guide_legend(ncol = 2, byrow = TRUE)) + 
+  theme(legend.position = "top", legend.spacing = unit(3, "cm"), legend.box = "horizontal",
         axis.text.y = element_blank(), axis.ticks.y = element_blank(),
         axis.title.y = element_blank(), axis.title.x = element_blank(),
         strip.text = element_text(size = 10),
-        plot.margin = margin(t=1, r=10, b=1, l=1)) + 
-  guides(fill = guide_legend(ncol = 2))
+        plot.margin = margin(t=1, r=10, b=1, l=1))
 
 # Plot oral to contam ratio
 p_r <- ggplot(data = decom_tbl, aes(x = oral_contam_ratio, fill = oral_contam_ratio, y = new_name)) +
@@ -534,7 +537,7 @@ cpdc_label <- data.frame(new_name = sample_levels,
 p_r_cpdc <- p_r + geom_text(data = cpdc_label, aes(label = label), size = 3, colour = "#AB0A1D")
 
 # Combine plots
-p <- plot_grid(p_d, p_r_cpdc, p_c, p_bar, ncol = 4, align = "h", axis = "tb", rel_widths = c(1, 0.3, 0.3, 0.5))
+p <- plot_grid(p_d, p_r, p_c, p_bar, ncol = 4, align = "h", axis = "tb", rel_widths = c(1, 0.3, 0.3, 0.5))
 
 ggsave(file=file.path(subdir, "assess_samples.png"), p, width=10, height=15)
 

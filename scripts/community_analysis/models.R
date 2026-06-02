@@ -99,7 +99,7 @@ phy_dist <- dcast(phy_dist_melt, Sample1 ~ Sample2, value = "host_distance") %>%
 #### Get the rest of explanatory matrices ####
 
 ## Diet distances
-diet <- sample_data %>% data.frame %>% select(Animal, PlantO, Fruit, Seed)
+diet <- sample_data %>% data.frame %>% select(Animalivory, PlantO, Frugivory, Seed)
 diet_dist <- scale(vegdist(diet, method = "euclidean"))
 
 ## Habitat distances: 0 if the same, 1 if different
@@ -462,7 +462,7 @@ rownames(host_dist) <- sample_data$Common.name[match(rownames(host_dist), sample
 host_dist <- as.dist(host_dist)
 
 # Get diet matrix again, but per host species
-diet <- sample_data %>% data.frame %>% select(Common.name, Animal, PlantO, Fruit, Seed) %>%
+diet <- sample_data %>% data.frame %>% select(Common.name, Animalivory, PlantO, Frugivory, Seed) %>%
         dplyr::filter(Common.name %in% links$phy1) %>%
         as_tibble %>% unique %>%
         column_to_rownames("Common.name")

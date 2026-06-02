@@ -88,7 +88,7 @@ phy_genus_clr@sam_data$hypsodont <- factor(ifelse(grepl("hyps", phy_genus_clr@sa
 
 # Melt
 data <- psmelt(phy_genus_clr) %>%
-        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, Fruit, Animal, Fruit, Seed, unmapped_count, contig_reads_count)
+        select(OTU, Abundance, Sample, Species, Order, diet.general, habitat.general, ruminant, Frugivory, Animalivory, Frugivory, Seed, unmapped_count, contig_reads_count)
 
 data <- data %>%
     # Turn S. scrofa domesticus to S. scrofa to match tree
@@ -129,7 +129,7 @@ for (otu in otus) {
     # Subset data for the current OTU
     data_filt <- data %>% filter(OTU == otu)
     # Run PGLMM
-    model <- pglmm(Abundance ~ Animal + Fruit + habitat.general + ruminant +
+    model <- pglmm(Abundance ~ Animalivory + Frugivory + habitat.general + ruminant +
                    (1 | Species__), 
                    data = data_filt, 
                    cov_ranef = list(Species = host_consensus),
@@ -163,7 +163,7 @@ for (otu in otus) {
     # Subset data for the current OTU
     data_filt <- data %>% filter(OTU == otu)
     # Run PGLMM
-    model <- lm(Abundance ~ Animal + Fruit + habitat.general + ruminant,
+    model <- lm(Abundance ~ Animalivory + Frugivory + habitat.general + ruminant,
                    data = data_filt)
     # Extract residuals
     resids_df <- data.frame(Sample = data_filt$Sample,
@@ -195,8 +195,8 @@ combined_res <- phy_res %>% rename(coef_lambda = lambda,
 
 # Adjust p-values
 combined_res <- combined_res %>%
-    mutate(padj_Animal = p.adjust(pval_Animal, method = "holm"),
-           padj_Fruit = p.adjust(pval_Fruit, method = "holm"),
+    mutate(padj_Animalivory = p.adjust(pval_Animalivory, method = "holm"),
+           padj_Frugivory = p.adjust(pval_Frugivory, method = "holm"),
            padj_Marine = p.adjust(pval_Marine, method = "holm"),
            padj_Ruminant = p.adjust(pval_Ruminant, method = "holm"),
            padj_lambda = p.adjust(pval_lambda, method = "holm"))
@@ -217,7 +217,7 @@ combined_long <- full_join(combined_coef, combined_pval, by = c("OTU", "term")) 
     mutate(phylum_grouped = case_when(phylum %in% names(phylum_palette) ~ phylum,
                                       superkingdom == "Bacteria" ~ "Other Bacteria",
                                       superkingdom == "Archaea" ~ "Other Archaea")) %>%
-    mutate(term = factor(term, levels = c("lambda", "Animal", "Fruit", "Ruminant", "Marine")),
+    mutate(term = factor(term, levels = c("lambda", "Animalivory", "Frugivory", "Ruminant", "Marine")),
            phylum_grouped = factor(phylum_grouped, levels = rev(names(phylum_palette))),
            significant = ifelse(pval < 0.05, ifelse(padj < 0.05, "yes", "pre-adjustment"), "no"))
 
@@ -240,7 +240,6 @@ ggsave(p, filename = file.path(subdir, "pglmm_pagel_combined.png"), width = 8, h
 ##############################
 
 # Based on tutorial by Sweeny et al. 2023, mSystems
-
 if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
     cat("MCMCglmm output exists. Loading...\n")
     m <- readRDS(file.path(subdir, "mcmcglmm_output.RDS"))
@@ -249,7 +248,7 @@ if (file.exists(file.path(subdir, "mcmcglmm_output.RDS"))) {
     set.seed(14)
     # Prep formula
     response <- "Abundance"
-    fixed <- c("Animal:OTU", "Fruit:OTU", "ruminant:OTU", "habitat.general:OTU")
+    fixed <- c("Animalivory:OTU", "Frugivory:OTU", "ruminant:OTU", "habitat.general:OTU")
     formula <- as.formula(paste(response, "~", paste(fixed, collapse = "+")))
     n_taxa <- length(unique(data_top$OTU))
     # Set priors
@@ -326,7 +325,12 @@ random_results <- summary(m1)$Gcovariances %>%
 # Combine resulrts
 mcmc_res <- rbind(fixed_results, random_results) %>%
     group_by(term) %>%
-    mutate(padj = p.adjust(pMCMC, "holm"))
+    mutate(padj = p.adjust(pMCMC, "holm")) %>%
+    # Shouldn't be needed, but I changed 'Animal' to 'Animalivory'
+    # and 'Fruit' to 'Frugivory' in the term names, and don't want to rerun MCMCglmm
+    mutate(term = case_when(term == "Animal" ~ "Animalivory",
+                            term == "Fruit" ~ "Frugivory",
+                            TRUE ~ term))
 
 write.csv(mcmc_res, file = file.path(subdir, "mcmcglmm_results.csv"), quote = FALSE, row.names = FALSE)
 
@@ -417,6 +421,7 @@ write.csv(all_res, file = file.path(subdir, "all_diffabund_results.csv"), quote 
 p <- ggplot(all_res, aes(x = coefficient_t, y = coefficient_b, colour = term)) +
     geom_point() +
     facet_wrap(~ term, scales = "free") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
     labs(x = "PGLMM/Pagel's lambda coefficient", y = "MCMCglmm coefficient") +
     theme(legend.position = "none")
 

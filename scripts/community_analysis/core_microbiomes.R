@@ -308,12 +308,14 @@ ggsave(p, file = file.path(subdir, "pca_core_order_3_4.png"), width = 5, height 
 #### Abundance heatmap ####
 
 # Get more info on taxon category
-heat_data <- phy_gen %>% transform("compositional") %>% psmelt %>%
-        select(OTU, genus, Sample, Species, Order, Abundance) %>%
+gen_data <- phy_gen %>% transform("compositional") %>% psmelt
+
+heat_data <- gen_data %>%
+        select(OTU, genus, Sample, Species, Common.name, Order, Order_grouped, Abundance) %>%
         # Turn abundances below detection limit to NA
         mutate(Abundance = ifelse(Abundance <= det, NA, Abundance)) %>%
         filter(OTU %in% taxa_names(phy_core)) %>%
-        filter(Sample %in% sample_names(phy_core)) %>%
+        #filter(Sample %in% sample_names(phy_core)) %>%
         mutate(taxon_type = case_when(OTU %in% Reduce(intersect, core_taxa) ~ "Mammalian core",
                                       OTU %in% setdiff(core_taxa[["Primates"]], unlist(core_taxa[!names(core_taxa) %in% "Primates"])) ~ "Primates core",
                                       OTU %in% setdiff(core_taxa[["Perissodactyla"]], unlist(core_taxa[!names(core_taxa) %in% "Perissodactyla"])) ~ "Perissodactyla core",
@@ -321,9 +323,11 @@ heat_data <- phy_gen %>% transform("compositional") %>% psmelt %>%
                                       TRUE ~ "Other")) %>%
         mutate(taxon_type = factor(taxon_type, levels = c("Mammalian core", "Primates core", "Perissodactyla core", "Carnivora core", "Other"))) %>%
         # Shorten order names for plotting
-        mutate(Order = recode(Order, "Perissodactyla" = "Peris.", "Carnivora" = "Carn.")) %>%
+        mutate(Order_grouped = case_when(Order_grouped %in% c("Artiodactyla", "Carnivora", "Perissodactyla", "Primates") ~ Order_grouped,
+                                        TRUE ~ "Rest")) %>%
+        mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Carnivora" = "Carn.")) %>%
         # Arrange sample by species name
-        arrange(Order, Species, Sample) %>%
+        arrange(Order, Common.name, Sample) %>%
         mutate(Sample = factor(Sample, levels = unique(Sample)))
 
 grad_palette <- colorRampPalette(c("#2D627B","#FFF7A4", "#E7C46E","#C24141"))
@@ -331,11 +335,11 @@ grad_palette <- grad_palette(10)
 
 p <- ggplot(heat_data, aes(x = Sample, y = OTU, fill = Abundance)) +
         geom_tile() +
-        facet_grid(cols = vars(Order), scales = "free", space = "free",
+        facet_grid(cols = vars(Order_grouped), scales = "free", space = "free",
                    rows = vars(taxon_type), switch = "y") +
         scale_fill_gradientn(colors = grad_palette, name = "Relative abundance", transform = "log10", breaks = c(0.01, 0.1)) +
         theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-              axis.text.y = element_text(size = 8, angle = 0, hjust = 1, vjust = 0),
+              axis.text.y = element_text(angle = 0, hjust = 1, vjust = 0),
               axis.title.y = element_blank(),
               axis.title.x = element_blank(),
               legend.position = "top",
@@ -343,20 +347,21 @@ p <- ggplot(heat_data, aes(x = Sample, y = OTU, fill = Abundance)) +
               panel.spacing.y = unit(1.5, "lines"),
               strip.placement = "outside",
               strip.clip = "off",
-              strip.text.y.left = element_text(angle=0, vjust=1, size = 12, hjust = 1, face = "bold"),
-              strip.text.y = element_text(margin = margin(t=-15, r = -60)),
+              strip.text.y.left = element_text(angle=0, vjust=1, size = 13, hjust = 1, face = "bold"),
+              strip.text.y = element_text(margin = margin(t=-15, r = -100)),
               strip.background.y = element_blank())
 
 # Add species bar
-species_bar <- data.frame(Sample = unique(heat_data$Sample),
-                          Species = phy_core@sam_data$Species[match(unique(heat_data$Sample), rownames(phy_core@sam_data))],
-                          Order = phy_core@sam_data$Order[match(unique(heat_data$Sample), rownames(phy_core@sam_data))]) %>%
+species_bar <- data.frame(phy_gen@sam_data) %>% rownames_to_column("Sample") %>%
+                select(Sample, Species, Common.name, Order) %>%
+                left_join(unique(select(heat_data, Sample, Order_grouped)), by = "Sample") %>% 
+                mutate(Sample = factor(Sample, levels = levels(heat_data$Sample))) %>%
                 left_join(phylopics, by = "Species") %>%
                 # Keep uid for middle sample
                 group_by(Species) %>%
                 mutate(plot_phylopic = ifelse(row_number() == ceiling(n()/2), TRUE, FALSE)) %>%
                 mutate(uid = ifelse(plot_phylopic, uid, NA)) %>%
-                mutate(label = ifelse(plot_phylopic, Species, ""))
+                mutate(label = ifelse(plot_phylopic, Common.name, ""))
 
 # Create a named vector for mapping Sample to label
 sample_to_label <- setNames(species_bar$label, species_bar$Sample)
@@ -364,15 +369,15 @@ sample_to_label <- setNames(species_bar$label, species_bar$Sample)
 p_bar <- ggplot(species_bar, aes(x = Sample, y = 1)) +
         geom_tile(aes(fill = Species)) +
         scale_fill_manual(values = species_palette, name = "Species") +
-        geom_phylopic(aes(x = Sample, y = 1, uuid = uid), width = 15, alpha = 1, fill = "white",
+        geom_phylopic(aes(x = Sample, y = 1, uuid = uid), width = 12, alpha = 1, fill = "white",
                       position = position_jitter(height = 0.1), hjust = 0.5) +
-        facet_grid(cols = vars(Order), scales = "free", space = "free") +
+        facet_grid(cols = vars(Order_grouped), scales = "free", space = "free") +
         scale_x_discrete(labels = sample_to_label) +
         theme(axis.ticks.y = element_blank(),
               axis.text.y = element_blank(),
               axis.title.y = element_blank(),
               axis.ticks.x = element_blank(),
-              axis.text.x = element_text(hjust = 1, vjust = 0.5),
+              axis.text.x = element_text(hjust = 1, vjust = 0.5, size = 10),
               axis.title.x = element_blank(),
               legend.position = "none",
               panel.background = element_rect(fill = "white", color = "white"),
@@ -381,7 +386,7 @@ p_bar <- ggplot(species_bar, aes(x = Sample, y = 1)) +
               plot.margin = margin(t = 0, r = 0, b = 20, l = 0))
 
 # Combine heatmap and species bar
-p_grid <- plot_grid(p, p_bar, ncol = 1, rel_heights = c(1, 0.5), align = "v", axis = "lr")
+p_grid <- plot_grid(p, p_bar, ncol = 1, rel_heights = c(1, 0.4), align = "v", axis = "lr")
 
 ggsave(file.path(subdir, "core_abundance_heatmap.png"), p_grid, width=8, height=8)
 
@@ -486,24 +491,24 @@ ggsave(p, file = file.path(subdir, "core_taxa_abundance.png"), width = 8, height
 carni_core <- core_genera_per_order %>% filter(host_order == "Carnivora" & n_orders == 1) %>% pull(core_taxa)
 
 orca_core_comparison <- core_genera %>%
-        filter(host_species %in% c("Capreolus capreolus", "Orcinus orca", "Sus scrofa", "Hippopotamus amphibius", "Meles meles", "Otaria flavescens")) %>%
-        # Get abundances 
-        left_join(mamm_core_abund_all, by = c("core_taxa" = "genus", "host_species" = "Species", "host_order" = "Order")) %>%
-        group_by(host_species, Common.name, host_order) %>%
+        filter(host_species %in% c("Capreolus capreolus", "Hippopotamus amphibius", "Muntiacus muntjak", "Cephalophus silvicultor", "Sus scrofa", "Sus domesticus", "Orcinus orca")) %>%
+        # Get metadata 
+        left_join(unique(select(data.frame(phy_sp_f@sam_data), c(Species, Common.name, diet.general))), by = c("host_species" = "Species"), relationship = "many-to-one") %>%
+        group_by(host_species, Common.name, diet.general) %>%
         summarise(Carnivora_taxa = sum(core_taxa %in% carni_core)) %>%
         ungroup() %>%
-        mutate(Common.name = ifelse(host_species == "Otaria flavescens", "Sea lion",
-                                 ifelse(host_species == "Meles meles", "Badger", 
+        mutate(Common.name = ifelse(host_species == "Cephalophus silvicultor", "Duiker",
+                                ifelse(host_species == "Muntiacus muntjak", "Muntjac",
                                         ifelse(host_species == "Sus scrofa", "Wild pig", Common.name)))) %>%
-        mutate(Common.name = factor(Common.name, levels = c("Roe deer", "Hippopotamus", "Wild pig", "Orca", "Sea lion", "Badger")))
+        mutate(Common.name = factor(Common.name, levels = c("Roe deer", "Hippopotamus", "Muntjac", "Duiker", "Wild pig", "Domestic pig", "Orca")))
 
 write.csv(orca_core_comparison, file = file.path(subdir, "orca_core_comparison.csv"), quote = FALSE, row.names = FALSE)
 
-p <- ggplot(data = orca_core_comparison, aes(x = Common.name, y = Carnivora_taxa, fill = host_order)) +
+p <- ggplot(data = orca_core_comparison, aes(x = Common.name, y = Carnivora_taxa, fill = diet.general)) +
         geom_bar(stat = "identity", position = position_dodge2()) +
-        scale_fill_manual(values = order_palette, name = "Host order") +
+        scale_fill_manual(values = diet_palette, name = "Diet category") +
         theme(axis.text.x = element_text(hjust = 1), axis.title.x = element_blank(), legend.title = element_blank(),
-                legend.position = "bottom", legend.direction = "vertical") +
+                legend.position = "none", legend.direction = "vertical") +
         labs(y = "Genera shared with\nCarnivora core exclusive")
 
 ggsave(file.path(subdir, "orca_core_comparison.png"), p, width = 3, height = 5)

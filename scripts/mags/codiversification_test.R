@@ -375,7 +375,9 @@ bac_meta_plot <- bac_meta %>% left_join(bac_cod_results, by=c("label"="node")) %
   mutate(r = case_when(p.adjust <= 0.05 ~ r, TRUE ~ NA)) %>%
   # Get -log10(p.adjust) for colouring
   mutate(neg_log10_p = case_when(!is.na(p.adjust) ~ -log10(p.adjust+10^-5), TRUE ~ NA)) %>%
-  select(label, r, neg_log10_p, host_order, habitat.general)
+  select(label, r, neg_log10_p, host_order, habitat.general, phylum)
+
+write.csv(bac_meta_plot, file=file.path(subdir, "bac_meta_plot.csv"), row.names=FALSE, quote=FALSE)
 
 codiv_nodes <- 
     bac_cod_results %>% filter(p.adjust <= 0.05 & r > 0) %>%
@@ -398,8 +400,6 @@ descending_r <- descending_r %>%
   summarise(desc_r = max(desc_r, na.rm=TRUE))
 
 bac_meta_plot <- left_join(bac_meta_plot, descending_r, by="label")
-
-write.csv(bac_meta_plot, file=file.path(subdir, "bac_meta_plot.csv"), row.names=FALSE, quote=FALSE)
 
 # Colour by order and habitat
 bac_p <- ggtree(bac_tree, layout = "circular", size = 1.5, aes(colour = desc_r)) %<+% bac_meta_plot +
@@ -456,6 +456,17 @@ for (i in 1:nrow(phylum_nodes)) {
 
 ggsave(bac_p_node, file=file.path(subdir, "bac_codiv_tree.png"), width = 20, height = 22)
 
+#### Get data for itol ####
+
+pb <- ggplot_build(bac_p)
+
+# Extract colours assigned to points
+node_data <- pb$data[[3]] %>% select(fill_ggnewscale_1, size, node) %>% left_join(select(as_tibble(bac_tree), label, node), by="node") %>%
+  select(label, size, fill_ggnewscale_1) %>%
+  rename(colour = fill_ggnewscale_1) %>% filter(!is.na(size))
+
+write.csv(node_data, file=file.path(subdir, "bac_codiv_nodes_itol.csv"), row.names=FALSE, quote=FALSE)
+
 #######################################
 #### COMPARE CODIVERSIFYING VS NOT ####
 #######################################
@@ -507,7 +518,8 @@ p <- ggplot(data = codiv_tips_df, aes(x = codiversifying)) +
   geom_bar(aes(fill = multiple_habitats)) +
   scale_fill_manual(values = c("FALSE" = "lightblue", "TRUE" = "darkblue"), labels = c("FALSE" = "single habitat", "TRUE" = "multiple habitats"), name = "") +
   facet_grid(cols = vars(habitat), scales = "free_y") +
-  theme(strip.text = element_text(size = 10), legend.position = "top", legend.title = element_blank())
+  theme(strip.text = element_text(size = 10), axis.text.x = element_text(size = 8), axis.title.y = element_blank(),
+        legend.position = "top", legend.direction = "vertical", legend.title = element_blank())
 
 ggsave(plot=p, filename=file.path(subdir, "codiv_per_habitat.png"), width=3.5, height=2.5)
 
@@ -516,6 +528,7 @@ p <- ggplot(data = unique(select(codiv_tips_df, c(label, phylum, codiversifying)
   geom_bar(aes(fill = phylum)) +
   scale_fill_manual(values = phylum_palette, na.value = "grey", name = "Phylum") +
   facet_grid(cols = vars(phylum), scale = "free_y") +
-  theme(strip.text = element_text(angle = 90, size = 10), legend.position = "none")
+  theme(strip.text = element_text(angle = 90, size = 10), axis.text.x = element_text(size = 8),
+        legend.position = "none")
 
 ggsave(plot=p, filename=file.path(subdir, "codiv_per_phylum.png"), width=3.5, height=3)

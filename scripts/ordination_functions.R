@@ -3,6 +3,7 @@ library(wesanderson)
 library(dplyr)
 library(vegan)
 library(tidyr)
+library(cowplot)
 
 ## Add species centroid as phylopics
 centroids <- function(ordination, phyloseq) {
@@ -152,49 +153,56 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   phylopic_width <- diff(range(vegan::scores(ord@ord, display="sites", choices=1)[,1]))/25
   # Plot
   p <- ord_plot(ordination, auto_caption = NA, plot_samples = FALSE,
-                constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 4),
+                constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 5),
                 constraint_vec_style = vec_constraint(colour = "grey20", alpha = 0.5)) +
     custom_theme() +
-    geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 1.5) +
+    geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 2) +
     geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "black", alpha = 0.8, uuid = centroids$uid, width = phylopic_width)
+  
+  if (type == "RDA") {
+    # Reorder layers to have constraint arrows and labels on top of points and phylopics
+    p$layers <- p$layers[c(3, 4, 1, 2)]
+  }
+  
   # Add the correct scales
   if (colour_var == "Order_grouped") {
     p <- p +
         scale_colour_manual(values=order_palette, name = "Host order") +
         scale_fill_manual(values=order_palette, name = "Host order") +
-        guides(colour = guide_legend(ncol = 2, byrow = TRUE, override.aes = list(size = 3)))
+        guides(colour = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3)))
   } else if (colour_var == "diet.general") {
     p <- p +
         scale_colour_manual(values=diet_palette, name = "Host diet") +
         scale_fill_manual(values=diet_palette, name = "Host diet") +
-        guides(colour = guide_legend(ncol = 2, override.aes = list(size = 3)))
+        guides(colour = guide_legend(nrow = 1, override.aes = list(size = 3)))
   } else if (colour_var == "habitat.general") {
     p <- p +
         scale_colour_manual(values=habitat_palette, name = "Habitat") +
         scale_fill_manual(values=habitat_palette, name = "Habitat") +
-        guides(colour = guide_legend(ncol = 2, override.aes = list(size = 3)))
+        guides(colour = guide_legend(nrow = 1, override.aes = list(size = 3)))
   }
   if (shape_var == "diet.general") {
     p <- p +
         scale_shape_manual(values=diet_shape_scale, name = "Host diet") +
-        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
+        guides(shape = guide_legend(nrow = 1, override.aes = list(size = 3)))
   } else if (shape_var == "Order_grouped") {
     p <- p +
         scale_shape_manual(values=order_shape_scale, name = "Host order") +
-        guides(shape = guide_legend(ncol = 2, byrow = TRUE, override.aes = list(size = 3)))
+        guides(shape = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3)))
   } else if (shape_var == "Common.name") {
     p <- p +
         scale_shape_manual(values=species_shape_scale, name = "Species") +
-        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
+        guides(shape = guide_legend(nrow = 3, override.aes = list(size = 3)))
   }
   else if (shape_var == "digestion") {
     p <- p +
         scale_shape_manual(values=digestion_shape_scale, name = "Host digestion") +
-        guides(shape = guide_legend(ncol = 2, override.aes = list(size = 3)))
+        guides(shape = guide_legend(nrow = 1, override.aes = list(size = 3)))
   }
   # Add more layers
   p <- p +
-    theme(legend.position = "left", legend.direction = "vertical")
+    theme(legend.position = "bottom", legend.box = "vertical",
+          legend.justification = "left", legend.box.just = "left", legend.spacing.x = unit(1, "cm"))
   # If PCA, add taxon arrows
   if (type == "PCA") {
       #### Get arrows ####
@@ -217,9 +225,9 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
       new_scale_colour() +
       geom_segment(data = arrows_filt, aes(x = 0, y = 0, xend = PC1*arrows_scaling, yend = PC2*arrows_scaling, colour = phylum_grouped), linewidth = 0.5, alpha = 0.5) +
       scale_color_manual(values = phylum_palette, name = "Phylum") +
-      guides(color = guide_legend(ncol = 2, override.aes = list(linewidth = 2)))
+      guides(color = guide_legend(nrow = 3, override.aes = list(linewidth = 2)))
   }
-  # If RDA add marginals
+  # If RDA add marginals and taxa plot
   if (type == "RDA") {
     p <- ggMarginal(p, type="violin", groupColour = TRUE, groupFill = TRUE, size=5)
   }
@@ -246,13 +254,13 @@ taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
     geom_point(aes(x = RDA1, y = RDA2), size = 0, alpha = 0) +
     geom_segment(linewidth = 1, alpha = 0.8, aes(linetype = linetype)) +
     scale_linetype_identity() +
-    scale_color_manual(values = phylum_palette, name = "Phylum") +
-    geom_label_repel(aes(label = label, x = RDA1, y = RDA2), size = 5, alpha = 0.7, box.padding = 0, label.padding = 0,
+    scale_color_manual(values = phylum_palette, name = "Microbial\nphylum") +
+    geom_label_repel(aes(label = label, x = RDA1, y = RDA2), size = 4, alpha = 0.7, box.padding = 0, label.padding = 0,
                     force = 0.8, force_pull = 1, direction = "y", min.segment.length = 0, label.size = 0,
                     vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0), hjust = ifelse(taxa_rda$RDA1 < 0, 1, 0)) +
     custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
-    theme(legend.position = "left", legend.title = element_blank()) +
-    guides(colour = guide_legend(ncol = 1, override.aes = list(linewidth = 2))) +
+    theme(legend.position = "bottom", legend.justification = "left", legend.box.just = "left", legend.spacing.x = unit(1, "cm")) +
+    guides(colour = guide_legend(nrow = 3, override.aes = list(linewidth = 2))) +
     xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
   p <- ggMarginal(p, type="boxplot", groupColour = TRUE, groupFill = TRUE, size=5)
   return(list(plot = p, data = taxa_rda))

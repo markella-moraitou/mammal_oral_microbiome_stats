@@ -69,7 +69,7 @@ taxa_uses_wide <- taxa_uses %>%
           filter(if_any(ends_with("activity"), ~. > 0))
 
 # Combine phyloseq info with taxa uses
-taxa_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Species, Common.name, Order, diet.general, Fruit, PlantO, Animal, Seed) %>%
+taxa_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Species, Common.name, Order, diet.general, Frugivory, PlantO, Animalivory, Seed) %>%
                       right_join(taxa_uses_wide, by=c("OTU"="taxon")) %>%
                       # Turn NA to 0 in all numeric columns
                       mutate(across(ends_with("activity"), ~ifelse(is.na(.), 0, .)))
@@ -82,7 +82,7 @@ taxa_uses_mean_abund <- taxa_uses_abund %>%
 write.csv(taxa_uses_mean_abund, file.path(subdir, "taxa_uses.csv"), row.names = FALSE, quote = FALSE)
 
 ## Does the abundance of taxa with unknown use vary by species?
-known_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Order, Order_grouped, Common.name, diet.general, Fruit, PlantO, Animal, Seed) %>%
+known_uses_abund <- psmelt(transform(phy_sp_f, "compositional")) %>% select(Sample, OTU, Abundance, Order, Order_grouped, Common.name, diet.general, Frugivory, PlantO, Animalivory, Seed) %>%
                     filter(OTU %in% taxa_uses_wide$taxon) %>% group_by(Sample, Order, Order_grouped, Common.name, diet.general) %>% summarise(known_abund = sum(Abundance)) %>%
                     # Shorten Order names for plotting
                     mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Rodentia" = "R.", "Carnivora" = "Carn."))
@@ -104,11 +104,11 @@ p <- ggplot(known_uses_abund, aes(x = known_abund, y = Common.name, fill = diet.
 ggsave(file.path(subdir, "known_function_abundance.png"), p, width=5, height=7)
 
 ## Does the abundance and diversity of proteolytic microorganisms correlate with the amount of Animal content in the diet?
-proteolytic_abund <- taxa_uses_abund %>% filter(proteolytic_activity > 0) %>% group_by(Sample, Species, Order, Animal) %>% summarise(proteolytic_abund = sum(Abundance))
+proteolytic_abund <- taxa_uses_abund %>% filter(proteolytic_activity > 0) %>% group_by(Sample, Species, Order, Animalivory) %>% summarise(proteolytic_abund = sum(Abundance))
 
-p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animal, colour = Order)) +
+p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animalivory, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = proteolytic_abund*100, x = Animal), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = proteolytic_abund*100, x = Animalivory), colour = "black", linetype = "dotted") +
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
@@ -117,12 +117,12 @@ p <- ggplot(proteolytic_abund, aes(y = proteolytic_abund*100, x = Animal, colour
 
 ggsave(file.path(subdir, "proteolytic_abundance_animal.png"), p, width=5, height=2)
 
-## Does the abundance and diversity of fermentative microorganisms correlate with the amount of Fruit content in the diet?
-fermentative_abund <- taxa_uses_abund %>% filter(fermentative_activity > 0) %>% group_by(Sample, Species, Order, Fruit) %>% summarise(fermentative_abund = sum(Abundance))
+## Does the abundance and diversity of fermentative microorganisms correlate with the amount of Frugivory content in the diet?
+fermentative_abund <- taxa_uses_abund %>% filter(fermentative_activity > 0) %>% group_by(Sample, Species, Order, Frugivory) %>% summarise(fermentative_abund = sum(Abundance))
 
-p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Fruit, colour = Order)) +
+p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Frugivory, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = fermentative_abund*100, x = Fruit), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = fermentative_abund*100, x = Frugivory), colour = "black", linetype = "dotted") +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +
   scale_color_manual(values = order_palette, name = "") +
@@ -133,11 +133,11 @@ p <- ggplot(fermentative_abund, aes(y = fermentative_abund*100, x = Fruit, colou
 ggsave(file.path(subdir, "fermentative_abundance_Fruit.png"), p, width=5, height=3)
 
 ## Control: antimicrobial activity and diet
-antimicrobial_abund <- taxa_uses_abund %>% filter(antimicrobial_activity > 0) %>% group_by(Sample, Species, Order, Animal, Fruit, Seed) %>% summarise(antimicrobial_abund = sum(Abundance))
+antimicrobial_abund <- taxa_uses_abund %>% filter(antimicrobial_activity > 0) %>% group_by(Sample, Species, Order, Animalivory, Frugivory, Seed) %>% summarise(antimicrobial_abund = sum(Abundance))
 
-p <- ggplot(antimicrobial_abund, aes(y = antimicrobial_abund*100, x = Animal, colour = Order)) +
+p <- ggplot(antimicrobial_abund, aes(y = antimicrobial_abund*100, x = Animalivory, colour = Order)) +
   geom_point(size = 2, alpha = 0.5) +
-  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = antimicrobial_abund*100, x = Animal), colour = "black", linetype = "dotted") +
+  geom_smooth(method = "lm", inherit.aes = FALSE, aes(y = antimicrobial_abund*100, x = Animalivory), colour = "black", linetype = "dotted") +
   scale_color_manual(values = order_palette) +
   scale_x_continuous(trans = "log10") +
   scale_y_continuous(trans = "log10") +

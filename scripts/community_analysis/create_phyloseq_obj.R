@@ -78,7 +78,8 @@ colnames(elton_traits) <- colnames(elton_traits) %>%
                       gsub("Diet.", "", .)
 
 elton_traits <- elton_traits %>%
-  mutate(Animal = Inv + Vend + Vect + Vfish + Scav + Vunk) %>%
+  mutate(Animalivory = Inv + Vend + Vect + Vfish + Scav + Vunk) %>%
+  rename(Frugivory = Fruit) %>%
   select(-c(Inv, Vend, Vect, Vfish, Scav, Vunk))
 
 # Add suffix .A to sample IDs to match OTU table

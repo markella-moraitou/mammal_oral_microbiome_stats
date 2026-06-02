@@ -92,13 +92,13 @@ ggsave(filename  =  file.path(subdir, "dietary_PCA_lintulaakso.png"), pca, width
 #### Elton traits diet PCA ####
 elton_diet_data <- 
   unique(meta[,c("Common.name", "Species", "Order_grouped",
-              "Animal", "Fruit", "Seed", "Nect", "PlantO", "diet.general")]) %>%
+              "Animalivory", "Frugivory", "Seed", "Nect", "PlantO", "diet.general")]) %>%
               filter(!grepl("blank", Species) & !grepl("control", Species))
               
 rownames(elton_diet_data) <- NULL
 elton_diet_data <- elton_diet_data %>% column_to_rownames("Species")
 
-diet_var <- elton_diet_data[,c("Animal", "Fruit", "Nect", "Seed", "PlantO")]
+diet_var <- elton_diet_data[,c("Animalivory", "Frugivory", "Nect", "Seed", "PlantO")]
 
 # Remove variables that are all zero
 diet_var <- diet_var[, colSums(diet_var) > 0]
@@ -167,15 +167,15 @@ ggsave(filename  =  file.path(subdir, "diet_barplot_lintulaakso.png"), diet_barp
 
 elt_diet_long <- elton_diet_data %>% rownames_to_column("Species") %>%
   mutate(Common.name = meta$Common.name[match(Species, meta$Species)]) %>%
-  pivot_longer(c(Animal, Fruit, Seed, PlantO), values_to = "proportion", names_to = "dietary_element") %>%
-  mutate(dietary_element = factor(dietary_element, levels = c("Animal", "Fruit", "Seed", "PlantO"))) %>%
+  pivot_longer(c(Animalivory, Frugivory, Seed, PlantO), values_to = "proportion", names_to = "dietary_element") %>%
+  mutate(dietary_element = factor(dietary_element, levels = c("Animalivory", "Frugivory", "Seed", "PlantO"))) %>%
   mutate(Order_grouped = recode(Order_grouped, "Perissodactyla" = "Peris.", "Rodentia" = "Ro.", "Carnivora" = "Carn.")) %>%
   arrange(dietary_element)
 
 item_palette <- c(Seed = "#FFD457",
                       PlantO = "#85C43C",
-                      Fruit = "#4D71A7",
-                      Animal = "#D95244")
+                      Frugivory = "#4D71A7",
+                      Animalivory = "#D95244")
 
 diet_barplot <- ggplot(elt_diet_long, aes(x = Common.name, y = proportion, fill = dietary_element, group = diet.general)) +
   geom_bar(stat="identity") +
@@ -186,11 +186,12 @@ diet_barplot <- ggplot(elt_diet_long, aes(x = Common.name, y = proportion, fill 
        legend.text = element_text(size = 8)) +
   facet_grid(cols = vars(Order_grouped), scales = "free", space = "free") +
   scale_fill_manual(values = item_palette,
-                    labels = c("Seed" = "Seed",
-                               "Fruit" = "Fruit",
+                    labels = c("Seed" = "Seeds",
+                               "Frugivory" = "Fruits (Frugivory)",
                                "PlantO" = "Other plant material",
-                               "Animal" = "Animal material"),
-                    name = "")
+                               "Animalivory" = "Animal content (Animalivory)"),
+                    name = "") +
+  guides(fill = guide_legend(nrow = 2))
 
 ggsave(filename  =  file.path(subdir, "diet_barplot_elton.png"), diet_barplot, width  =  6, height = 5)
 
@@ -198,7 +199,7 @@ ggsave(filename  =  file.path(subdir, "diet_barplot_elton.png"), diet_barplot, w
 
 diet_data <- full_join(rownames_to_column(elton_diet_data, "Species"),
                       rownames_to_column(lint_diet_data, "Species")) %>%
-                      select(Species, Common.name, Animal, Fruit, Seed, PlantO,
+                      select(Species, Common.name, Animalivory, Frugivory, Seed, PlantO,
                             cp, ee, cf, ash, nfe, diet.general)
 
 write.csv(diet_data, file = file.path(subdir, "diet_data.csv"), quote  =  FALSE, row.names  =  FALSE)

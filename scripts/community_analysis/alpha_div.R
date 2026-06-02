@@ -14,8 +14,6 @@ library(vegan)
 library(rphylopic)
 library(ape)
 library(picante)
-library(phyr)
-library(phytools)
 library(MCMCglmm)
 library(lme4)
 library(lmerTest)
@@ -214,7 +212,7 @@ alpha_div <- left_join(alpha_div,
 alpha_div <- alpha_div %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion, latitude, biogeography),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animalivory, Frugivory, habitat.general, digestion, latitude, biogeography),
             by = c("Sample"))
 
 write.csv(alpha_div, file = file.path(subdir, "alpha_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -225,7 +223,7 @@ order_labels <- c("Rodentia" = "Rod.", "Carnivora" = "Carniv.", "Perissodactyla"
 # Filtered
 p <- ggplot(alpha_div, aes(x=Species, y=filt)) +
   geom_boxplot(aes(fill=diet.general)) +
-  scale_fill_manual(values=diet_palette, name = "Species") +
+  scale_fill_manual(values=diet_palette, name = "Diet") +
   scale_x_discrete(labels = setNames(phy_sp_f@sam_data$Common.name, phy_sp_f@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -239,7 +237,7 @@ ggsave(file.path(subdir, "alpha_diversity_filt.png"), p, width=6, height=8)
 # Filtered & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=filt_rarefied)) +
   geom_boxplot(aes(fill=diet.general)) +
-  scale_fill_manual(values=diet_palette, name = "Species") +
+  scale_fill_manual(values=diet_palette, name = "Diet") +
   scale_x_discrete(labels = setNames(phy_sp_f@sam_data$Common.name, phy_sp_f@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -253,7 +251,7 @@ ggsave(file.path(subdir, "alpha_diversity_filt_rarefied.png"), p, width=6, heigh
 # Raw
 p <- ggplot(alpha_div, aes(x=Species, y=raw)) +
   geom_boxplot(aes(fill=diet.general)) +
-  scale_fill_manual(values=diet_palette, name = "Species") +
+  scale_fill_manual(values=diet_palette, name = "Diet") +
   scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -267,7 +265,7 @@ ggsave(file.path(subdir, "alpha_diversity_raw.png"), p, width=6, height=8)
 # Raw & Rarefied
 p <- ggplot(alpha_div, aes(x=Species, y=raw_rarefied)) +
   geom_boxplot(aes(fill=diet.general)) +
-  scale_fill_manual(values=diet_palette, name = "Species") +
+  scale_fill_manual(values=diet_palette, name = "Diet") +
   scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -291,7 +289,7 @@ otu_table <- t(as.matrix(subset_taxa(phy_sp_rarefied, superkingdom == "Bacteria"
 phy_div <- pd(otu_table, bac_tree) %>% rownames_to_column(var = "Sample") %>%
   left_join(data.frame(phy_sp_f@sam_data) %>%
               rownames_to_column(var = "Sample") %>%
-              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animal, Fruit, habitat.general, digestion),
+              select(Sample, Species, Common.name, Order, Order_grouped, diet.general, Animalivory, Frugivory, habitat.general, digestion),
             by = c("Sample"))
 
 write.csv(phy_div, file = file.path(subdir, "phylogenetic_diversity.csv"), quote = FALSE, row.names = FALSE)
@@ -300,7 +298,7 @@ write.csv(phy_div, file = file.path(subdir, "phylogenetic_diversity.csv"), quote
 p <- ggplot(phy_div, aes(x=Species, y=PD)) +
   geom_boxplot(aes(fill=diet.general)) +
   theme(legend.position = "none") +
-  scale_fill_manual(values=diet_palette, name = "Species") +
+  scale_fill_manual(values=diet_palette, name = "Diet") +
   scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "free_y", space = "free_y",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -315,7 +313,7 @@ p <- ggplot(phy_div, aes(x=SR, y=PD)) +
   geom_point(aes(colour = diet.general)) +
   #geom_boxplot(aes(fill=diet.general)) +
   theme(legend.position = "none") +
-  scale_colour_manual(values=diet_palette, name = "Species") +
+  scale_colour_manual(values=diet_palette, name = "Diet") +
   #scale_x_discrete(labels = setNames(phy_sp@sam_data$Common.name, phy_sp@sam_data$Species)) +
   facet_grid(Order_grouped ~ ., scales = "fixed", space = "fixed",
              labeller = labeller(Order_grouped = as_labeller(order_labels, default = label_value))) +
@@ -337,104 +335,20 @@ write.csv(div, file = file.path(subdir, "diversity.csv"), quote = FALSE, row.nam
 
 div_filt <- div %>% filter(!is.na(filt_rarefied) & !is.na(PD))
 
-cor.test(div_filt$filt_rarefied, div_filt$PD, method = "pearson")
-
-# Fix tree labels
-host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
-host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
-
-#### Run PGLMM ####
-# to identify factors affecting alpha diversity and Faith's PD
-
 div_filt <- div_filt %>% mutate(Species = case_when(Species == "Sus domesticus" ~ "Sus scrofa",
-                                                       TRUE ~ Species))
+                                                     TRUE ~ Species))
 
 div_filt$ruminant <- factor(ifelse(div_filt$digestion == "Ruminant", "Ruminant", "Other"), levels = c("Other", "Ruminant"))
 
-model <- pglmm(filt_rarefied ~ Animal + Fruit + habitat.general + ruminant + (1 | Species__), data = div_filt, 
-              cov_ranef = list(Species = host_consensus), family = "gaussian")
+cor.test(div_filt$filt_rarefied, div_filt$PD, method = "pearson")
 
-# Alpha diversity
-res_alpha <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
-            rownames_to_column %>% filter(rowname != "(Intercept)") %>%
-            mutate(rowname = str_remove(str_remove(rowname, "habitat.general"), "ruminant"))
+#### GLMM -- not accounting for phylogeny ####
+m <- lmer(filt_rarefied ~ Animalivory + Frugivory + habitat.general + ruminant + (1|Species), data = div_filt)
+lmm_res <- summary(m)$coeff %>% data.frame %>% rownames_to_column("term")
 
-colnames(res_alpha) <- c("term", "coef", "pval")
+write.csv(lmm_res, file = file.path(subdir, "lmm_alpha_results.csv"), quote = FALSE, row.names = FALSE)
 
-res_alpha$response <- "alpha_diversity"
-
-# Phylogenetic diversity
-model <- pglmm(PD ~ Animal + Fruit + habitat.general + ruminant + (1 | Species__), data = div_filt, 
-              cov_ranef = list(Species = host_consensus), family = "gaussian")
-
-res_phy <- cbind(model$B, model$B.pvalue) %>% as.data.frame %>%
-            rownames_to_column %>% filter(rowname != "(Intercept)") %>%
-            mutate(rowname = str_remove(str_remove(rowname, "habitat.general"), "ruminant"))
-
-colnames(res_phy) <- c("term", "coef", "pval")
-
-res_phy$response <- "phylogenetic_diversity"
-
-res <- rbind(res_alpha, res_phy)
-
-write.csv(res, file.path(subdir, "pglmm_results.csv"), row.names = FALSE, quote = FALSE)
-
-#### Pagel's lambda on residuals ####
-
-# Alpha diversity
-
-model <- lm(filt_rarefied ~ Animal + Fruit + habitat.general + ruminant,
-            data = div_filt)
-
-# Extract residuals
-resids_df <- data.frame(Sample = div_filt$Sample,
-                        Species = div_filt$Species,
-                        residuals = residuals(model))
-
-resids_by_species <- resids_df %>%
-                    group_by(Species) %>%
-                    summarise(residuals = mean(residuals)) %>% as.data.frame %>%
-                    column_to_rownames("Species")
-
-# Make vector
-resids_vec <- resids_by_species$residuals
-names(resids_vec) <- rownames(resids_by_species)
-
-# Calculate Pagel's lamda
-pagel <- phylosig(host_consensus, resids_vec, method="lambda", test = TRUE)
-res_alpha <- data.frame(response = "alpha_diversity",
-                      lambda = pagel$lambda,
-                      pval = pagel$P)
-
-# Phylogenetic diversity
-model <- lm(PD ~ Animal + Fruit + habitat.general + ruminant,
-            data = div_filt)
-
-# Extract residuals
-resids_df <- data.frame(Sample = div_filt$Sample,
-                        Species = div_filt$Species,
-                        residuals = residuals(model))
-
-resids_by_species <- resids_df %>%
-                    group_by(Species) %>%
-                    summarise(residuals = mean(residuals)) %>% as.data.frame %>%
-                    column_to_rownames("Species")
-
-# Make vector
-resids_vec <- resids_by_species$residuals
-names(resids_vec) <- rownames(resids_by_species)
-
-# Calculate Pagel's lamda
-pagel <- phylosig(host_consensus, resids_vec, method="lambda", test = TRUE)
-res_phy <- data.frame(response = "phylogenetic_diversity",
-                      lambda = pagel$lambda,
-                      pval = pagel$P)
-
-res_pagel <- rbind(res_alpha, res_phy)
-
-write.csv(res_pagel, file.path(subdir, "pagel_results.csv"), row.names = FALSE, quote = FALSE)
-
-#### MCMCglmm ####
+#### MCMCglmm -- accounting for phylogeny ####
 
 cat("Running MCMCglmm...\n")
 set.seed(14)
@@ -443,10 +357,14 @@ set.seed(14)
 prior <- list(G = list(G1 = list(V = 1, nu = 0.002)),
               R = list(V = 1, nu = 0.002))
 
+# Fix tree labels
+host_consensus$node.label <- paste0("node", c(1:length(host_consensus$node.label)))
+host_consensus$tip.label <- gsub("_", " ", host_consensus$tip.label)
+
 Ainv <- inverseA(host_consensus, nodes = "TIPS")$Ainv
 
 m <- mclapply(1:10, function(i) {
-      MCMCglmm(fixed = filt_rarefied ~ Animal + Fruit + habitat.general + ruminant,
+      MCMCglmm(fixed = filt_rarefied ~ Animalivory + Frugivory + habitat.general + ruminant,
          random = ~ Species,
          ginverse = list(Species=Ainv),
          prior = prior,
