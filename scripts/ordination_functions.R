@@ -155,7 +155,7 @@ custom_ord_plot <- function(phyloseq, ordination, colour_var, shape_var, arrows_
   p <- ord_plot(ordination, auto_caption = NA, plot_samples = FALSE,
                 constraint_lab_style = list(colour = "grey20", alpha = 0.7, size = 5),
                 constraint_vec_style = vec_constraint(colour = "grey20", alpha = 0.5)) +
-    custom_theme() +
+    rda_theme() +
     geom_point(aes_string(colour = colour_var, shape=shape_var), alpha = 0.6, size = 2) +
     geom_phylopic(data = centroids, aes_string(fill=colour_var), colour = "black", alpha = 0.8, uuid = centroids$uid, width = phylopic_width)
   
@@ -258,10 +258,9 @@ taxa_plot <- function(ord, phyloseq, ntaxa = 20) {
     geom_label_repel(aes(label = label, x = RDA1, y = RDA2), size = 4, alpha = 0.7, box.padding = 0, label.padding = 0,
                     force = 0.8, force_pull = 1, direction = "y", min.segment.length = 0, label.size = 0,
                     vjust = ifelse(taxa_rda$RDA2 < 0, 1, 0), hjust = ifelse(taxa_rda$RDA1 < 0, 1, 0)) +
-    custom_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
+    rda_theme() + xlab("RDA1 scores") + ylab("RDA2 scores") +
     theme(legend.position = "bottom", legend.justification = "left", legend.box.just = "left", legend.spacing.x = unit(1, "cm")) +
     guides(colour = guide_legend(nrow = 3, override.aes = list(linewidth = 2))) +
     xlim(min(taxa_rda$RDA1)*1.2, max(taxa_rda$RDA1)*1.3)
-  p <- ggMarginal(p, type="boxplot", groupColour = TRUE, groupFill = TRUE, size=5)
   return(list(plot = p, data = taxa_rda))
 }

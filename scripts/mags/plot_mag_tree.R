@@ -111,7 +111,7 @@ ages_damage <- bac_meta %>% rbind(ar_meta) %>% select(label, bin, domain, Sample
   filter(!is.na(bin)) %>%
   # If the value in the year column is not numeric, remove the non numeric symbols and convert to number
   mutate(Year_most_recent = case_when(is.na(as.numeric(Year)) ~ as.numeric(str_remove_all(Year, "<|\\?| \\(received\\)|[0-9][0-9][0-9][0-9]-")), TRUE ~ as.numeric(Year))) %>%
-  mutate(Approximated_year = case_when(is.na(as.numeric(Year)) ~ "YES", TRUE ~ "NO")) %>%
+  mutate(Exact_year = case_when(is.na(as.numeric(Year)) ~ "NO", TRUE ~ "YES")) %>%
   filter(!is.na(Year_most_recent))
 
 ####################
@@ -158,10 +158,10 @@ bac_p <- bac_p1 +
              offset = 0.01, pwidth = 0.15, alpha = 0.3) +
   new_scale_color() +
   # Add point with collection year
-  geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 3,
+  geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Exact_year), size = 3,
              offset = 0.0) +
   scale_colour_viridis_c(option = "magma", name = "Year of\ncollection", na.value = "transparent") +
-  scale_shape(name = "Year\napproximated")
+  scale_shape(name = "Exact\nyear")
 
 ggsave(bac_p, file=file.path(subdir, "bac_genome_tree.png"), width = 20, height = 25)
 
@@ -206,10 +206,10 @@ ar_p <- ar_p1 +
              offset = 0.02, pwidth = 0.2, alpha = 0.3) +
   new_scale_color() +
   # Add point with collection year
-  geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Approximated_year), size = 3,
+  geom_fruit(data=ages_damage, geom=geom_point, mapping = aes(y=label, colour = Year_most_recent, shape = Exact_year), size = 3,
              offset = 0) +
   scale_colour_viridis_c(option = "magma", name = "Year of\ncollection", na.value = "transparent") +
-  scale_shape(name = "Year\napproximated")
+  scale_shape(name = "Exact year")
 
 ggsave(ar_p, file=file.path(subdir, "ar_genome_tree.png"), width = 13, height = 6)
 
@@ -217,9 +217,9 @@ ggsave(ar_p, file=file.path(subdir, "ar_genome_tree.png"), width = 13, height = 
 #### PLOT AGE V DAMAGE ####
 ###########################
 
-p <- filter(ages_damage, Approximated_year=="NO") %>%
+p <- filter(ages_damage, Exact_year=="YES") %>%
      group_by(host_order) %>% filter(n_distinct(Year_most_recent) > 1) %>%
-      ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = median_damage_model_pmax, shape = Approximated_year, colour = host_order)) +
+      ggplot(aes(x = Year_most_recent, group = Year_most_recent, y = median_damage_model_pmax, shape = Exact_year, colour = host_order)) +
         geom_point(alpha = 0.5) +
         scale_colour_manual(values = order_palette, name = "Host order") +
         geom_smooth(method = "glm", inherit.aes = FALSE, aes(x = Year_most_recent, y = median_damage_model_pmax), colour = "black", linetype = "dotted") +

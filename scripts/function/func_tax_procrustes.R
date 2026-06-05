@@ -52,44 +52,40 @@ phy_sp_f <- readRDS(file.path(taxdir, "phyloseq_objects", "phy_sp_f.RDS"))
 
 # Recode order and habitat as TRUE and FALSE
 phy_gene_f_clr <- phy_gene_f_clr %>%
-        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 phy_pathway_clr <- phy_pathway_clr %>%
-        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 phy_gifts_el <- phy_gifts_el %>%
-        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
 phy_sp_f_clr <- phy_sp_f_clr %>%
-        ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
+         ps_mutate(Artiodactyla = (Order == "Artiodactyla"),
                   Carnivora = (Order == "Carnivora"),
                   Perissodactyla = (Order == "Perissodactyla"),
                   Primates = (Order == "Primates"),
-                  ruminant = (digestion == "Ruminant"),
-                  marine = (habitat.general == "Marine"),
-                  animalivore = (diet.general == "Animalivore"))
+                  Ruminant = (digestion == "Ruminant"),
+                  Marine = (habitat.general == "Marine"))
 
-# Species traits to use as constraints for RDA
+# Species traits to use as constraints
 species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
-                    "ruminant", "marine", "Fruit", "Animal")
+                    "Ruminant", "Marine", "Frugivory", "Animalivory")
 
 ##########################
 #### DEFINE FUNCTION  ####

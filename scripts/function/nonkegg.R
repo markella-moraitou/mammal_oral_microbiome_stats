@@ -51,14 +51,14 @@ phy_merops_comp <- phy_gene_f %>% transform("compositional") %>% subset_taxa(dat
 merops_richness <- 
     estimate_richness(phy_merops, measures = "Observed") %>%
     rownames_to_column("Sample") %>%
-    left_join(select(data.frame(sample_data(phy_merops)), Common.name, Animal, Fruit, digestion, diet.general, Order, Order_grouped, habitat.general) %>%
+    left_join(select(data.frame(sample_data(phy_merops)), Common.name, Animalivory, Frugivory, digestion, diet.general, Order, Order_grouped, habitat.general) %>%
                 as.data.frame() %>% rownames_to_column("Sample")) %>%
     mutate(ruminant = (digestion == "Ruminant"),
            marine = (habitat.general == "Marine"))
 
 write.csv(merops_richness, file.path(subdir, "peptidase_richness.csv"), row.names = FALSE)
 
-model <- glmer(Observed ~ Animal + Fruit + ruminant + marine + (1|Common.name), data = merops_richness, family = poisson)
+model <- glmer(Observed ~ Animalivory + Frugivory + ruminant + marine + (1|Common.name), data = merops_richness, family = poisson)
 res <- summary(model)$coefficients
 
 label <- data.frame(res) %>% filter(Pr...z.. < 0.05) %>%
@@ -69,7 +69,7 @@ label <- data.frame(res) %>% filter(Pr...z.. < 0.05) %>%
     paste(collapse = "\n")
 
 p <-
-    ggplot(merops_richness, aes(x = as.factor(Animal), y = Observed, fill = Order)) +
+    ggplot(merops_richness, aes(x = as.factor(Animalivory), y = Observed, fill = Order)) +
     geom_boxplot() +
     scale_fill_manual(values = order_palette, name = "Taxonomic order") +
     labs(x = "Animal % in diet", y = "Peptidase richness (Observed)") +
@@ -85,15 +85,15 @@ merops_abundance <-
     data.frame(phy_merops_comp@otu_table) %>% rownames_to_column("OTU") %>%
     pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
     left_join(sample_data(phy_merops_comp) %>% data.frame() %>% rownames_to_column("Sample") %>%
-                select(Sample, Common.name, Animal, diet.general, Order, Order_grouped)) %>%
-    group_by(Common.name, Animal, diet.general, Order, Order_grouped) %>%
+                select(Sample, Common.name, Animalivory, diet.general, Order, Order_grouped)) %>%
+    group_by(Common.name, Animalivory, diet.general, Order, Order_grouped) %>%
     # Get mean and quartile abundance of peptidases per species
     summarise(Abundance = mean(Abundance, na.rm = TRUE),
               q1 = quantile(Abundance, probs = 0.25),
               q3 = quantile(Abundance, probs = 0.75), .groups = "drop")
 
 p <-
-    ggplot(merops_abundance, aes(x = as.factor(Animal), y = Abundance, fill = Order)) +
+    ggplot(merops_abundance, aes(x = as.factor(Animalivory), y = Abundance, fill = Order)) +
     geom_boxplot() +
     scale_fill_manual(values = order_palette, name = "Taxonomic order") +
     labs(x = "Animal % in diet", y = "Peptidase relative abundance") +
@@ -110,14 +110,14 @@ phy_cazy_comp <- phy_gene_f %>% transform("compositional") %>% subset_taxa(datab
 cazy_richness <- 
     estimate_richness(phy_cazy, 1000, measures = "Observed") %>%
     rownames_to_column("Sample") %>%
-    left_join(select(data.frame(sample_data(phy_merops)), Common.name, Animal, Fruit, digestion, diet.general, Order, Order_grouped, habitat.general) %>%
+    left_join(select(data.frame(sample_data(phy_merops)), Common.name, Animalivory, Frugivory, digestion, diet.general, Order, Order_grouped, habitat.general) %>%
                 as.data.frame() %>% rownames_to_column("Sample")) %>%
     mutate(ruminant = (digestion == "Ruminant"),
            marine = (habitat.general == "Marine"))
 
 write.csv(cazy_richness, file.path(subdir, "cazy_richness.csv"), row.names = FALSE)
 
-model <- glmer(Observed ~ Animal + Fruit + ruminant + marine + (1|Common.name), data = cazy_richness, family = poisson)
+model <- glmer(Observed ~ Animalivory + Frugivory + ruminant + marine + (1|Common.name), data = cazy_richness, family = poisson)
 res <- summary(model)$coefficients
 
 label <- data.frame(res) %>% filter(Pr...z.. < 0.05) %>%
@@ -128,7 +128,7 @@ label <- data.frame(res) %>% filter(Pr...z.. < 0.05) %>%
     paste(collapse = "\n")
 
 p <-
-    ggplot(cazy_richness, aes(x = as.factor(Animal), y = Observed, fill = Order)) +
+    ggplot(cazy_richness, aes(x = as.factor(Animalivory), y = Observed, fill = Order)) +
     geom_boxplot() +
     scale_fill_manual(values = order_palette, name = "Taxonomic order") +
     annotate("text", x = Inf, y = Inf,
@@ -143,15 +143,15 @@ cazy_abundance <-
     data.frame(phy_cazy_comp@otu_table) %>% rownames_to_column("OTU") %>%
     pivot_longer(cols = -OTU, names_to = "Sample", values_to = "Abundance") %>%
     left_join(sample_data(phy_cazy_comp) %>% data.frame() %>% rownames_to_column("Sample") %>%
-                select(Sample, Common.name, Animal, diet.general, Order, Order_grouped)) %>%
-    group_by(Common.name, Animal, diet.general, Order, Order_grouped) %>%
+                select(Sample, Common.name, Animalivory, diet.general, Order, Order_grouped)) %>%
+    group_by(Common.name, Animalivory, diet.general, Order, Order_grouped) %>%
     # Get mean and quartile abundance of CAZy enzymes per species
     summarise(Abundance = mean(Abundance, na.rm = TRUE),
               q1 = quantile(Abundance, probs = 0.25),
               q3 = quantile(Abundance, probs = 0.75), .groups = "drop")
 
 p <-
-    ggplot(cazy_abundance, aes(x = factor(Animal), y = Abundance, fill = Order)) +
+    ggplot(cazy_abundance, aes(x = factor(Animalivory), y = Abundance, fill = Order)) +
     geom_boxplot() +
     scale_fill_manual(values = order_palette, name = "Taxonomic order") +
     labs(x = "Animal % in diet", y = "CAZy relative abundance") +

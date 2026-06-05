@@ -325,7 +325,7 @@ gene_abundances <- function(phyloseq, pathway, kos) {
 
 # Only filtered pathways except for overview pathways
 pathway_to_plot <- path_info_filt %>%
-        filter(path_class != "Overview Pathway" & mean_completeness > 0.2 & path_class != "") %>%
+        filter(path_class != "Overview Pathway" & path_class != "") %>%
         arrange(desc(mean_completeness)) %>% pull(path)
 
 pdf(file.path(subdir, "gene_abundance_per_pathway.pdf"), width = 10, height = 10)
@@ -535,7 +535,7 @@ setwd(subdir)
 dir.create("pathway_plots", showWarnings = FALSE)
 setwd("pathway_plots")
 
-path_info_filt <- path_info_filt %>% filter(mean_completeness > 0.2 & path_class != "Overview Pathway")
+path_info_filt <- path_info_filt %>% filter(path_class != "Overview Pathway")
 
 # Keep only KOs present in the data and average abundance in animalivores and herbivores
 kos <- phy_gene_f_clr %>% subset_taxa(taxa_names(phy_gene_f) %in% str_remove(pathway_kos_filt$kos, "ko:")) %>%

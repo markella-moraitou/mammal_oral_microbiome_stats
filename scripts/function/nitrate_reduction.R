@@ -106,15 +106,15 @@ write.csv(wilcox_results, file.path(subdir, "wilcox_test_results.csv"), row.name
 
 p <- ggplot(nitrate_reduc_filt, aes(x = Common.name, y = Abundance, fill = category, colour = category)) +
     geom_boxplot() +
-    geom_text(data = wilcox_results, aes(x = 1.5, y = 10, label = signif), size = 6, colour = "#FF9900", inherit.aes = FALSE) +
+    geom_text(data = wilcox_results, aes(x = 1.5, y = 4, label = signif), size = 6, colour = "#FF9900", inherit.aes = FALSE) +
     scale_fill_manual(values = c("Altitude-adapted" = "#2A4D6E", "Hypertension-adapted" = "#AA4639", "Baseline" = "grey70")) +
     scale_color_manual(values = c("Altitude-adapted" = "#133453", "Hypertension-adapted" = "#802115", "Baseline" = "grey50")) +
     facet_grid(cols = vars(clade), rows = vars(label), scales = "free") +
-    scale_y_continuous(breaks = c(0, 10)) +
+    scale_y_continuous(breaks = c(0, 5, 10)) +
     theme(legend.position = "top", legend.direction = "vertical", axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), strip.text.y = element_text(angle = 0, size = 8)) +
     labs(y = "CLR abundance", x = "", fill = "", colour = "")
 
-ggsave(p, filename = file.path(subdir, "nitrate_reduction_genes.png"), width = 4, height = 9)
+ggsave(p, filename = file.path(subdir, "nitrate_reduction_genes.png"), width = 6, height = 9)
 
 # Plot contributions of different taxa
 nitrate_abund_str <- gene_str %>% filter(gene_id %in% nitrate_reduc_kos & Sample %in% phy_gene_f@sam_data$Ext.ID) %>%
@@ -153,4 +153,4 @@ p <- ggplot(nitrate_abund_grouped, aes(x = gene_code, y = total_mapped_reads, fi
             legend.position = "top", legend.direction = "horizontal") +
     labs(x = "", y = "Total mapped reads", fill = "Genus")
 
-ggsave(p, filename = file.path(subdir, "nitrate_reduction_gene_stratified.png"), width = 10, height = 8)
+ggsave(p, filename = file.path(subdir, "nitrate_reduction_gene_stratified.png"), width = 6, height = 8)

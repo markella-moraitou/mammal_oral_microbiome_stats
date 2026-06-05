@@ -13,11 +13,7 @@ library(tibble)
 library(stringr)
 library(phyloseq)
 library(ggplot2)
-library(rphylopic)
-library(ggExtra)
-library(RColorBrewer)
 library(distillR)
-library(microViz)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -78,8 +74,10 @@ GIFTs_elements_long <-
   pivot_longer(cols = -c(Sample), names_to = "Code_element", values_to = "Completeness") %>%
   left_join(select(rownames_to_column(data.frame(phy_gene_f@sam_data), "Sample"), c(Sample, Common.name, Order, diet.general))) %>%
   left_join(unique(select(GIFT_db, c("Code_element", "Element", "Function", "Domain")))) %>%
-  # Turn function into factor
-  arrange(Domain, Function) %>% mutate(Function = factor(Function, levels = unique(Function)))
+  # Turn function and common name into factors
+  arrange(Domain, Function, diet.general) %>%
+  mutate(Function = factor(Function, levels = unique(Function)),
+         Common.name = factor(Common.name, levels = unique(Common.name)))
 
 p <- ggplot(GIFTs_elements_long, aes(y=Sample, x=Element)) +
   geom_tile(aes(fill=Completeness)) +
@@ -98,6 +96,12 @@ p <- ggplot(GIFTs_elements_long, aes(y=Sample, x=Element)) +
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_community.png"), width = 25, height = 20)
 
 write.csv(GIFTs_elements_long, file.path(subdir, "GIFTs_elements_long.csv"), row.names = FALSE)
+
+# Create phyloseq
+phy_gifts_el <- phyloseq(otu_table(GIFTs_elements, taxa_are_rows = FALSE),
+                        sample_data(phy_gene_f))
+
+saveRDS(phy_gifts_el, file.path(datadir, "phy_gifts_el.RDS"))
 
 #Aggregate element-level GIFTs into the function level
 GIFTs_functions <- to.functions(GIFTs_elements, GIFT_db)
@@ -181,7 +185,7 @@ p <- ggplot(GIFTs_elements_long, aes(x=genome, y=Element)) +
         strip.text.x = element_text(angle = 90)) +
   labs(y="Compound", x="Sample", fill="Completeness") +
   facet_grid(cols = vars(genus), rows = vars(Function), scales = "free", space = "free")
-  
+
 ggsave(p, filename = file.path(subdir, "GIFTs_elements_by_taxon.png"), width = 25, height = 20)
 
 #Aggregate element-level GIFTs into the function level

@@ -18,6 +18,7 @@ library(phyr)
 library(phytools)
 library(ggplot2)
 library(clusterProfiler)
+library(distillR)
 
 #### VARIABLES AND WORKING DIRECTORY ####
 
@@ -26,7 +27,6 @@ indir <- normalizePath(file.path("..", "..", "input")) # Directory with phyloseq
 outdir <- normalizePath(file.path("..", "..", "output", "mags")) # subdirectory for the output of this script
 taxdir <- normalizePath(file.path("..", "..", "output", "community_analysis")) # Directory with taxonomy analysis
 funcdir <- normalizePath(file.path("..", "..", "output", "function")) # Directory with taxonomy analysis
-pathdir <- normalizePath(file.path(outdir, "pathway_completeness")) # Directory with pathway analysis output
 subdir <- normalizePath(file.path(outdir, "gsea_diff_abund_mags")) # subdirectory for the output of this script
 
 dir.create(subdir, recursive = TRUE, showWarnings = FALSE)
@@ -57,6 +57,9 @@ colnames(genes)[1] <- "contig"
 gene_str <- read.table(file.path(funcdir, "data", "gene_abundance_stratified_modified.tsv"),
                       quote = "", comment.char = "", header = TRUE, sep = "\t")
 
+# distillr output for MAGs
+gifts <- read.csv(file.path(outdir, "annotations", "GIFTs.csv"), header=TRUE)
+
 # MAG metadata
 bac_meta <- read.table(file.path(outdir, "bac_meta.tsv"), sep="\t", header=TRUE)
 ar_meta <- read.table(file.path(outdir, "ar_meta.tsv"), sep="\t", header=TRUE)
@@ -82,10 +85,6 @@ da_taxa <- da_taxa %>% left_join(tax_info, by = c("OTU" = "genus"))
 
 # Keep only positive associations at least for now
 da_pos <- da_taxa %>% filter(association == "+") %>% unique
-
-##############################
-#### ENRICHMENT ANALYSIS #####
-##############################
 
 # Identify HQ MAGs corresponding to the differentially abundant taxa
 hq_meta <- rbind(bac_meta, ar_meta) %>%
@@ -180,7 +179,7 @@ term_order <- enrichment_res %>% group_by(Description) %>%
     arrange(n_clusters, mean_FE)
 
 enrichment_res$Description <- factor(enrichment_res$Description, levels = term_order$Description)
-enrichment_res$term <- factor(enrichment_res$term, levels = c("Ruminant", "Fruit", "Animal", "Marine"))
+enrichment_res$term <- factor(enrichment_res$term, levels = c("Ruminant", "Frugivory", "Animalivory", "Marine"))
 
 # Keep only metabolism-associated terms for plotting
 enrichment_res_filt <- enrichment_res %>%
@@ -198,3 +197,32 @@ p <- ggplot(enrichment_res_filt, aes(x = label, y = Description, size = FoldEnri
               strip.text.y = element_text(angle = 0, size = 8), strip.text.x = element_text(angle = 90))
 
 ggsave(p, filename = file.path(subdir, "comparison_dotplot.png"), width = 12, height = 10)
+
+#####################################
+#### ALSO PLOT DISTILLR ELEMENTS ####
+#####################################
+
+#Aggregate bundle-level GIFTs into the compound level
+GIFTs_elements <- to.elements(column_to_rownames(gifts, "X"), GIFT_db)
+
+gifts_da <- 
+  GIFTs_elements %>% data.frame %>% rownames_to_column("bin") %>%
+  pivot_longer(cols = -c(bin), names_to = "Code_element", values_to = "Completeness") %>%
+  inner_join(da_pos_mags, by = "bin") %>%  
+  left_join(unique(select(GIFT_db, c("Code_element", "Element", "Function", "Domain")))) %>%
+  # Turn function into factor
+  arrange(Domain, Function) %>% mutate(Function = factor(Function, levels = unique(Function))) %>%
+  # Select only functions that came up in community wide analysis
+  filter(Function %in% c("Amino acid degradation", "Lipid degradation", "Sugar degradation", "Xenobiotics degradation", "Vitamin biosynthesis", "Appendages"))
+
+p <- ggplot(gifts_da, aes(x = label, y = Element, fill = Completeness)) +
+        geom_tile() +
+        scale_fill_viridis_c(option = "magma", na.value = "grey90") +
+        facet_grid(cols = vars(paste0(term, association)),
+                   rows = vars(Function), scales = "free", space = "free") +
+        theme(legend.position = "top",
+              axis.text.x = element_text(size = 10, hjust = 1, vjust = 0.5), axis.text.y = element_text(size = 9, hjust = 1, vjust = 0.5),
+              axis.title = element_blank(),
+              strip.text.y = element_text(angle = 0, size = 8), strip.text.x = element_text(angle = 90))
+
+ggsave(p, filename = file.path(subdir, "comparison_gift_heatmap.png"), width = 10, height = 10)
