@@ -543,49 +543,53 @@ write.csv(parafit_results, file = file.path(subdir, "parafit_results.csv"), row.
 # Cophyloplot Jaccard
 
 host_consensus$tip.label <- sample_data$Common.name[match(host_consensus$tip.label, sample_data$Species)]
+host_consensus$edge.length <- NULL
 
+mb_tree_jaccard$edge.length <- NULL
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_jaccard, assoc=links)
 
 png(file.path(subdir, "cophyloplot_jaccard.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, link.lwd=1, link.lty="solid", link.col=links$colour, length.line = 0, gap = 0, rotate = FALSE)
 dev.off()
 
 coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_jaccard, assoc=links)
 
 png(file.path(subdir, "cophyloplot_jaccard_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, link.lwd=1, link.lty="solid", link.col=links$colour, length.line = 0, gap = 0, rotate = FALSE)
 dev.off()
 
 # Cophyloplot CLR
+mb_tree_clr$edge.length <- NULL
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr, assoc=links)
 
 png(file.path(subdir, "cophyloplot_clr.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, link.lwd=1, link.lty="solid", link.col=links$colour, length.line = 0, type = "phylogram")
 dev.off()
 
 coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_clr, assoc=links)
 
 png(file.path(subdir, "cophyloplot_clr_diet.png"), width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, link.lwd=1, link.lty="solid", link.col=links$colour, length.line = 0, gap = 0, rotate = FALSE)
 dev.off()
 
 # Cophyloplot PhILR
+mb_tree_philr$edge.length <- NULL
 coph <- cophylo(tr1=host_consensus, tr2=mb_tree_philr, assoc=links, rotate = TRUE)
 
 png(file.path(subdir, "cophyloplot_philr.png"),width = 800, height = 500)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, tr1=mb_tree_philr, link.lwd=1, link.lty="solid", link.col=links$colour, length.line = 0, gap = 0, rotate = FALSE)
 dev.off()
 
 coph <- cophylo(tr1=nj(diet_sp_dist), tr2=mb_tree_philr, assoc=links)
 
-png(file.path(subdir, "cophyloplot_philr_diet.png"), width = 800, height = 500)
+png(file.path(subdir, "cophyloplot_philr_diet.png"), width = 800, height = 500, length.line = 0, gap = 0, rotate = FALSE)
 par(mar=c(5, 4, 4, 2) + 0.1)
-plot(coph, link.lwd=4, link.lty="solid", link.col=links$colour)
+plot(coph, link.lwd=1, link.lty="solid", link.col=links$colour)
 dev.off()
 
 ### Rerun tests with one microbiome per species
@@ -623,7 +627,7 @@ for (i in 1:n_iter) {
   tree_res[i, "rf_dist"] <- rf_dist
   # Cophyloplot
   coph <- cophylo(tr1=host_consensus, tr2=mb_tree_clr_sampled, assoc=links_sampled, rotate = TRUE)
-  plot(coph, tr1=mb_tree_philr, link.lwd=4, link.lty="solid", link.col=links_sampled$colour)
+  plot(coph, tr1=mb_tree_philr, link.lwd=1, link.lty="solid", link.col=links_sampled$colour, length.line = 0, gap = 0, rotate = FALSE)
   title(main = paste("Iteration", i, "- p =", round(res$p.global, 3), "- RF dist =", round(rf_dist, 3)), 
         cex.main = 0.5, col.main = "black")
 }

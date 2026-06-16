@@ -430,7 +430,7 @@ p_d <-
   geom_bar(stat = "identity", colour = NA) +
   facet_grid(Order_grouped~., space = "free_y", scales = "free_y", switch = "y") +
   scale_fill_manual(values = source_palette, name = "",
-                    labels = c("human oral", "terrestrial oral", "marine oral", "rumen", "sediment/soil", "skin", "unknown")) +
+                    labels = c("human oral", "marine oral", "terrestrial oral", "rumen", "sediment/soil", "skin", "unknown")) +
   scale_x_continuous(expand = c(0,0)) + 
   guides(fill = guide_legend(ncol = 2, byrow = TRUE)) + 
   theme(legend.position = "top", legend.spacing = unit(3, "cm"), legend.box = "horizontal",

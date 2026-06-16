@@ -177,6 +177,11 @@ ggsave(filename = file.path(subdir, "phy_sp_f_composition.png"), device="png", w
 sample_tree <- host_consensus
 sample_tree$tip.label <- gsub("_", " ", sample_tree$tip.label)
 
+# Append Sus domesticus to Sus scrofa tip
+polytomy <- stree(2, type = "star")
+polytomy$tip.label <- c("Sus scrofa", "Sus domesticus")
+sample_tree <- bind.tree(sample_tree, polytomy, where = which(sample_tree$tip.label == "Sus scrofa"))
+
 # Create a list of samples per species
 sample_map <- split(rownames(phy_sp_f@sam_data), phy_sp_f@sam_data$Species)
 
@@ -218,7 +223,7 @@ p <-
   scale_color_manual(values = order_palette) +
   new_scale_colour() +
   # Colour tips by species
-  geom_tippoint(aes(colour = Species)) +
+  geom_tippoint(aes(colour = Species), position = position_nudge(x=6.5)) +
   scale_color_manual(values = species_palette) +
   theme(legend.position = "none", plot.margin = margin(40, 0, -200, 0))
 
@@ -243,16 +248,16 @@ p_fruit <- p %<+% tree_phylopics +
     mapping = aes(y = label, x = Abundance, fill = OTU),
     stat = "identity",
     axis.params = list(axis = "x", text.size = 1, hjust = 1, vjust = 0., nbreak = 3),
-    offset = 0.05,
+    offset = 0,
     pwidth = 0.4
   ) +
   scale_fill_manual(values = phylum_palette) +
   new_scale_fill() +
-  geom_phylopic(aes(uuid=uid, fill = diet.general), width = 8, position=position_nudge(x=85)) +
+  geom_phylopic(aes(uuid=uid, fill = diet.general), width = 0.8, position=position_nudge(x=8)) +
   scale_fill_manual(values = diet_palette) +
   new_scale_colour() +
   geom_text(aes(label = species_lab, angle = text_angle, hjust = ifelse(text_angle > -90, 1, 0)),
-            size = 3.5, position = position_nudge(x=100))
+            size = 3.5, position = position_nudge(x=9))
 
 ggsave(file.path(subdir, "phy_sp_f_composition_tree.png"), p_fruit, width = 10, height = 5)
 
@@ -308,8 +313,8 @@ species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
 ord <- ord_calc(phy_sp_f_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -331,12 +336,16 @@ p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.
 
 ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.png"), p_combined, width=8, height=10)
 
+ggsave(file.path(subdir, "RDA_all_clr_diet_1_2.svg"), p_combined, width=8, height=10)
+
 # Colour by order
 p <- custom_ord_plot(phy_sp_f_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
 p_combined <- grid.arrange(as_grob(p), as_grob(p_taxa), ncol = 1, heights = c(1.2, 1))
 
 ggsave(file.path(subdir, "RDA_all_clr_order_1_2.png"), p_combined, width=8, height=10)
+
+ggsave(file.path(subdir, "RDA_all_clr_order_1_2.svg"), p_combined, width=8, height=10)
 
 #### PERMANOVA ####
 
@@ -407,8 +416,8 @@ species_traits <- c("Artiodactyla", "Perissodactyla", "Primates",
 ord <- ord_calc(phy_deep_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -517,8 +526,8 @@ species_traits <- c("Ruminant", "Pseudoruminant", "Marine")
 ord <- ord_calc(phy_artio_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -596,8 +605,8 @@ species_traits <- c("Marine", "Animalivory")
 ord <- ord_calc(phy_carni_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -671,8 +680,8 @@ species_traits <- c("Herbivory", "Animalivory")
 ord <- ord_calc(phy_prim_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +
@@ -757,8 +766,8 @@ species_traits <- c("Marine", "Artiodactyla", "Carnivora")
 ord <- ord_calc(phy_habitat_clr, constraints = species_traits, method = "RDA")
 
 # Select variables and check for collinearity
-ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
-vif.cca(ord_step)
+#ord_step <- step(ord@ord, scope = formula(ord@ord), test = "perm")
+#vif.cca(ord_step)
 
 # Scree plot
 p <- ord %>% ord_get() %>% plot_scree() + custom_theme() +

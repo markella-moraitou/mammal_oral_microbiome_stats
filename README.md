@@ -22,9 +22,9 @@ flowchart TD;
     B-->C[diff_abund_path];
     B-->D[functional_core];
     A-->F[distillR];
-    C-->G[func_tax_procrustes];
-    C-->H[multivariate_stats_func];
-    C-->I[func_models];
+    B,F-->G[func_tax_procrustes];
+    B,F-->H[multivariate_stats_func];
+    B,F-->I[func_models];
     A-->J[nitrate_reduction];
 ```
 

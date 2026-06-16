@@ -455,8 +455,7 @@ write.csv(res1, file.path(subdir, "latitude_est_results.csv"), row.names = FALSE
 alpha_bio <- alpha_div %>% filter(!is.na(biogeography)) %>%
     mutate(latitude_zone = case_when(grepl("tropical", biogeography) ~ "Tropical",
                                      biogeography == "Indomalayan" ~ "Tropical", 
-                                     grepl("rctic", biogeography) ~ "Not-Tropical",
-                                     TRUE ~ NA)) %>%
+                                     TRUE ~ "Not-Tropical")) %>%
     filter(!is.na(latitude_zone) & !is.na(filt_rarefied))
 
 # Summarise alpha diversity by latitude zone

@@ -107,18 +107,19 @@ wilcox_results <- nitrate_reduc_all %>%
         W = wilcox.test(Abundance ~ category)$statistic,
         p_value = wilcox.test(Abundance ~ category)$p.value,
         y = max(Abundance),
-        x = n_distinct(Species)/2 + 0.4,
+        x = 1.5,
         .groups = "drop"
     ) %>%
     select(label, clade, increase, W, p_value, y, x) %>% unique
 
-wilcox_results$adjusted_p_value <- p.adjust(wilcox_results$p_value, method = "holm")
+wilcox_results$adjusted_p_value <- ifelse(wilcox_results$label == "All nitrate\nreductases", wilcox_results$p_value, p.adjust(wilcox_results$p_value, method = "holm"))
 
 wilcox_results$signif <- ifelse(wilcox_results$adjusted_p_value < 0.05, 2, ifelse(wilcox_results$p_value < 0.05, 1, 0))
 wilcox_results$increase <- ifelse(wilcox_results$signif>0, wilcox_results$increase, "")
+wilcox_results$increase[is.na(wilcox_results$increase)] <- ""
 
 # Save Wilcoxon test results to a CSV file
-write.csv(wilcox_results, file.path(subdir, "wilcox_test_results.csv"), row.names = FALSE)
+write.csv(wilcox_results, file.path(subdir, "wilcox_test_results.csv"), row.names = FALSE, quote=TRUE)
 
 p <- ggplot(nitrate_reduc_all, aes(x = Common.name, y = Abundance*100, fill = category, colour = category)) +
     geom_boxplot() +
@@ -126,9 +127,10 @@ p <- ggplot(nitrate_reduc_all, aes(x = Common.name, y = Abundance*100, fill = ca
     scale_color_manual(values = c("Altitude-adapted" = "#133453", "Hypertension-adapted" = "#802115", "Baseline" = "grey50"), name = "") +
     new_scale_fill() +
     new_scale_colour() +
-    geom_point(data = wilcox_results, aes(x = x, y = y*130, shape = increase, fill = increase, size = signif), inherit.aes = FALSE) +
-    scale_fill_manual(values = c("TRUE" = "#33BF33", "FALSE" = "#B00707"), name = "", labels = c("Increase", "Decrease")) +
-    scale_shape_manual(values = c("TRUE" = 24, "FALSE" = 25), name = "", labels = c("Increase", "Decrease")) +
+    geom_point(data = wilcox_results, aes(x = x, y = y*90, shape = increase, colour = increase, fill = increase, size = signif), inherit.aes = FALSE) +
+    scale_fill_manual(values = c("TRUE" = "#33BF33", "FALSE" = "#B00707"), name = "", labels = c("TRUE" = "Increase", "FALSE"="Decrease")) +
+    scale_colour_manual(values = c("TRUE" = "#1F9D1F", "FALSE" = "#7D0000"), name = "", labels = c("TRUE" = "Increase", "FALSE"="Decrease")) +
+    scale_shape_manual(values = c("TRUE" = 24, "FALSE" = 25), name = "", labels = c("TRUE" = "Increase", "FALSE"="Decrease")) +
     scale_size(range = c(-1, 3), name = "significance", breaks = c(1,2), labels = c("p-val < 0.05", "p-adj < 0.05")) +
     ylim(0, NA) + scale_y_continuous(breaks = c(0.1, 0.5)) +
     facet_grid(cols = vars(clade), rows = vars(label), scales = "free") +

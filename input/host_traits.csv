@@ -22,7 +22,7 @@ Okapia johnstoni,Terrestrial,Ruminant,Afrotropical,brachydont,Berkovitz 2018,1.1
 Orcinus orca,Marine,Other,Arctic,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
 Otaria flavescens,Marine,Other,Neotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
 Ovis ammon,Terrestrial,Ruminant,Palearctic,hypsodont,Berkovitz 2018,4.11,Janis 1988
-Ovis aries,Terrestrial,Ruminant,,hypsodont,Berkovitz 2018,4.11,Janis 1988
+Ovis aries,Terrestrial,Ruminant,Palearctic,hypsodont,Berkovitz 2018,4.11,Janis 1988
 Pan troglodytes,Terrestrial,Other,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
 Papio anubis,Terrestrial,Other,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
 Piliocolobus foai,Terrestrial,Other,Afrotropical,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,
@@ -30,7 +30,7 @@ Pongo pygmaeus,Terrestrial,Other,Indomalayan,brachydont,"Ungar 2010, Renvoisé &
 Rangifer tarandus,Terrestrial,Ruminant,Palearctic,brachydont,based on hypsodonty index,1.52,Janis 1988
 Rupicapra rupicapra,Terrestrial,Ruminant,Palearctic,hypsodont,based on hypsodonty index,4.19,Janis 1988
 Sus scrofa,Terrestrial,Other,Palearctic,brachydont,Berkovitz 2018,1.28,Janis 1988
-Sus domesticus,Terrestrial,Other,,brachydont,Berkovitz 2018,1.28,Janis 1988
+Sus domesticus,Terrestrial,Other,Palearctic,brachydont,Berkovitz 2018,1.28,Janis 1988
 Syncerus caffer,Terrestrial,Ruminant,Afrotropical,hypsodont,based on hypsodonty index,3,Janis 1988
 Acrocodia indica,Terrestrial,Other,Indomalayan,brachydont,Berkovitz 2018,0.76,Janis 1988
 Ursus arctos,Terrestrial,Other,Palearctic,brachydont,"Ungar 2010, Renvoisé & Michon 2014",,

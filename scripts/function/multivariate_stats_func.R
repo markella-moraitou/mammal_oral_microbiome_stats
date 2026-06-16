@@ -99,10 +99,14 @@ p <- custom_ord_plot(phy_gene_f_clr, ord, colour="diet.general", shape="Order_gr
 
 ggsave(p, filename = file.path(subdir, "gene_ordination_diet.png"), width=8, height=6)
 
+ggsave(p, filename = file.path(subdir, "gene_ordination_diet.svg"), width=8, height=6)
+
 # Colour by order
 p <- custom_ord_plot(phy_gene_f_clr, ord, colour="Order_grouped", shape="diet.general", type = "RDA")
 
 ggsave(p, filename = file.path(subdir, "gene_ordination_order.png"), width=8, height=6)
+
+ggsave(p, filename = file.path(subdir, "gene_ordination_order.svg"), width=8, height=6)
 
 ## PLOT ARROWS
 
