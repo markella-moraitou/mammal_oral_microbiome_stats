@@ -2231,6 +2231,117 @@
       "Author": "Hervé Pagès [aut, cre]",
       "Maintainer": "Hervé Pagès <hpages.on.github@gmail.com>"
     },
+    "WikidataQueryServiceR": {
+      "Package": "WikidataQueryServiceR",
+      "Version": "1.0.0",
+      "Source": "Repository",
+      "Title": "API Client Library for 'Wikidata Query Service'",
+      "Date": "2020-06-16",
+      "Authors@R": "c( person(\"Mikhail\", \"Popov\", email = \"mikhail@wikimedia.org\", role = c(\"aut\", \"cre\"), comment = \"@bearloga on Twitter\"), person(\"Wikimedia Foundation\", role = \"cph\") )",
+      "Description": "An API client for the 'Wikidata Query Service' <https://query.wikidata.org/>.",
+      "Depends": [
+        "R (>= 3.1.2)"
+      ],
+      "Imports": [
+        "httr (>= 1.2.1)",
+        "dplyr (>= 1.0.0)",
+        "jsonlite (>= 1.2)",
+        "WikipediR (>= 1.5.0)",
+        "ratelimitr (>= 0.4.1)",
+        "purrr (>= 0.3.4)",
+        "readr (>= 1.3.1)",
+        "rex (>= 1.2.0)"
+      ],
+      "Suggests": [
+        "testthat (>= 2.3.0)",
+        "lintr (>= 2.0.1)"
+      ],
+      "URL": "https://github.com/bearloga/WikidataQueryServiceR",
+      "BugReports": "https://github.com/bearloga/WikidataQueryServiceR/issues",
+      "License": "MIT + file LICENSE",
+      "Encoding": "UTF-8",
+      "LazyData": "true",
+      "RoxygenNote": "7.1.0",
+      "NeedsCompilation": "no",
+      "Author": "Mikhail Popov [aut, cre] (@bearloga on Twitter), Wikimedia Foundation [cph]",
+      "Maintainer": "Mikhail Popov <mikhail@wikimedia.org>",
+      "Repository": "CRAN"
+    },
+    "WikidataR": {
+      "Package": "WikidataR",
+      "Version": "2.3.3",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Read-Write API Client Library for Wikidata",
+      "Date": "2021-11-16",
+      "Authors@R": "c( person(\"Thomas\", \"Shafee\", role = c(\"aut\", \"cre\"), email = \"T.Shafee@latrobe.edu.au\", comment = c(ORCID = \"0000-0002-2298-7593\")), person(\"Os\", \"Keyes\", role = \"aut\", comment = c(ORCID = \"0000-0001-5196-609X\")), person(\"Serena\", \"Signorelli\", role = \"aut\"), person(\"Alex\", \"Lum\", role = \"ctb\", comment = c(ORCID = \"0000-0002-9295-9053\")), person(\"Christian\", \"Graul\", role = \"ctb\"), person(\"Mikhail\", \"Popov\", role = \"ctb\", comment = c(ORCID = \"0000-0003-0145-8948\")) )",
+      "Description": "Read from, interogate, and write to Wikidata <https://www.wikidata.org> - the multilingual, interdisciplinary, semantic knowledgebase. Includes functions to: read from wikidata (single items, properties, or properties); query wikidata (retrieving all items that match a set of criterial via Wikidata SPARQL query service); write to Wikidata (adding new items or statements via QuickStatements); and handle and manipulate Wikidata objects (as lists and tibbles). Uses the Wikidata and Quickstatements APIs.",
+      "BugReports": "https://github.com/TS404/WikidataR/issues",
+      "URL": "https://github.com/TS404/WikidataR",
+      "License": "MIT + file LICENSE",
+      "Imports": [
+        "httr",
+        "jsonlite",
+        "WikipediR",
+        "WikidataQueryServiceR",
+        "tibble",
+        "dplyr",
+        "stringr",
+        "Hmisc",
+        "progress",
+        "pbapply",
+        "stats",
+        "readr",
+        "crayon",
+        "utils"
+      ],
+      "Suggests": [
+        "markdown",
+        "testthat",
+        "tidyverse",
+        "knitr",
+        "pageviews"
+      ],
+      "RoxygenNote": "7.1.1",
+      "Encoding": "UTF-8",
+      "Depends": [
+        "R (>= 3.5.0)"
+      ],
+      "NeedsCompilation": "no",
+      "Author": "Thomas Shafee [aut, cre] (<https://orcid.org/0000-0002-2298-7593>), Os Keyes [aut] (<https://orcid.org/0000-0001-5196-609X>), Serena Signorelli [aut], Alex Lum [ctb] (<https://orcid.org/0000-0002-9295-9053>), Christian Graul [ctb], Mikhail Popov [ctb] (<https://orcid.org/0000-0003-0145-8948>)",
+      "Maintainer": "Thomas Shafee <T.Shafee@latrobe.edu.au>",
+      "Repository": "CRAN"
+    },
+    "WikipediR": {
+      "Package": "WikipediR",
+      "Version": "1.7.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "A MediaWiki API Wrapper",
+      "Date": "2024-04-05",
+      "Author": "Os Keyes [aut, cre], Brock Tilbert [ctb], Clemens Schmid [aut]",
+      "Maintainer": "Os Keyes <ironholds@gmail.com>",
+      "Description": "A wrapper for the MediaWiki API, aimed particularly at the Wikimedia 'production' wikis, such as Wikipedia. It can be used to retrieve page text, information about users or the history of pages, and elements of the category tree.",
+      "License": "MIT + file LICENSE",
+      "Imports": [
+        "httr",
+        "jsonlite",
+        "magrittr"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr",
+        "WikidataR",
+        "pageviews"
+      ],
+      "BugReports": "https://github.com/Ironholds/WikipediR/issues",
+      "URL": "https://github.com/Ironholds/WikipediR/",
+      "VignetteBuilder": "knitr",
+      "RoxygenNote": "7.3.1",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "no",
+      "Repository": "CRAN"
+    },
     "XML": {
       "Package": "XML",
       "Version": "3.99-0.18",
@@ -2500,6 +2611,28 @@
       "NeedsCompilation": "yes",
       "Author": "Jeroen Ooms [aut, cre] (<https://orcid.org/0000-0002-4035-0289>)",
       "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
+      "Repository": "CRAN"
+    },
+    "assertthat": {
+      "Package": "assertthat",
+      "Version": "0.2.1",
+      "Source": "Repository",
+      "Title": "Easy Pre and Post Assertions",
+      "Authors@R": "person(\"Hadley\", \"Wickham\", , \"hadley@rstudio.com\", c(\"aut\", \"cre\"))",
+      "Description": "An extension to stopifnot() that makes it easy to declare  the pre and post conditions that you code should satisfy, while also  producing friendly error messages so that your users know what's gone wrong.",
+      "License": "GPL-3",
+      "Imports": [
+        "tools"
+      ],
+      "Suggests": [
+        "testthat",
+        "covr"
+      ],
+      "RoxygenNote": "6.0.1",
+      "Collate": "'assert-that.r' 'on-failure.r' 'assertions-file.r' 'assertions-scalar.R' 'assertions.r' 'base.r' 'base-comparison.r' 'base-is.r' 'base-logical.r' 'base-misc.r' 'utils.r' 'validate-that.R'",
+      "NeedsCompilation": "no",
+      "Author": "Hadley Wickham [aut, cre]",
+      "Maintainer": "Hadley Wickham <hadley@rstudio.com>",
       "Repository": "CRAN"
     },
     "backports": {
@@ -3947,6 +4080,49 @@
       "NeedsCompilation": "no",
       "Author": "Gábor Csárdi [aut, cre], Brodie Gaslam [ctb], Posit Software, PBC [cph, fnd]",
       "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+      "Repository": "CRAN"
+    },
+    "crul": {
+      "Package": "crul",
+      "Version": "1.6.0",
+      "Source": "Repository",
+      "Title": "HTTP Client",
+      "Description": "A simple HTTP client, with tools for making HTTP requests, and mocking HTTP requests. The package is built on R6, and takes inspiration from Ruby's 'faraday' gem (<https://rubygems.org/gems/faraday>). The package name is a play on curl, the widely used command line tool for HTTP, and this package is built on top of the R package 'curl', an interface to 'libcurl' (<https://curl.se/libcurl/>).",
+      "License": "MIT + file LICENSE",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = c(\"aut\", \"cre\"), email = \"myrmecocystus@gmail.com\", comment = c(ORCID = \"0000-0003-1444-9135\")) )",
+      "URL": "https://docs.ropensci.org/crul/, https://github.com/ropensci/crul, https://books.ropensci.org/http-testing/",
+      "BugReports": "https://github.com/ropensci/crul/issues",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Imports": [
+        "curl (>= 3.3)",
+        "R6 (>= 2.2.0)",
+        "urltools (>= 1.6.0)",
+        "httpcode (>= 0.2.0)",
+        "jsonlite",
+        "mime",
+        "rlang",
+        "lifecycle"
+      ],
+      "Suggests": [
+        "testthat (>= 3.0.0)",
+        "roxygen2 (>= 7.1.1)",
+        "fauxpas (>= 0.1.0)",
+        "webmockr (>= 2.2.0)",
+        "withr",
+        "knitr",
+        "rmarkdown"
+      ],
+      "VignetteBuilder": "knitr",
+      "RoxygenNote": "7.3.2",
+      "Config/testthat/edition": "3",
+      "Config/testthat/parallel": "true",
+      "X-schema.org-applicationCategory": "Web",
+      "X-schema.org-keywords": "http, https, API, web-services, curl, download, libcurl, async, mocking, caching",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre] (ORCID: <https://orcid.org/0000-0003-1444-9135>)",
+      "Maintainer": "Scott Chamberlain <myrmecocystus@gmail.com>",
       "Repository": "CRAN"
     },
     "cubature": {
@@ -6055,6 +6231,35 @@
       "Maintainer": "Jennifer Bryan <jenny@posit.co>",
       "Repository": "CRAN"
     },
+    "gmp": {
+      "Package": "gmp",
+      "Version": "0.7-5",
+      "Source": "Repository",
+      "Date": "2024-08-23",
+      "Title": "Multiple Precision Arithmetic",
+      "Authors@R": "c(person(\"Antoine\",\"Lucas\",role = c(\"aut\",\"cre\"), email = \"antoinelucas@gmail.com\", comment = c(ORCID=\"0000-0002-8059-9767\")), person(\"Immanuel\",\"Scholz\", role= \"aut\"), person(\"Rainer\",\"Boehme\", role = \"ctb\", email= \"rb-gmp@reflex-studio.de\"), person(\"Sylvain\",\"Jasson\", role = \"ctb\", email= \"Sylvain.Jasson@inrae.fr\"), person(\"Martin\", \"Maechler\", role = \"ctb\", email=\"maechler@stat.math.ethz.ch\"))",
+      "Maintainer": "Antoine Lucas <antoinelucas@gmail.com>",
+      "Description": "Multiple Precision Arithmetic (big integers and rationals, prime number tests, matrix computation), \"arithmetic without limitations\" using the C library GMP (GNU Multiple Precision Arithmetic).",
+      "Depends": [
+        "R (>= 3.5.0)"
+      ],
+      "Imports": [
+        "methods"
+      ],
+      "Suggests": [
+        "Rmpfr",
+        "MASS",
+        "round"
+      ],
+      "SystemRequirements": "gmp (>= 4.2.3)",
+      "License": "GPL (>= 2)",
+      "BuildResaveData": "no",
+      "LazyDataNote": "not available, as we use data/*.R *and* our classes",
+      "NeedsCompilation": "yes",
+      "URL": "https://forgemia.inra.fr/sylvain.jasson/gmp",
+      "Author": "Antoine Lucas [aut, cre] (<https://orcid.org/0000-0002-8059-9767>), Immanuel Scholz [aut], Rainer Boehme [ctb], Sylvain Jasson [ctb], Martin Maechler [ctb]",
+      "Repository": "CRAN"
+    },
     "googledrive": {
       "Package": "googledrive",
       "Version": "2.1.1",
@@ -6634,6 +6839,27 @@
       "NeedsCompilation": "no",
       "Author": "Ramnath Vaidyanathan [aut, cph], Yihui Xie [aut], JJ Allaire [aut], Joe Cheng [aut], Carson Sievert [aut, cre] (<https://orcid.org/0000-0002-4958-2844>), Kenton Russell [aut, cph], Ellis Hughes [ctb], Posit Software, PBC [cph, fnd]",
       "Maintainer": "Carson Sievert <carson@posit.co>",
+      "Repository": "CRAN"
+    },
+    "httpcode": {
+      "Package": "httpcode",
+      "Version": "0.3.0",
+      "Source": "Repository",
+      "Title": "'HTTP' Status Code Helper",
+      "Description": "Find and explain the meaning of 'HTTP' status codes. Functions included for searching for codes by full or partial number, by message, and get appropriate dog and cat images for many status codes.",
+      "Authors@R": "person(\"Scott\", \"Chamberlain\", role = c(\"aut\",\"cre\"), email = \"myrmecocystus@gmail.com\",  comment = c(ORCID = \"0000-0003-1444-9135\"))",
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/sckott/httpcode",
+      "BugReports": "https://github.com/sckott/httpcode/issues",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Suggests": [
+        "testthat"
+      ],
+      "RoxygenNote": "7.1.0",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre] (<https://orcid.org/0000-0003-1444-9135>)",
+      "Maintainer": "Scott Chamberlain <myrmecocystus@gmail.com>",
       "Repository": "CRAN"
     },
     "httpuv": {
@@ -8607,6 +8833,42 @@
       "Maintainer": "Torsten Hothorn <Torsten.Hothorn@R-project.org>",
       "Repository": "CRAN"
     },
+    "natserv": {
+      "Package": "natserv",
+      "Version": "1.0.0",
+      "Source": "Repository",
+      "Title": "'NatureServe' Interface",
+      "Description": "Interface to 'NatureServe' (<https://www.natureserve.org/>). Includes methods to get data, image metadata, search taxonomic names, and make maps.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/natserv, https://github.com/ropensci/natserv",
+      "BugReports": "https://github.com/ropensci/natserv/issues",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = c(\"aut\", \"cre\"), email = \"myrmecocystus@gmail.com\", comment = c(ORCID=\"0000-0003-1444-9135\")), person(given = \"rOpenSci\", role = \"fnd\", comment = \"https://ropensci.org/\"))",
+      "LazyData": "true",
+      "VignetteBuilder": "knitr",
+      "Language": "en-US",
+      "Encoding": "UTF-8",
+      "Depends": [
+        "R(>= 3.2.1)"
+      ],
+      "Imports": [
+        "crul (>= 0.7.0)",
+        "jsonlite",
+        "tibble"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr",
+        "vcr"
+      ],
+      "RoxygenNote": "7.1.0",
+      "X-schema.org-applicationCategory": "Taxonomy",
+      "X-schema.org-keywords": "taxonomy, species, API, web-services, NatureServe, metadata, maps",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre] (<https://orcid.org/0000-0003-1444-9135>), rOpenSci [fnd] (https://ropensci.org/)",
+      "Maintainer": "Scott Chamberlain <myrmecocystus@gmail.com>",
+      "Repository": "CRAN"
+    },
     "nlme": {
       "Package": "nlme",
       "Version": "3.1-168",
@@ -10101,6 +10363,34 @@
       "Maintainer": "Hadley Wickham <hadley@rstudio.com>",
       "Repository": "CRAN"
     },
+    "ratelimitr": {
+      "Package": "ratelimitr",
+      "Version": "0.4.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Rate Limiting for R",
+      "Author": "Tarak Shah",
+      "Maintainer": "Tarak Shah <tarak.shah@gmail.com>",
+      "Description": "Allows to limit the rate at which one or more functions can be called.",
+      "License": "MIT + file LICENSE",
+      "LazyData": "TRUE",
+      "RoxygenNote": "6.1.0",
+      "Suggests": [
+        "testthat",
+        "microbenchmark",
+        "knitr",
+        "rmarkdown",
+        "covr"
+      ],
+      "Imports": [
+        "assertthat"
+      ],
+      "VignetteBuilder": "knitr",
+      "URL": "https://github.com/tarakc02/ratelimitr",
+      "BugReports": "https://github.com/tarakc02/ratelimitr/issues",
+      "NeedsCompilation": "no",
+      "Repository": "CRAN"
+    },
     "rbibutils": {
       "Package": "rbibutils",
       "Version": "2.3",
@@ -10488,6 +10778,42 @@
       "NeedsCompilation": "yes",
       "Repository": "CRAN"
     },
+    "rex": {
+      "Package": "rex",
+      "Version": "1.2.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Friendly Regular Expressions",
+      "Authors@R": "c( person(\"Kevin\", \"Ushey\", , \"kevinushey@gmail.com\", role = c(\"aut\", \"cre\")), person(\"Jim\", \"Hester\", , \"james.f.hester@gmail.com\", role = \"aut\"), person(\"Robert\", \"Krzyzanowski\", , \"rkrzyzanowski@gmail.com\", role = \"aut\") )",
+      "Description": "A friendly interface for the construction of regular expressions.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/kevinushey/rex",
+      "BugReports": "https://github.com/kevinushey/rex/issues",
+      "Imports": [
+        "lazyeval"
+      ],
+      "Suggests": [
+        "covr",
+        "dplyr",
+        "ggplot2",
+        "Hmisc",
+        "knitr",
+        "magrittr",
+        "rmarkdown",
+        "roxygen2",
+        "rvest",
+        "stringr",
+        "testthat"
+      ],
+      "VignetteBuilder": "knitr",
+      "Encoding": "UTF-8",
+      "RoxygenNote": "7.1.2",
+      "Collate": "'aaa.R' 'utils.R' 'escape.R' 'capture.R' 'character_class.R' 'counts.R' 'lookarounds.R' 'match.R' 'or.R' 'rex-mode.R' 'rex.R' 'shortcuts.R' 'wildcards.R' 'zzz.R'",
+      "NeedsCompilation": "no",
+      "Author": "Kevin Ushey [aut, cre], Jim Hester [aut], Robert Krzyzanowski [aut]",
+      "Maintainer": "Kevin Ushey <kevinushey@gmail.com>",
+      "Repository": "CRAN"
+    },
     "rhdf5": {
       "Package": "rhdf5",
       "Version": "2.50.2",
@@ -10573,6 +10899,40 @@
       "NeedsCompilation": "yes",
       "Author": "Mike Smith [aut, cre] (<https://orcid.org/0000-0002-7800-3848>)",
       "Maintainer": "Mike Smith <grimbough@gmail.com>"
+    },
+    "ritis": {
+      "Package": "ritis",
+      "Version": "1.0.0",
+      "Source": "Repository",
+      "Title": "Integrated Taxonomic Information System Client",
+      "Description": "An interface to the Integrated Taxonomic Information System ('ITIS') (<https://www.itis.gov>). Includes functions to work with the 'ITIS' REST API methods (<https://www.itis.gov/ws_description.html>), as well as the 'Solr' web service (<https://www.itis.gov/solr_documentation.html>).",
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/ropensci/ritis (devel) https://docs.ropensci.org/ritis/ (docs)",
+      "BugReports": "https://github.com/ropensci/ritis/issues",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = c(\"aut\", \"cre\"), email = \"myrmecocystus@gmail.com\", comment = c(ORCID = \"0000-0003-1444-9135\")), person(given = \"rOpenSci\", role = \"fnd\", comment = \"https://ropensci.org/\"))",
+      "LazyData": "true",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Imports": [
+        "solrium (>= 1.1.4)",
+        "crul (>= 0.9.0)",
+        "jsonlite",
+        "data.table",
+        "tibble"
+      ],
+      "Suggests": [
+        "testthat",
+        "webmockr",
+        "vcr (>= 0.5.4)"
+      ],
+      "RoxygenNote": "7.1.1",
+      "X-schema.org-applicationCategory": "Taxonomy",
+      "X-schema.org-keywords": "taxonomy, biology, nomenclature, JSON, API, web, api-client, identifiers, species, names",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre] (<https://orcid.org/0000-0003-1444-9135>), rOpenSci [fnd] (https://ropensci.org/)",
+      "Maintainer": "Scott Chamberlain <myrmecocystus@gmail.com>",
+      "Repository": "CRAN"
     },
     "rjson": {
       "Package": "rjson",
@@ -10731,6 +11091,39 @@
       "Maintainer": "Yihui Xie <xie@yihui.name>",
       "Repository": "CRAN"
     },
+    "rncl": {
+      "Package": "rncl",
+      "Version": "0.8.7",
+      "Source": "Repository",
+      "Title": "An Interface to the Nexus Class Library",
+      "Authors@R": "c(person(\"Francois\", \"Michonneau\", role=c(\"aut\", \"cre\"), email=\"francois.michonneau@gmail.com\",    comment = c(\"ORCID\" = \"0000-0002-9092-966X\")), person(\"Ben\", \"Bolker\", role=c(\"aut\"),    comment = c(\"ORCID\" = \"0000-0002-2127-0443\")), person(\"Mark\", \"Holder\", role=c(\"aut\"),   comment = c(\"ORCID\" = \"0000-0001-5575-0536\")), person(\"Paul\", \"Lewis\", role=c(\"aut\"),    comment = c(\"ORCID\" = \"0000-0001-9852-8759\")), person(\"Brian\", \"O'Meara\", role=c(\"aut\"), comment = c(\"ORCID\" = \"0000-0002-0337-5997\")))",
+      "Maintainer": "Francois Michonneau <francois.michonneau@gmail.com>",
+      "Description": "An interface to the Nexus Class Library which allows parsing of NEXUS, Newick and other phylogenetic tree file formats. It provides elements of the file that can be used to build phylogenetic objects such as ape's 'phylo' or phylobase's 'phylo4(d)'. This functionality is demonstrated with 'read_newick_phylo()' and 'read_nexus_phylo()'.",
+      "Imports": [
+        "Rcpp (>= 0.11.0)",
+        "progress (>= 1.1.2)",
+        "stats"
+      ],
+      "Suggests": [
+        "testthat",
+        "ape"
+      ],
+      "LinkingTo": [
+        "Rcpp",
+        "progress"
+      ],
+      "Depends": [
+        "R (>= 3.1.1)"
+      ],
+      "License": "BSD_2_clause + file LICENSE",
+      "URL": "https://github.com/fmichonneau/rncl",
+      "BugReports": "https://github.com/fmichonneau/rncl/issues",
+      "RoxygenNote": "7.1.2",
+      "Encoding": "UTF-8",
+      "NeedsCompilation": "yes",
+      "Author": "Francois Michonneau [aut, cre] (<https://orcid.org/0000-0002-9092-966X>), Ben Bolker [aut] (<https://orcid.org/0000-0002-2127-0443>), Mark Holder [aut] (<https://orcid.org/0000-0001-5575-0536>), Paul Lewis [aut] (<https://orcid.org/0000-0001-9852-8759>), Brian O'Meara [aut] (<https://orcid.org/0000-0002-0337-5997>)",
+      "Repository": "CRAN"
+    },
     "rngtools": {
       "Package": "rngtools",
       "Version": "1.5.2",
@@ -10842,6 +11235,48 @@
       "NeedsCompilation": "yes",
       "Repository": "CRAN"
     },
+    "rotl": {
+      "Package": "rotl",
+      "Version": "3.1.0",
+      "Source": "Repository",
+      "Title": "Interface to the 'Open Tree of Life' API",
+      "Authors@R": "c(person(given = \"Francois\", family = \"Michonneau\", role = c(\"aut\", \"cre\"), email = \"francois.michonneau@gmail.com\", comment = c(ORCID = \"0000-0002-9092-966X\")), person(given = \"Joseph\", family = \"Brown\", role = \"aut\", comment = c(ORCID = \"0000-0002-3835-8062\")), person(given = \"David\", family = \"Winter\", role = \"aut\", comment = c(ORCID = \"0000-0002-6165-0029\")), person(given = \"Scott\", family = \"Chamberlain\", role = \"rev\", comment = c(ORCID = \"0000-0003-1444-9135\")))",
+      "Description": "An interface to the 'Open Tree of Life' API to retrieve phylogenetic trees, information about studies used to assemble the synthetic tree, and utilities to match taxonomic names to 'Open Tree identifiers'. The 'Open Tree of Life' aims at assembling a comprehensive phylogenetic tree for all named species.",
+      "License": "BSD_2_clause + file LICENSE",
+      "URL": "https://docs.ropensci.org/rotl/, https://github.com/ropensci/rotl",
+      "BugReports": "https://github.com/ropensci/rotl/issues",
+      "Depends": [
+        "R (>= 3.1.1)"
+      ],
+      "Imports": [
+        "ape",
+        "curl (>= 3.0.0)",
+        "httr",
+        "jsonlite",
+        "rentrez",
+        "rlang",
+        "rncl (>= 0.6.0)"
+      ],
+      "Suggests": [
+        "knitr (>= 1.12)",
+        "MCMCglmm",
+        "phylobase",
+        "readxl",
+        "rmarkdown (>= 0.7)",
+        "RNeXML",
+        "testthat"
+      ],
+      "VignetteBuilder": "knitr",
+      "Encoding": "UTF-8",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "X-schema.org-keywords": "metadata, ropensci, phylogenetics, independant-contrasts, biodiversity",
+      "X-schema.org-relatedLink": "https://codemeta.github.io/codemetar",
+      "RoxygenNote": "7.2.1",
+      "NeedsCompilation": "no",
+      "Author": "Francois Michonneau [aut, cre] (<https://orcid.org/0000-0002-9092-966X>), Joseph Brown [aut] (<https://orcid.org/0000-0002-3835-8062>), David Winter [aut] (<https://orcid.org/0000-0002-6165-0029>), Scott Chamberlain [rev] (<https://orcid.org/0000-0003-1444-9135>)",
+      "Maintainer": "Francois Michonneau <francois.michonneau@gmail.com>",
+      "Repository": "CRAN"
+    },
     "rpart": {
       "Package": "rpart",
       "Version": "4.1.24",
@@ -10921,6 +11356,52 @@
       "VignetteBuilder": "knitr",
       "NeedsCompilation": "no",
       "Author": "William Gearty [aut, cre] (<https://orcid.org/0000-0003-0076-3262>), Lewis A. Jones [aut] (<https://orcid.org/0000-0003-3902-8986>), Scott Chamberlain [aut] (<https://orcid.org/0000-0003-1444-9135>), David Miller [ctb]",
+      "Maintainer": "William Gearty <willgearty@gmail.com>",
+      "Repository": "CRAN"
+    },
+    "rredlist": {
+      "Package": "rredlist",
+      "Version": "1.1.0",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "'IUCN' Red List Client",
+      "Description": "'IUCN' Red List (<https://api.iucnredlist.org/>) client. The 'IUCN' Red List is a global list of threatened and endangered species. Functions cover all of the Red List 'API' routes. An 'API' key is required.",
+      "Authors@R": "c(person(given = \"William\", family = \"Gearty\", role = c(\"aut\", \"cre\"), email = \"willgearty@gmail.com\"), person(given = \"Scott\", family = \"Chamberlain\", role = c(\"aut\"), email = \"myrmecocystus@gmail.com\"), person(given = \"rOpenSci\", role = \"fnd\", comment = c(ROR = \"019jywm96\")), person(given = \"Maëlle\", family = \"Salmon\", role = \"ctb\", email = \"maelle.salmon@yahoo.se\"), person(given = \"Kevin\", family = \"Cazelles\", role = \"rev\", email = \"kevin.cazelles@insileco.io\",  comment = c(ORCID = \"0000-0001-6619-9874\")), person(given = \"Stephanie\", family = \"Hazlitt\", role = \"rev\", email = \"stephhazlitt@gmail.com\") )",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/rredlist/, https://github.com/ropensci/rredlist",
+      "BugReports": "https://github.com/ropensci/rredlist/issues",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Imports": [
+        "crul (>= 0.3.8)",
+        "jsonlite (>= 1.1)",
+        "lifecycle",
+        "cli",
+        "curl",
+        "rlang"
+      ],
+      "Suggests": [
+        "spelling",
+        "testthat",
+        "vcr (>= 0.6.0)",
+        "knitr",
+        "rmarkdown",
+        "webmockr",
+        "microbenchmark",
+        "ggplot2",
+        "dplyr",
+        "tibble",
+        "tidyr",
+        "patchwork",
+        "vdiffr"
+      ],
+      "RoxygenNote": "7.3.2.9000",
+      "VignetteBuilder": "knitr",
+      "X-schema.org-applicationCategory": "Biodiversity",
+      "X-schema.org-keywords": "IUCN, biodiversity, API, web-services, traits, habitat, species, conservation",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "William Gearty [aut, cre], Scott Chamberlain [aut], rOpenSci [fnd] (ROR: <https://ror.org/019jywm96>), Maëlle Salmon [ctb], Kevin Cazelles [rev] (ORCID: <https://orcid.org/0000-0001-6619-9874>), Stephanie Hazlitt [rev]",
       "Maintainer": "William Gearty <willgearty@gmail.com>",
       "Repository": "CRAN"
     },
@@ -11518,6 +11999,43 @@
       "NeedsCompilation": "no",
       "Repository": "CRAN"
     },
+    "solrium": {
+      "Package": "solrium",
+      "Version": "1.2.0",
+      "Source": "Repository",
+      "Title": "General Purpose R Interface to 'Solr'",
+      "Description": "Provides a set of functions for querying and parsing data from 'Solr' (<https://solr.apache.org/>) 'endpoints' (local and remote), including search, 'faceting', 'highlighting', 'stats', and 'more like this'. In addition, some functionality is included for creating, deleting, and updating documents in a 'Solr' 'database'.",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = c(\"aut\", \"cre\"), email = \"myrmecocystus@gmail.com\",  comment = c(ORCID=\"0000-0003-1444-9135\")), person(given = \"rOpenSci\", role = \"fnd\", comment = \"https://ropensci.org/\"))",
+      "License": "MIT + file LICENSE",
+      "URL": "https://github.com/ropensci/solrium (devel), https://docs.ropensci.org/solrium/ (user manual)",
+      "BugReports": "https://github.com/ropensci/solrium/issues",
+      "VignetteBuilder": "knitr",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Imports": [
+        "utils",
+        "dplyr (>= 0.5.0)",
+        "plyr (>= 1.8.4)",
+        "crul (>= 0.4.0)",
+        "xml2 (>= 1.0.0)",
+        "jsonlite (>= 1.0)",
+        "tibble (>= 1.4.2)",
+        "R6"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr",
+        "rmarkdown"
+      ],
+      "RoxygenNote": "7.1.1",
+      "X-schema.org-applicationCategory": "Databases",
+      "X-schema.org-keywords": "database, search, JSON, XML, API, web",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre] (<https://orcid.org/0000-0003-1444-9135>), rOpenSci [fnd] (https://ropensci.org/)",
+      "Maintainer": "Scott Chamberlain <myrmecocystus@gmail.com>",
+      "Repository": "CRAN"
+    },
     "sourcetools": {
       "Package": "sourcetools",
       "Version": "0.1.7-1",
@@ -11737,7 +12255,7 @@
     },
     "systemfonts": {
       "Package": "systemfonts",
-      "Version": "1.2.3",
+      "Version": "1.3.2",
       "Source": "Repository",
       "Type": "Package",
       "Title": "System Native Font Finding",
@@ -11760,9 +12278,12 @@
       "Suggests": [
         "covr",
         "farver",
+        "ggplot2",
         "graphics",
         "knitr",
+        "ragg",
         "rmarkdown",
+        "svglite",
         "testthat (>= 2.1.0)"
       ],
       "LinkingTo": [
@@ -11778,6 +12299,63 @@
       "NeedsCompilation": "yes",
       "Author": "Thomas Lin Pedersen [aut, cre] (ORCID: <https://orcid.org/0000-0002-5147-4711>), Jeroen Ooms [aut] (ORCID: <https://orcid.org/0000-0002-4035-0289>), Devon Govett [aut] (Author of font-manager), Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
       "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
+      "Repository": "CRAN"
+    },
+    "taxize": {
+      "Package": "taxize",
+      "Version": "0.10.0",
+      "Source": "Repository",
+      "Title": "Taxonomic Information from Around the Web",
+      "Description": "Interacts with a suite of web application programming interfaces (API) for taxonomic tasks, such as getting database specific taxonomic identifiers, verifying species names, getting taxonomic hierarchies, fetching downstream and upstream taxonomic names, getting taxonomic synonyms, converting scientific to common names and vice versa, and more. Some of the services supported include 'NCBI E-utilities' (<https://www.ncbi.nlm.nih.gov/books/NBK25501/>), 'Encyclopedia of Life' (<https://eol.org/docs/what-is-eol/data-services>), 'Global Biodiversity Information Facility' (<https://techdocs.gbif.org/en/openapi/>), and many more. Links to the API documentation for other supported services are available in the documentation for their respective functions in this package.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/taxize/ (website), https://github.com/ropensci/taxize (devel), https://taxize.dev (user manual)",
+      "BugReports": "https://github.com/ropensci/taxize/issues",
+      "Authors@R": "c(person(given = \"Scott\", family = \"Chamberlain\", role = c(\"aut\"), email = \"myrmecocystus@gmail.com\"), person(given = \"Eduard\", family = \"Szoecs\", role = \"aut\"), person(given = \"Zachary\", family = \"Foster\", role = c(\"aut\", \"cre\"), email = \"zacharyfoster1989@gmail.com\"), person(given = \"Zebulun\", family = \"Arendsee\", role = \"aut\"), person(given = \"Carl\", family = \"Boettiger\", role = \"ctb\"), person(given = \"Karthik\", family = \"Ram\", role = \"ctb\"), person(given = \"Ignasi\", family = \"Bartomeus\", role = \"ctb\"), person(given = \"John\", family = \"Baumgartner\", role = \"ctb\"), person(given = \"James\", family = \"O'Donnell\", role = \"ctb\"), person(given = \"Jari\", family = \"Oksanen\", role = \"ctb\"), person(given = \"Bastian Greshake\", family = \"Tzovaras\", role = \"ctb\"), person(given = \"Philippe\", family = \"Marchand\", role = \"ctb\"), person(given = \"Vinh\", family = \"Tran\", role = \"ctb\"), person(given = \"Maëlle\", family = \"Salmon\", role = \"ctb\"), person(given = \"Gaopeng\", family = \"Li\", role = \"ctb\"), person(given = \"Matthias\", family = \"Grenié\", role = \"ctb\"), person(given = \"rOpenSci\", role = \"fnd\"))",
+      "LazyLoad": "yes",
+      "LazyData": "true",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Depends": [
+        "R(>= 3.2.1)"
+      ],
+      "Imports": [
+        "graphics",
+        "methods",
+        "stats",
+        "utils",
+        "crul (>= 0.7.0)",
+        "xml2 (>= 1.2.0)",
+        "jsonlite",
+        "ape",
+        "zoo",
+        "data.table",
+        "tibble (>= 1.2)",
+        "rredlist",
+        "rotl (>= 3.0.0)",
+        "ritis (>= 0.7.6)",
+        "worrms (>= 0.4.0)",
+        "natserv (>= 1.0.0)",
+        "wikitaxa (>= 0.3.0)",
+        "R6",
+        "crayon",
+        "cli",
+        "phangorn",
+        "lifecycle",
+        "curl",
+        "stringi"
+      ],
+      "Suggests": [
+        "testthat",
+        "vegan",
+        "vcr"
+      ],
+      "RoxygenNote": "7.3.2",
+      "X-schema.org-applicationCategory": "Taxonomy",
+      "X-schema.org-keywords": "taxonomy, biology, nomenclature, JSON, API, web, api-client, identifiers, species, names",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut], Eduard Szoecs [aut], Zachary Foster [aut, cre], Zebulun Arendsee [aut], Carl Boettiger [ctb], Karthik Ram [ctb], Ignasi Bartomeus [ctb], John Baumgartner [ctb], James O'Donnell [ctb], Jari Oksanen [ctb], Bastian Greshake Tzovaras [ctb], Philippe Marchand [ctb], Vinh Tran [ctb], Maëlle Salmon [ctb], Gaopeng Li [ctb], Matthias Grenié [ctb], rOpenSci [fnd]",
+      "Maintainer": "Zachary Foster <zacharyfoster1989@gmail.com>",
       "Repository": "CRAN"
     },
     "tensorA": {
@@ -12216,6 +12794,36 @@
       "Author": "Guangchuang Yu [aut, cre] (<https://orcid.org/0000-0002-6485-8781>), Tommy Tsan-Yuk Lam [ctb, ths], Shuangbin Xu [ctb] (<https://orcid.org/0000-0003-3513-5362>), Bradley Jones [ctb], Casey Dunn [ctb], Tyler Bradley [ctb], Konstantinos Geles [ctb]",
       "Maintainer": "Guangchuang Yu <guangchuangyu@gmail.com>"
     },
+    "triebeard": {
+      "Package": "triebeard",
+      "Version": "0.4.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "'Radix' Trees in 'Rcpp'",
+      "Author": "Os Keyes [aut, cre], Drew Schmidt [aut], Yuuki Takano [cph]",
+      "Maintainer": "Os Keyes <ironholds@gmail.com>",
+      "Description": "'Radix trees', or 'tries', are key-value data structures optimised for efficient lookups, similar in purpose to hash tables. 'triebeard' provides an implementation of 'radix trees' for use in R programming and in developing packages with 'Rcpp'.",
+      "License": "MIT + file LICENSE",
+      "LinkingTo": [
+        "Rcpp"
+      ],
+      "Encoding": "UTF-8",
+      "Imports": [
+        "Rcpp"
+      ],
+      "RoxygenNote": "7.1.2",
+      "Suggests": [
+        "knitr",
+        "rmarkdown",
+        "testthat"
+      ],
+      "VignetteBuilder": "knitr",
+      "URL": "https://github.com/Ironholds/triebeard/",
+      "BugReports": "https://github.com/Ironholds/triebeard/issues",
+      "Date": "2023-03-04",
+      "NeedsCompilation": "yes",
+      "Repository": "CRAN"
+    },
     "tsne": {
       "Package": "tsne",
       "Version": "0.1-3.1",
@@ -12296,6 +12904,42 @@
       "Author": "Davis Vaughan [aut, cre], Howard Hinnant [cph] (Author of the included date library), Posit Software, PBC [cph, fnd]",
       "Maintainer": "Davis Vaughan <davis@posit.co>",
       "Repository": "CRAN"
+    },
+    "urltools": {
+      "Package": "urltools",
+      "Version": "1.7.3.1",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "Vectorised Tools for URL Handling and Parsing",
+      "Date": "2019-04-14",
+      "Authors@R": "c(person(given = \"Os\", family = \"Keyes\", role = c(\"aut\", \"cre\"), email = \"ironholds@gmail.com\"), person(given = \"Jay\", family = \"Jacobs\", role = \"aut\"), person(given = \"Drew\", family = \"Schmidt\", role = \"aut\"), person(given = \"Mark\", family = \"Greenaway\", role = \"ctb\"), person(given = \"Bob\", family = \"Rudis\", role = \"ctb\"), person(given = \"Alex\", family = \"Pinto\", role = \"ctb\"), person(given = \"Maryam\", family = \"Khezrzadeh\", role = \"ctb\"), person(given = \"Peter\", family = \"Meilstrup\", role = \"ctb\"), person(given = c(\"Adam\", \"M.\"), family = \"Costello\", role = \"cph\"), person(given = \"Jeff\", family = \"Bezanson\", role = \"cph\"), person(given = \"Peter\", family = \"Meilstrup\", role = \"ctb\"), person(given = \"Xueyuan\", family = \"Jiang\", role = \"ctb\"))",
+      "Description": "A toolkit for all URL-handling needs, including encoding and decoding, parsing, parameter extraction and modification. All functions are designed to be both fast and entirely vectorised. It is intended to be useful for people dealing with web-related datasets, such as server-side logs, although may be useful for other situations involving large sets of URLs.",
+      "License": "MIT + file LICENSE",
+      "LazyData": "TRUE",
+      "LinkingTo": [
+        "Rcpp"
+      ],
+      "Imports": [
+        "Rcpp",
+        "methods",
+        "triebeard"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr"
+      ],
+      "URL": "https://github.com/Ironholds/urltools/",
+      "BugReports": "https://github.com/Ironholds/urltools/issues",
+      "VignetteBuilder": "knitr",
+      "RoxygenNote": "6.1.1",
+      "Encoding": "UTF-8",
+      "Depends": [
+        "R (>= 2.10)"
+      ],
+      "NeedsCompilation": "yes",
+      "Repository": "CRAN",
+      "Author": "Os Keyes [aut, cre], Jay Jacobs [aut], Drew Schmidt [aut], Mark Greenaway [ctb], Bob Rudis [ctb], Alex Pinto [ctb], Maryam Khezrzadeh [ctb], Peter Meilstrup [ctb], Adam M. Costello [cph], Jeff Bezanson [cph], Peter Meilstrup [ctb], Xueyuan Jiang [ctb]",
+      "Maintainer": "Os Keyes <ironholds@gmail.com>"
     },
     "utf8": {
       "Package": "utf8",
@@ -12618,6 +13262,48 @@
       "Maintainer": "Karthik Ram <karthik.ram@gmail.com>",
       "Repository": "CRAN"
     },
+    "wikitaxa": {
+      "Package": "wikitaxa",
+      "Version": "0.4.0",
+      "Source": "Repository",
+      "Title": "Taxonomic Information from 'Wikipedia'",
+      "Description": "'Taxonomic' information from 'Wikipedia', 'Wikicommons', 'Wikispecies', and 'Wikidata'. Functions included for getting taxonomic information from each of the sources just listed, as well performing taxonomic search.",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/wikitaxa, https://github.com/ropensci/wikitaxa",
+      "BugReports": "https://github.com/ropensci/wikitaxa/issues",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = c(\"aut\", \"cre\"), email = \"myrmecocystus+r@gmail.com\"), person(\"Ethan\", \"Welty\", role = \"aut\") )",
+      "LazyLoad": "yes",
+      "LazyData": "yes",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "VignetteBuilder": "knitr",
+      "Depends": [
+        "R(>= 3.2.1)"
+      ],
+      "Imports": [
+        "WikidataR",
+        "data.table",
+        "curl",
+        "crul (>= 0.3.4)",
+        "tibble",
+        "jsonlite",
+        "xml2"
+      ],
+      "Suggests": [
+        "testthat",
+        "knitr",
+        "rmarkdown",
+        "vcr"
+      ],
+      "RoxygenNote": "7.1.0",
+      "X-schema.org-applicationCategory": "Taxonomy",
+      "X-schema.org-keywords": "taxonomy, species, API, web-services, Wikipedia, vernacular, Wikispecies, Wikicommons",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut, cre], Ethan Welty [aut]",
+      "Maintainer": "Scott Chamberlain <myrmecocystus+r@gmail.com>",
+      "Repository": "CRAN"
+    },
     "withr": {
       "Package": "withr",
       "Version": "3.0.2",
@@ -12654,6 +13340,42 @@
       "NeedsCompilation": "no",
       "Author": "Jim Hester [aut], Lionel Henry [aut, cre], Kirill Müller [aut], Kevin Ushey [aut], Hadley Wickham [aut], Winston Chang [aut], Jennifer Bryan [ctb], Richard Cotton [ctb], Posit Software, PBC [cph, fnd]",
       "Maintainer": "Lionel Henry <lionel@posit.co>",
+      "Repository": "CRAN"
+    },
+    "worrms": {
+      "Package": "worrms",
+      "Version": "0.4.3",
+      "Source": "Repository",
+      "Type": "Package",
+      "Title": "World Register of Marine Species (WoRMS) Client",
+      "Description": "Client for World Register of Marine Species (<https://www.marinespecies.org/>). Includes functions for each of the API methods, including searching for names by name, date and common names, searching using external identifiers, fetching synonyms, as well as fetching taxonomic children and taxonomic classification.",
+      "Authors@R": "c( person(\"Scott\", \"Chamberlain\", role = \"aut\", email = \"myrmecocystus@gmail.com\", comment = c(ORCID = \"0000-0003-1444-9135\")), person(\"Bart\", \"Vanhoorne.\", email = \"bart.vanhoorne@vliz.be\", role = c(\"aut\",\"cre\")) )",
+      "License": "MIT + file LICENSE",
+      "URL": "https://docs.ropensci.org/worrms/, https://github.com/ropensci/worrms (devel), https://taxize.dev (user manual)",
+      "BugReports": "https://github.com/ropensci/worrms/issues",
+      "VignetteBuilder": "knitr",
+      "Encoding": "UTF-8",
+      "Language": "en-US",
+      "Imports": [
+        "crul (>= 0.6.0)",
+        "tibble (>= 1.2)",
+        "jsonlite (>= 1.1)",
+        "data.table"
+      ],
+      "Suggests": [
+        "roxygen2 (>= 7.1.0)",
+        "knitr",
+        "rmarkdown",
+        "testthat",
+        "vcr (>= 0.2.0)"
+      ],
+      "RoxygenNote": "7.2.3",
+      "X-schema.org-applicationCategory": "Biology",
+      "X-schema.org-keywords": "biology, science, marine, API, web, api-client, worms, species",
+      "X-schema.org-isPartOf": "https://ropensci.org",
+      "NeedsCompilation": "no",
+      "Author": "Scott Chamberlain [aut] (<https://orcid.org/0000-0003-1444-9135>), Bart Vanhoorne. [aut, cre]",
+      "Maintainer": "Bart Vanhoorne. <bart.vanhoorne@vliz.be>",
       "Repository": "CRAN"
     },
     "xfun": {
