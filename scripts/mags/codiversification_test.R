@@ -97,9 +97,16 @@ write.csv(links_all, file=file.path(subdir, "mag_host_links.csv"), row.names=FAL
 
 # Select MAG clades to test
 # Outputs lists, startimg with the most recent clade with at least min_tips number of tips
-# Then go back until the maximum depth is reached
-select_mag_clades <- function(tree, min_tips, max_depth) {
-  cat(paste("Finding clades with at least", min_tips, "tips and a maximum depth of", max_depth, "\n"))
+# Then go back until the maximum depth (in terms of proportion of max tree depth) is reached
+select_mag_clades <- function(tree, min_tips, max_depth_prop) {
+  if (max_depth_prop > 1 | max_depth_prop <= 0) {
+    stop("max_depth should be between 0 and 1")
+  }
+  cat(paste("Finding clades with at least", min_tips, "tips and a maximum depth of", max_depth_prop*100, "% of tree\n"))
+  # Tree depth, defined as the median tip to root distance
+  tree_depth <- node.depth.edgelength(tree)[0:Ntip(tree)] %>% median
+  max_depth <- tree_depth * max_depth_prop
+  min_root_dist <- tree_depth - max_depth
   # Start by identifying clades with at least 5 tips
   # but exclude parent nodes if the child node is already in the list
   initial_nodes <- c()
@@ -117,14 +124,18 @@ select_mag_clades <- function(tree, min_tips, max_depth) {
   for (node in initial_nodes) {
     initial_node <- node
     lineage <- c()
-    depth <- node.depth(tree)[node]
-    while (depth <= max_depth & depth < max(node.depth(tree))) {
-      depth <- node.depth(tree)[node]
+    subtree <- extract.clade(tree, initial_node)
+    depth <- node.depth.edgelength(subtree)[0:Ntip(subtree)] %>% median
+    if (depth > max_depth) {
+      next
+    }
+    while (depth <= max_depth) {
       # Add to list
       lineage <- append(lineage, node)
       # Get the parent node
       node <- getParent(tree, node)
-      depth <- node.depth(tree)[node]
+      subtree <- extract.clade(tree, node)
+      depth <- node.depth.edgelength(subtree)[0:Ntip(subtree)] %>% median
     }
     # Add to list using node labels
     node_label <- tree$node.label[initial_node - Ntip(tree)]
@@ -281,7 +292,7 @@ analysis <- function(mag_tree, host_mag_links, host_tree, nodes_to_test, interme
 
 ### For Bacteria ####
 set.seed(123)
-nodes_to_test <- select_mag_clades(bac_tree, min_tips=3, max_depth=50)
+nodes_to_test <- select_mag_clades(bac_tree, min_tips=3, max_depth_prop=0.30)
 
 bac_cod_results <- analysis(bac_tree, links_all, host_consensus, nodes_to_test, "bac_cod_intermediate")
 
@@ -289,7 +300,7 @@ write.csv(bac_cod_results, file=file.path(subdir, "bac_cod_results.csv"), row.na
 
 ### For Archaea ####
 set.seed(123)
-nodes_to_test <- select_mag_clades(ar_tree, min_tips=3, max_depth=10)
+nodes_to_test <- select_mag_clades(ar_tree, min_tips=3, max_depth_prop=0.30)
 
 ar_cod_results <- analysis(ar_tree, links_all, host_consensus, nodes_to_test, "ar_cod_intermediate")
 
